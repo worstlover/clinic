@@ -1,0 +1,199 @@
+{# D:\final\drugs\templates\drugs\purchase_invoice_detail.html #}
+
+{% extends 'base.html' %}
+{% load static %}
+{% load crispy_forms_tags %}
+{% load jalali_tags %} {# ⭐ دیگر نیازی به این فیلتر برای تبدیل عدد به حروف نیست، اما برای to_jalali همچنان لازم است ⭐ #}
+{% load humanize %}
+
+{% block title %}{{ page_title }}{% endblock %}
+
+{% block content %}
+<div class="container-fluid mt-4">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h2 class="text-primary fw-bold">{{ page_title }}</h2>
+        <div>
+            <a href="{% url 'drugs:purchase_invoice_list' %}" class="btn btn-secondary btn-lg shadow-sm me-2">
+                <i class="fas fa-arrow-right me-2"></i> بازگشت به لیست فاکتورها
+            </a>
+            {# ⭐ تغییر در دکمه چاپ: لینک به ویو جدید ⭐ #}
+            <a href="{% url 'drugs:purchase_invoice_print' pk=invoice.pk %}" class="btn btn-primary btn-lg shadow-sm" target="_blank">
+                <i class="fas fa-print me-2"></i> چاپ فاکتور
+            </a>
+        </div>
+    </div>
+
+    {# Display Messages #}
+    {% if messages %}
+        <div class="messages mb-4">
+            {% for message in messages %}
+                <div class="alert alert-{{ message.tags }} alert-dismissible fade show" role="alert">
+                    {{ message }}
+                    <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                </div>
+            {% endfor %}
+        </div>
+    {% endif %}
+
+    <div class="card shadow-lg border-0 mb-4">
+        <div class="card-header bg-gradient-primary text-white">
+            <h4 class="mb-0">اطلاعات فاکتور</h4>
+        </div>
+        <div class="card-body">
+            <div class="row mb-3">
+                <div class="col-md-6">
+                    <strong>شماره فاکتور:</strong> {{ invoice.invoice_number }}
+                </div>
+                <div class="col-md-6">
+                    <strong>تامین‌کننده:</strong> {{ invoice.supplier.name|default:"-" }}
+                </div>
+            </div>
+            <div class="row mb-3">
+                <div class="col-md-6">
+                    <strong>تاریخ فاکتور:</strong> {{ invoice.get_jalali_invoice_date }}
+                </div>
+                <div class="col-md-6">
+                    <strong>وضعیت فاکتور:</strong> 
+                    {% if invoice.status == 'final' %}
+                        <span class="badge bg-success">نهایی شده</span>
+                    {% elif invoice.status == 'draft' %}
+                        <span class="badge bg-info">پیش‌نویس</span>
+                    {% elif invoice.status == 'paid' %}
+                        <span class="badge bg-primary">پرداخت شده</span>
+                    {% elif invoice.status == 'pending' %}
+                        <span class="badge bg-warning text-dark">در انتظار پرداخت</span>
+                    {% elif invoice.status == 'cancelled' %}
+                        <span class="badge bg-danger">لغو شده</span>
+                    {% else %}
+                        <span class="badge bg-secondary">{{ invoice.get_status_display }}</span>
+                    {% endif %}
+                </div>
+            </div>
+            <div class="row mb-3">
+                <div class="col-md-6">
+                    <strong>ثبت شده توسط:</strong> {{ invoice.created_by.username|default:"ناشناس" }}
+                </div>
+                <div class="col-md-6">
+                    <strong>تاریخ ثبت در سیستم:</strong> {{ invoice.created_at|to_jalali:"%Y/%m/%d - %H:%M" }}
+                </div>
+            </div>
+            <div class="row">
+                <div class="col-12">
+                    <strong>ملاحظات:</strong> {{ invoice.notes|default:"-"|linebreaksbr }}
+                </div>
+            </div>
+        </div>
+        <div class="card-footer d-flex justify-content-end gap-2">
+            {% if perms.drugs.change_purchaseinvoice %}
+            <a href="{% url 'drugs:purchase_invoice_update' pk=invoice.pk %}" class="btn btn-warning shadow-sm">
+                <i class="fas fa-edit me-2"></i> ویرایش فاکتور
+            </a>
+            {% endif %}
+            {% if perms.drugs.delete_purchaseinvoice %}
+            <a href="{% url 'drugs:purchase_invoice_delete' pk=invoice.pk %}" class="btn btn-danger shadow-sm">
+                <i class="fas fa-trash me-2"></i> حذف فاکتور
+            </a>
+            {% endif %}
+        </div>
+    </div>
+
+    <div class="card shadow-lg border-0">
+        <div class="card-header bg-gradient-info text-white">
+            <h4 class="mb-0">آیتم‌های فاکتور</h4>
+        </div>
+        <div class="card-body">
+            {% if invoice_items %}
+            <div class="table-responsive">
+                <table class="table table-striped table-hover table-bordered align-middle">
+                    <thead class="table-light">
+                        <tr>
+                            <th scope="col" class="text-center">ردیف</th>
+                            <th scope="col" class="text-center">دارو</th>
+                            <th scope="col" class="text-center">شماره بچ</th>
+                            <th scope="col" class="text-center">تاریخ انقضای بچ</th>
+                            <th scope="col" class="text-center">تعداد</th>
+                            <th scope="col" class="text-center">قیمت واحد (ریال)</th>
+                            <th scope="col" class="text-center">مبلغ جزء (ریال)</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for item in invoice_items %}
+                        <tr>
+                            <td class="text-center">{{ forloop.counter }}</td>
+                            <td>{{ item.drug.name }}</td>
+                            <td class="text-center">{{ item.batch_number|default:"-" }}</td>
+                            <td class="text-center">{{ item.expiry_date|to_jalali:"%Y/%m/%d"|default:"-" }}</td>
+                            <td class="text-center">{{ item.quantity|intcomma }}</td>
+                            <td class="text-center">{{ item.unit_price|floatformat:"0"|intcomma }}</td>
+                            <td class="text-center">{{ item.total_item_price|floatformat:"0"|intcomma }}</td>
+                        </tr>
+                        {% endfor %}
+                        <tr class="table-info fw-bold">
+                            <td colspan="6" class="text-end">مبلغ کل فاکتور:</td>
+                            <td class="text-center">{{ invoice.total_amount|floatformat:"0"|intcomma }}</td>
+                        </tr>
+                        <tr>
+                            <td colspan="7" class="text-end fw-bold">
+                                مبلغ کل به حروف:
+                                {# ⭐ اینجا از متغیر جدید که از ویو می‌آید استفاده می‌شود ⭐ #}
+                                <span class="text-primary">{{ total_amount_in_words }} ریال</span>
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+            {% else %}
+            <p class="text-center text-muted py-3">هیچ آیتمی برای این فاکتور ثبت نشده است.</p>
+            {% endif %}
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<style>
+    @media print {
+        /* ... (کدهای CSS چاپ شما، بدون تغییر) ... */
+        .btn, a[href]:not(.print-visible), .messages, .card-footer {
+            display: none !important;
+        }
+        a[href]:after {
+            content: " (" attr(href) ")";
+            font-size: 90%;
+        }
+        body {
+            direction: rtl;
+            font-family: 'Vazirmatn', 'B nazanin', Tahoma, Arial, sans-serif !important;
+            margin: 0;
+            padding: 0;
+        }
+        .container-fluid {
+            width: 100%;
+            padding: 0;
+            margin: 0;
+        }
+        .card {
+            border: 1px solid #ccc !important;
+            box-shadow: none !important;
+            margin-bottom: 10px !important;
+        }
+        .card-header {
+            background-color: #f0f0f0 !important;
+            color: #333 !important;
+            border-bottom: 1px solid #ccc !important;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+        th, td {
+            border: 1px solid #ddd;
+            padding: 8px;
+            text-align: right;
+        }
+        .table-info {
+            background-color: #e0f7fa !important;
+        }
+    }
+</style>
+{% endblock %}

@@ -1,0 +1,95 @@
+{% extends 'base.html' %}
+{% load static %}
+{% load crispy_forms_tags %}
+
+{% block title %}{{ page_title }}{% endblock %}
+
+{% block content %}
+<div class="container-fluid mt-4">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h2 class="text-primary fw-bold">{{ page_title }}</h2>
+        <a href="{% url 'drugs:supplier_list' %}" class="btn btn-secondary btn-lg shadow-sm">
+            <i class="fas fa-arrow-right me-2"></i> بازگشت به لیست تامین‌کنندگان
+        </a>
+    </div>
+
+    {# Display Messages #}
+    {% if messages %}
+        <div class="messages mb-4">
+            {% for message in messages %}
+                <div class="alert alert-{{ message.tags }} alert-dismissible fade show" role="alert">
+                    {{ message }}
+                    <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                </div>
+            {% endfor %}
+        </div>
+    {% endif %}
+
+    <div class="card shadow-lg border-0">
+        <div class="card-header bg-gradient-primary text-white">
+            <h4 class="mb-0">{{ supplier.name }}</h4>
+        </div>
+        <div class="card-body">
+            <div class="row mb-3">
+                <div class="col-md-6">
+                    <strong>نام تامین‌کننده:</strong> {{ supplier.name }}
+                </div>
+                <div class="col-md-6">
+                    <strong>فرد تماس:</strong> {{ supplier.contact_person|default:"-" }}
+                </div>
+            </div>
+            <div class="row mb-3">
+                <div class="col-md-6">
+                    <strong>شماره تلفن:</strong> {{ supplier.phone|default:"-" }}
+                </div>
+                <div class="col-md-6">
+                    <strong>ایمیل:</strong> {{ supplier.email|default:"-" }}
+                </div>
+            </div>
+            <div class="row mb-3">
+                <div class="col-12">
+                    <strong>آدرس:</strong> {{ supplier.address|default:"-" }}
+                </div>
+            </div>
+            <div class="row mb-3">
+                <div class="col-12">
+                    <strong>ملاحظات:</strong> {{ supplier.notes|default:"-"|linebreaksbr }}
+                </div>
+            </div>
+            {# Add created_at and updated_at if you added them to the model #}
+            {#
+            <div class="row mb-3">
+                <div class="col-md-6">
+                    <strong>تاریخ ایجاد:</strong> {{ supplier.created_at|date:"Y/m/d H:i" }}
+                </div>
+                <div class="col-md-6">
+                    <strong>آخرین بروزرسانی:</strong> {{ supplier.updated_at|date:"Y/m/d H:i" }}
+                </div>
+            </div>
+            <div class="row mb-3">
+                <div class="col-12">
+                    <strong>وضعیت:</strong> 
+                    {% if supplier.is_active %}
+                        <span class="badge bg-success">فعال</span>
+                    {% else %}
+                        <span class="badge bg-danger">غیرفعال</span>
+                    {% endif %}
+                </div>
+            </div>
+            #}
+        </div>
+        <div class="card-footer d-flex justify-content-end gap-2">
+            {% if perms.drugs.change_supplier %}
+            <a href="{% url 'drugs:supplier_update' pk=supplier.pk %}" class="btn btn-warning shadow-sm">
+                <i class="fas fa-edit me-2"></i> ویرایش
+            </a>
+            {% endif %}
+            {% if perms.drugs.delete_supplier %}
+            <a href="{% url 'drugs:supplier_delete' pk=supplier.pk %}" class="btn btn-danger shadow-sm">
+                <i class="fas fa-trash me-2"></i> حذف
+            </a>
+            {% endif %}
+        </div>
+    </div>
+</div>
+{% endblock %}

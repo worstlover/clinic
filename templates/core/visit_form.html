@@ -1,0 +1,642 @@
+{% extends 'base.html' %}
+{% load static %}
+{% load i18n %}
+
+{% block title %}
+    {{ page_title }}
+{% endblock %}
+
+{% block content %}
+    <div class="container mt-5">
+        <div class="row justify-content-center">
+            <div class="col-md-10">
+                <div class="card shadow-sm">
+                    <div class="card-header bg-primary text-white text-end">
+                        <h4 class="mb-0">{{ page_title }}</h4>
+                    </div>
+                    <div class="card-body">
+                        {% if messages %}
+                            <div class="mb-3">
+                                {% for message in messages %}
+                                    <div class="alert alert-{{ message.tags }} alert-dismissible fade show" role="alert">
+                                        {{ message }}
+                                        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                                    </div>
+                                {% endfor %}
+                            </div>
+                        {% endif %}
+
+                        <form method="post" enctype="multipart/form-data" id="visit-form">
+                            {% csrf_token %}
+
+                            {# بخش اطلاعات بیمار - حالا پویا و قابل تغییر #}
+                            <div class="alert alert-info text-end patient-info-display {% if not patient %}d-none{% endif %}" role="alert">
+                                <p class="mb-0">
+                                    **بیمار:**
+                                    <span id="selected-patient-name">{% if patient %}{{ patient.first_name }} {{ patient.last_name }}{% endif %}</span>
+                                    <span id="selected-patient-national-code">{% if patient %}(کد ملی: {{ patient.national_code }}){% endif %}</span>
+                                    <span id="selected-patient-phone-number">{% if patient %}(شماره تماس: {{ patient.phone_number }}){% endif %}</span>
+                                </p>
+                                <p class="mb-0">
+                                    **شرکت:** <span id="selected-patient-company">{% if patient and patient.company %}{{ patient.company.name }}{% endif %}</span>
+                                    **سابقه بیماری:** <span id="selected-patient-medical-history">{% if patient %}{{ patient.medical_history|default:"ندارد" }}{% endif %}</span>
+                                    **حساسیت:** <span id="selected-patient-allergies">{% if patient %}{{ patient.allergies|default:"ندارد" }}{% endif %}</span>
+                                </p>
+                                <div class="col-md-4 text-center">
+                                    <img id="selected-patient-profile-picture" src="{% if patient.profile_picture %}{{ patient.profile_picture.url }}{% else %}{% static 'images/default_profile.png' %}{% endif %}" alt="عکس پروفایل" class="img-fluid rounded-circle mb-3" style="width: 150px; height: 150px; object-fit: cover;">
+                                </div>
+                            </div>
+                            <button type="button" class="btn btn-primary mb-3" data-bs-toggle="modal" data-bs-target="#patientSearchModal">انتخاب بیمار</button>
+                            <input type="hidden" name="{{ form.patient.name }}" id="{{ form.patient.id_for_label }}" value="{{ form.patient.value|default:'' }}">
+                            {% for error in form.patient.errors %}<div class="text-danger small text-end">{{ error }}</div>{% endfor %}
+
+                            <div class="row">
+                                <div class="col-md-6 mb-3 text-end">
+                                    <label for="{{ form.recorded_by.id_for_label }}" class="form-label">{{ form.recorded_by.label }}:</label>
+                                    {{ form.recorded_by }}
+                                    {% for error in form.recorded_by.errors %}<div class="text-danger small text-end">{{ error }}</div>{% endfor %}
+                                </div>
+                                <div class="col-md-6 mb-3 text-end">
+                                    <label for="{{ form.visit_date.id_for_label }}" class="form-label">{{ form.visit_date.label }}:</label>
+                                    {{ form.visit_date }}
+                                    {% for error in form.visit_date.errors %}<div class="text-danger small text-end">{{ error }}</div>{% endfor %}
+                                </div>
+                            </div>
+
+                            <div class="row">
+                                <div class="col-md-6 mb-3 text-end">
+                                    <label for="{{ form.reason.id_for_label }}" class="form-label">{{ form.reason.label }}:</label>
+                                    {{ form.reason }}
+                                    {% for error in form.reason.errors %}<div class="text-danger small text-end">{{ error }}</div>{% endfor %}
+                                </div>
+                                <div class="col-md-6 mb-3 text-end">
+                                    <label for="{{ form.accident_type.id_for_label }}" class="form-label">{{ form.accident_type.label }}:</label>
+                                    {{ form.accident_type }}
+                                    {% for error in form.accident_type.errors %}<div class="text-danger small text-end">{{ error }}</div>{% endfor %}
+                                </div>
+                            </div>
+
+                            <div class="mb-3 text-end">
+                                <label for="{{ form.treatment_outcome.id_for_label }}" class="form-label">{{ form.treatment_outcome.label }}:</label>
+                                {{ form.treatment_outcome }}
+                                {% for error in form.treatment_outcome.errors %}<div class="text-danger small text-end">{{ error }}</div>{% endfor %}
+                            </div>
+
+                            <div class="mb-3 text-end">
+                                <label for="{{ form.diagnosis.id_for_label }}" class="form-label">{{ form.diagnosis.label }}:</label>
+                                {{ form.diagnosis }}
+                                {% for error in form.diagnosis.errors %}<div class="text-danger small text-end">{{ error }}</div>{% endfor %}
+                            </div>
+
+                            <div class="mb-3 text-end">
+                                <label for="{{ form.treatment.id_for_label }}" class="form-label">{{ form.treatment.label }}:</label>
+                                {{ form.treatment }}
+                                {% for error in form.treatment.errors %}<div class="text-danger small text-end">{{ error }}</div>{% endfor %}
+                            </div>
+
+                            <div class="mb-3 text-end">
+                                <label for="{{ form.notes.id_for_label }}" class="form-label">{{ form.notes.label }}:</label>
+                                {{ form.notes }}
+                                {% for error in form.notes.errors %}<div class="text-danger small text-end">{{ error }}</div>{% endfor %}
+                            </div>
+
+                            <hr class="my-4">
+                            <h5 class="mb-3 text-end">داروهای تجویز شده</h5>
+
+                            {% if formset.non_form_errors %}
+                                <div class="alert alert-danger text-end">
+                                    {% for error in formset.non_form_errors %}
+                                        {{ error }}
+                                    {% endfor %}
+                                </div>
+                            {% endif %}
+                            
+                            <div id="drug-formset-container">
+                                {{ formset.management_form }}
+                                {% for drug_form in formset %}
+                                    <div class="card mb-3 drug-form-card" data-form-index="{{ forloop.counter0 }}">
+                                        <div class="card-body">
+                                            <div class="row align-items-end">
+                                                {{ drug_form.id }}
+                                                {{ drug_form.drug }}
+
+                                                <div class="col-md-5 mb-3 text-end">
+                                                    <label for="drug-search-input-{{ forloop.counter0 }}" class="form-label">جستجوی دارو (نام/ژنریک):</label>
+                                                    <input type="text"
+                                                            id="drug-search-input-{{ forloop.counter0 }}"
+                                                            class="form-control drug-search-input"
+                                                            placeholder="جستجو و انتخاب دارو..."
+                                                            data-drug-id="{{ drug_form.drug.value|default:'' }}"
+                                                            value="{% if drug_form.instance.drug %}{{ drug_form.instance.drug.name }}{% if drug_form.instance.drug.generic_name %} ({{ drug_form.instance.drug.generic_name }}){% endif %}{% endif %}">
+                                                    <div class="list-group drug-search-results" style="position: absolute; z-index: 1000; width: 90%;"></div>
+                                                    {% for error in drug_form.drug.errors %}<div class="text-danger small text-end">{{ error }}</div>{% endfor %}
+                                                </div>
+
+                                                <div class="col-md-3 mb-3 text-end">
+                                                    <label for="{{ drug_form.quantity.id_for_label }}" class="form-label">{{ drug_form.quantity.label }}:</label>
+                                                    {{ drug_form.quantity }}
+                                                    {% for error in drug_form.quantity.errors %}<div class="text-danger small text-end">{{ error }}</div>{% endfor %}
+                                                </div>
+
+                                                <div class="col-md-3 mb-3 text-end">
+                                                    <label for="{{ drug_form.dosage_instructions.id_for_label }}" class="form-label">{{ drug_form.dosage_instructions.label }}:</label>
+                                                    {{ drug_form.dosage_instructions }}
+                                                    {% for error in drug_form.dosage_instructions.errors %}<div class="text-danger small text-end">{{ error }}</div>{% endfor %}
+                                                </div>
+                                                
+                                                <div class="col-md-1 mb-3 text-center">
+                                                    {% if drug_form.DELETE %}
+                                                        <div class="form-check">
+                                                            {{ drug_form.DELETE }}
+                                                            <label class="form-check-label" for="{{ drug_form.DELETE.id_for_label }}">حذف</label>
+                                                        </div>
+                                                    {% endif %}
+                                                </div>
+                                            </div>
+                                            {% if drug_form.non_field_errors %}
+                                                <div class="text-danger small text-end">
+                                                    {% for error in drug_form.non_field_errors %}
+                                                        {{ error }}
+                                                    {% endfor %}
+                                                </div>
+                                            {% endif %}
+                                        </div>
+                                    </div>
+                                {% endfor %}
+                            </div>
+
+                            <button type="button" class="btn btn-outline-success mb-4" id="add-drug-row">
+                                <i class="fas fa-plus"></i> افزودن داروی جدید
+                            </button>
+
+                            <div class="card mb-4 shadow-sm">
+                                <div class="card-header bg-light text-end">
+                                    <h6 class="mb-0">10 داروی رایج:</h6>
+                                </div>
+                                <div class="card-body common-drugs-container d-flex flex-wrap flex-row-reverse gap-2">
+                                    {% for drug in common_drugs %}
+                                        <button type="button" class="btn btn-sm btn-info common-drug-btn"
+                                                data-drug-id="{{ drug.id }}"
+                                                data-drug-name="{{ drug.name }}{% if drug.generic_name %} ({{ drug.generic_name }}){% endif %}">
+                                            {{ drug.name }}
+                                        </button>
+                                    {% empty %}
+                                        <p class="text-muted">داروی رایجی یافت نشد.</p>
+                                    {% endfor %}
+                                </div>
+                            </div>
+
+                            <div class="d-grid gap-2">
+                                <button type="submit" class="btn btn-success btn-lg">ذخیره ویزیت</button>
+                                {% if patient %}
+                                    <a href="{% url 'core:patient_detail' pk=patient.pk %}" class="btn btn-outline-secondary mt-2">بازگشت به جزئیات بیمار</a>
+                                {% else %}
+                                    <a href="{% url 'visits:visit_list' %}" class="btn btn-outline-secondary mt-2">بازگشت به لیست ویزیت‌ها</a>
+                                {% endif %}
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    {# Modal برای جستجوی بیمار #}
+    <div class="modal fade" id="patientSearchModal" tabindex="-1" aria-labelledby="patientSearchModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered modal-lg">
+            <div class="modal-content">
+                <div class="modal-header bg-primary text-white">
+                    <h5 class="modal-title" id="patientSearchModalLabel">جستجو و انتخاب بیمار</h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-3 text-end">
+                        <label for="patient-search-input" class="form-label">نام، کد ملی یا شماره تماس بیمار:</label>
+                        <input type="text" class="form-control" id="patient-search-input" placeholder="شروع به تایپ کنید...">
+                    </div>
+                    <div id="patient-search-results" class="list-group">
+                        {# نتایج جستجو اینجا با JS اضافه می‌شوند #}
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">بستن</button>
+                </div>
+            </div>
+        </div>
+    </div>
+{% endblock %}
+
+{% block extra_js %}
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/js/all.min.js" integrity="sha512-u3f9Z5z5o5u"></script> {# درست کردن تگ font-awesome #}
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            // --- مدیریت فرمست داروها ---
+            const drugFormsetContainer = document.getElementById('drug-formset-container');
+            const addDrugRowButton = document.getElementById('add-drug-row');
+            const totalForms = document.querySelector('input[name="form-TOTAL_FORMS"]');
+            const commonDrugsContainer = document.querySelector('.common-drugs-container');
+
+            let formIdx = parseInt(totalForms.value);
+
+            function updateElementIndex(el, prefix, ndx) {
+                const id_regex = new RegExp(`(${prefix}-(\\d+)-)`);
+                const replacement = `${prefix}-${ndx}-`;
+                if (el.id) {
+                    el.id = el.id.replace(id_regex, replacement);
+                }
+                if (el.name) {
+                    el.name = el.name.replace(id_regex, replacement);
+                }
+                // اگر عنصری data-form-index داشت (برای کارت‌های فرم)
+                if (el.hasAttribute('data-form-index')) {
+                    el.setAttribute('data-form-index', ndx);
+                }
+            }
+
+            function addDrugForm(drugId = '', drugName = '') {
+                const emptyForm = `
+                    <div class="card mb-3 drug-form-card" data-form-index="__prefix__">
+                        <div class="card-body">
+                            <div class="row align-items-end">
+                                <input type="hidden" name="form-__prefix__-id" id="id_form-__prefix__-id">
+                                <input type="hidden" name="form-__prefix__-drug" id="id_form-__prefix__-drug" value="${drugId}">
+
+                                <div class="col-md-5 mb-3 text-end">
+                                    <label for="drug-search-input-__prefix__" class="form-label">جستجوی دارو (نام/ژنریک):</label>
+                                    <input type="text"
+                                            id="drug-search-input-__prefix__"
+                                            class="form-control drug-search-input"
+                                            placeholder="جستجو و انتخاب دارو..."
+                                            data-drug-id="${drugId}"
+                                            value="${drugName}">
+                                    <div class="list-group drug-search-results" style="position: absolute; z-index: 1000; width: 90%;"></div>
+                                </div>
+
+                                <div class="col-md-3 mb-3 text-end">
+                                    <label for="id_form-__prefix__-quantity" class="form-label">تعداد/مقدار:</label>
+                                    <input type="number" name="form-__prefix__-quantity" class="form-control" id="id_form-__prefix__-quantity" min="1">
+                                </div>
+
+                                <div class="col-md-3 mb-3 text-end">
+                                    <label for="id_form-__prefix__-dosage_instructions" class="form-label">دستور مصرف:</label>
+                                    <input type="text" name="form-__prefix__-dosage_instructions" class="form-control" id="id_form-__prefix__-dosage_instructions" placeholder="مثال: روزی دو بار">
+                                </div>
+                                
+                                <div class="col-md-1 mb-3 text-center">
+                                    <div class="form-check">
+                                        <input type="checkbox" name="form-__prefix__-DELETE" id="id_form-__prefix__-DELETE" class="form-check-input">
+                                        <label class="form-check-label" for="id_form-__prefix__-DELETE">حذف</label>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                `;
+
+                const newForm = emptyForm.replace(/__prefix__/g, formIdx);
+                const newFormDiv = document.createElement('div');
+                newFormDiv.innerHTML = newForm;
+                drugFormsetContainer.appendChild(newFormDiv.firstElementChild);
+
+                // Update total forms count
+                totalForms.value = formIdx + 1;
+                formIdx++;
+
+                // Attach event listeners to new elements
+                attachDrugSearchListeners(newFormDiv.querySelector('.drug-search-input'));
+                attachDeleteListener(newFormDiv.querySelector('.form-check-input[type="checkbox"][name$="-DELETE"]'));
+            }
+
+            // Initial attachment for existing forms
+            document.querySelectorAll('.drug-form-card').forEach((card, index) => {
+                attachDrugSearchListeners(card.querySelector('.drug-search-input'));
+                attachDeleteListener(card.querySelector('.form-check-input[type="checkbox"][name$="-DELETE"]'));
+                updateElementIndex(card, 'form', index); // مطمئن شوید ایندکس ها به درستی تنظیم شده اند
+            });
+
+            addDrugRowButton.addEventListener('click', function() {
+                addDrugForm();
+            });
+
+            // Handle common drug buttons
+            commonDrugsContainer.addEventListener('click', function(event) {
+                if (event.target.classList.contains('common-drug-btn')) {
+                    const drugId = event.target.dataset.drugId;
+                    const drugName = event.target.dataset.drugName;
+                    addDrugForm(drugId, drugName);
+                }
+            });
+
+            function attachDrugSearchListeners(inputElement) {
+                let timeout = null;
+                const resultsContainer = inputElement.nextElementSibling;
+                const hiddenDrugInput = inputElement.previousElementSibling; // این input hidden حاوی ID دارو است
+
+                // Initialize if drugId exists on load
+                if (inputElement.dataset.drugId && inputElement.value) {
+                    hiddenDrugInput.value = inputElement.dataset.drugId;
+                }
+
+                inputElement.addEventListener('keyup', function() {
+                    clearTimeout(timeout);
+                    const query = this.value;
+                    const currentInput = this; // Capture 'this'
+                    resultsContainer.innerHTML = '';
+
+                    if (query.length < 2) {
+                        resultsContainer.style.display = 'none';
+                        return;
+                    }
+
+                    timeout = setTimeout(function() {
+                        fetch(`/api/search_drugs/?q=${query}`) // Endpoint برای جستجوی دارو
+                            .then(response => response.json())
+                            .then(data => {
+                                resultsContainer.innerHTML = '';
+                                if (data.length > 0) {
+                                    data.forEach(drug => {
+                                        const item = document.createElement('a');
+                                        item.href = '#';
+                                        item.classList.add('list-group-item', 'list-group-item-action', 'text-end');
+                                        item.textContent = `${drug.name} ${drug.generic_name ? '(' + drug.generic_name + ')' : ''}`;
+                                        item.dataset.drugId = drug.id;
+                                        item.dataset.drugName = `${drug.name} ${drug.generic_name ? '(' + drug.generic_name + ')' : ''}`;
+                                        item.addEventListener('click', function(e) {
+                                            e.preventDefault();
+                                            currentInput.value = this.dataset.drugName;
+                                            // Assign the selected drug ID to the hidden input field
+                                            const formCard = currentInput.closest('.drug-form-card');
+                                            const hiddenDrugField = formCard.querySelector('input[name$="-drug"]');
+                                            if (hiddenDrugField) {
+                                                hiddenDrugField.value = this.dataset.drugId;
+                                            }
+                                            resultsContainer.innerHTML = '';
+                                            resultsContainer.style.display = 'none';
+                                        });
+                                        resultsContainer.appendChild(item);
+                                    });
+                                    resultsContainer.style.display = 'block';
+                                } else {
+                                    resultsContainer.style.display = 'none';
+                                }
+                            });
+                    }, 300);
+                });
+
+                // Hide results when clicking outside
+                document.addEventListener('click', function(event) {
+                    if (!inputElement.contains(event.target) && !resultsContainer.contains(event.target)) {
+                        resultsContainer.style.display = 'none';
+                    }
+                });
+            }
+
+            function attachDeleteListener(checkbox) {
+                checkbox.addEventListener('change', function() {
+                    const formCard = this.closest('.drug-form-card');
+                    if (this.checked) {
+                        formCard.classList.add('d-none'); // یا 'deleted-row' برای استایل دهی
+                    } else {
+                        formCard.classList.remove('d-none');
+                    }
+                });
+            }
+
+            // Call this on initial load for existing forms
+            document.querySelectorAll('.drug-form-card').forEach(card => {
+                const input = card.querySelector('.drug-search-input');
+                if (input) {
+                    attachDrugSearchListeners(input);
+                }
+                const deleteCheckbox = card.querySelector('.form-check-input[type="checkbox"][name$="-DELETE"]');
+                if (deleteCheckbox) {
+                    attachDeleteListener(deleteCheckbox);
+                }
+            });
+
+
+            // --- مدیریت جستجو و انتخاب بیمار ---
+            const patientSearchInput = document.getElementById('patient-search-input');
+            const patientSearchResults = document.getElementById('patient-search-results');
+            const selectedPatientIdInput = document.getElementById('id_patient'); // Hidden input for patient ID
+            const patientInfoDisplay = document.querySelector('.patient-info-display');
+            const selectedPatientName = document.getElementById('selected-patient-name');
+            const selectedPatientNationalCode = document.getElementById('selected-patient-national-code');
+            const selectedPatientPhoneNumber = document.getElementById('selected-patient-phone-number');
+            const selectedPatientCompany = document.getElementById('selected-patient-company');
+            const selectedPatientMedicalHistory = document.getElementById('selected-patient-medical-history');
+            const selectedPatientAllergies = document.getElementById('selected-patient-allergies');
+            const selectedPatientProfilePicture = document.getElementById('selected-patient-profile-picture');
+            const defaultProfilePicUrl = "{% static 'images/default_profile.png' %}";
+
+            let patientSearchTimeout = null;
+
+            patientSearchInput.addEventListener('keyup', function() {
+                clearTimeout(patientSearchTimeout);
+                const query = this.value;
+                patientSearchResults.innerHTML = '';
+
+                if (query.length < 2) {
+                    return;
+                }
+
+                patientSearchTimeout = setTimeout(function() {
+                    fetch(`/api/search_patients/?q=${query}`) // Endpoint برای جستجوی بیمار
+                        .then(response => response.json())
+                        .then(data => {
+                            patientSearchResults.innerHTML = '';
+                            if (data.length > 0) {
+                                data.forEach(patient => {
+                                    const item = document.createElement('a');
+                                    item.href = '#';
+                                    item.classList.add('list-group-item', 'list-group-item-action', 'text-end');
+                                    item.textContent = `${patient.first_name} ${patient.last_name} (${patient.national_code || 'بدون کد ملی'})`;
+                                    item.dataset.patientId = patient.id;
+                                    item.dataset.patientFirstName = patient.first_name;
+                                    item.dataset.patientLastName = patient.last_name;
+                                    item.dataset.patientNationalCode = patient.national_code;
+                                    item.dataset.patientPhoneNumber = patient.phone_number;
+                                    item.dataset.patientCompany = patient.company_name; // فرض می‌کنیم API اسم شرکت رو برمی‌گردونه
+                                    item.dataset.patientMedicalHistory = patient.medical_history || 'ندارد';
+                                    item.dataset.patientAllergies = patient.allergies || 'ندارد';
+                                    item.dataset.patientProfilePicture = patient.profile_picture || defaultProfilePicUrl;
+
+                                    item.addEventListener('click', function(e) {
+                                        e.preventDefault();
+                                        selectedPatientIdInput.value = this.dataset.patientId;
+                                        selectedPatientName.textContent = `${this.dataset.patientFirstName} ${this.dataset.patientLastName}`;
+                                        selectedPatientNationalCode.textContent = this.dataset.patientNationalCode ? `(کد ملی: ${this.dataset.patientNationalCode})` : '';
+                                        selectedPatientPhoneNumber.textContent = this.dataset.patientPhoneNumber ? `(شماره تماس: ${this.dataset.patientPhoneNumber})` : '';
+                                        selectedPatientCompany.textContent = this.dataset.patientCompany;
+                                        selectedPatientMedicalHistory.textContent = this.dataset.patientMedicalHistory;
+                                        selectedPatientAllergies.textContent = this.dataset.patientAllergies;
+                                        selectedPatientProfilePicture.src = this.dataset.patientProfilePicture;
+                                        patientInfoDisplay.classList.remove('d-none');
+                                        
+                                        const patientSearchModal = bootstrap.Modal.getInstance(document.getElementById('patientSearchModal'));
+                                        if (patientSearchModal) {
+                                            patientSearchModal.hide();
+                                        }
+                                    });
+                                    patientSearchResults.appendChild(item);
+                                });
+                            } else {
+                                const noResults = document.createElement('div');
+                                noResults.classList.add('list-group-item', 'text-muted', 'text-end');
+                                noResults.textContent = 'بیماری یافت نشد.';
+                                patientSearchResults.appendChild(noResults);
+                            }
+                        });
+                }, 300); // Debounce
+            });
+
+            // --- اضافه کردن دکمه "ارسال به کاربر دیگر" ---
+            const visitForm = document.getElementById('visit-form');
+            if (visitForm) {
+                // دکمه را بعد از دکمه "ذخیره ویزیت" اضافه کنید
+                const submitButton = visitForm.querySelector('.btn-success.btn-lg');
+                const sendToOtherUserButton = document.createElement('button');
+                sendToOtherUserButton.type = 'button'; // Prevent form submission
+                sendToOtherUserButton.classList.add('btn', 'btn-info', 'btn-lg', 'mt-2', 'send-to-other-user-btn');
+                sendToOtherUserButton.innerHTML = '<i class="fas fa-share-alt"></i> ارسال به کاربر دیگر';
+                
+                // Modal برای انتخاب کاربر مقصد (مشابه جستجوی بیمار)
+                const sendUserModal = `
+                    <div class="modal fade" id="sendToUserModal" tabindex="-1" aria-labelledby="sendToUserModalLabel" aria-hidden="true">
+                        <div class="modal-dialog modal-dialog-centered">
+                            <div class="modal-content">
+                                <div class="modal-header bg-info text-white">
+                                    <h5 class="modal-title" id="sendToUserModalLabel">ارسال ویزیت به کاربر دیگر</h5>
+                                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+                                </div>
+                                <div class="modal-body">
+                                    <div class="mb-3 text-end">
+                                        <label for="user-search-input" class="form-label">نام کاربری یا نام کامل کاربر:</label>
+                                        <input type="text" class="form-control" id="user-search-input" placeholder="جستجوی کاربر...">
+                                    </div>
+                                    <div id="user-search-results" class="list-group">
+                                        {# نتایج جستجو اینجا با JS اضافه می‌شوند #}
+                                    </div>
+                                    <input type="hidden" id="selected-user-id">
+                                </div>
+                                <div class="modal-footer">
+                                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">بستن</button>
+                                    <button type="button" class="btn btn-success" id="confirm-send-visit" disabled>ارسال</button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                `;
+                document.body.insertAdjacentHTML('beforeend', sendUserModal);
+
+                sendToOtherUserButton.addEventListener('click', function() {
+                    const sendUserModalInstance = new bootstrap.Modal(document.getElementById('sendToUserModal'));
+                    sendUserModalInstance.show();
+                    // پاک کردن فیلد جستجو و نتایج قبلی هر بار که مودال باز می‌شود
+                    document.getElementById('user-search-input').value = '';
+                    document.getElementById('user-search-results').innerHTML = '';
+                    document.getElementById('selected-user-id').value = '';
+                    document.getElementById('confirm-send-visit').disabled = true;
+                });
+
+                submitButton.parentNode.insertBefore(sendToOtherUserButton, submitButton.nextSibling);
+
+
+                // Search logic for sending to another user
+                const userSearchInput = document.getElementById('user-search-input');
+                const userSearchResults = document.getElementById('user-search-results');
+                const selectedUserIdInput = document.getElementById('selected-user-id');
+                const confirmSendVisitButton = document.getElementById('confirm-send-visit');
+                let userSearchTimeout = null;
+
+                userSearchInput.addEventListener('keyup', function() {
+                    clearTimeout(userSearchTimeout);
+                    const query = this.value;
+                    userSearchResults.innerHTML = '';
+                    selectedUserIdInput.value = '';
+                    confirmSendVisitButton.disabled = true;
+
+                    if (query.length < 2) {
+                        return;
+                    }
+
+                    userSearchTimeout = setTimeout(function() {
+                        fetch(`/api/search_users/?q=${query}`) // API endpoint برای جستجوی کاربران
+                            .then(response => response.json())
+                            .then(data => {
+                                userSearchResults.innerHTML = '';
+                                if (data.length > 0) {
+                                    data.forEach(user => {
+                                        const item = document.createElement('a');
+                                        item.href = '#';
+                                        item.classList.add('list-group-item', 'list-group-item-action', 'text-end');
+                                        item.textContent = `${user.first_name || ''} ${user.last_name || ''} (${user.username})`;
+                                        item.dataset.userId = user.id;
+                                        item.addEventListener('click', function(e) {
+                                            e.preventDefault();
+                                            selectedUserIdInput.value = this.dataset.userId;
+                                            userSearchInput.value = this.textContent; // نمایش نام کاربر انتخاب شده
+                                            userSearchResults.innerHTML = ''; // بستن لیست نتایج
+                                            confirmSendVisitButton.disabled = false;
+                                        });
+                                        userSearchResults.appendChild(item);
+                                    });
+                                } else {
+                                    const noResults = document.createElement('div');
+                                    noResults.classList.add('list-group-item', 'text-muted', 'text-end');
+                                    noResults.textContent = 'کاربری یافت نشد.';
+                                    userSearchResults.appendChild(noResults);
+                                }
+                            });
+                    }, 300);
+                });
+
+                confirmSendVisitButton.addEventListener('click', function() {
+                    const userId = selectedUserIdInput.value;
+                    if (!userId) {
+                        alert('لطفاً یک کاربر را انتخاب کنید.');
+                        return;
+                    }
+
+                    const visitData = new FormData(visitForm); // شامل تمامی اطلاعات فرم ویزیت
+                    visitData.append('target_user_id', userId); // اضافه کردن ID کاربر مقصد
+
+                    // اگر می‌خواهید ویزیت را ذخیره کنید و همزمان ارسال کنید:
+                    // این قسمت نیاز به یک endpoint جدید در Django دارد که ویزیت را ذخیره کند و سپس آن را به کاربر مشخص شده ارسال کند.
+                    // برای سادگی، فعلا فرض می‌کنیم فقط ارسال می‌کنیم و ویزیت قبلا ذخیره شده یا فقط نیاز به ID ویزیت دارد.
+                    
+                    // این منطق باید سمت بک‌اند پیاده‌سازی شود
+                    fetch('/api/send_visit/', { // یک URL جدید برای ارسال ویزیت
+                        method: 'POST',
+                        body: visitData, // ارسال کل فرم ویزیت یا حداقل ID ویزیت و ID کاربر مقصد
+                        headers: {
+                            'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value
+                        }
+                    })
+                    .then(response => response.json())
+                    .then(data => {
+                        if (data.success) {
+                            alert('ویزیت با موفقیت ارسال شد!');
+                            const sendUserModalInstance = bootstrap.Modal.getInstance(document.getElementById('sendToUserModal'));
+                            if (sendUserModalInstance) {
+                                sendUserModalInstance.hide();
+                            }
+                            // شاید رفرش صفحه یا نمایش پیام موفقیت
+                        } else {
+                            alert('خطا در ارسال ویزیت: ' + (data.message || 'خطای ناشناخته'));
+                        }
+                    })
+                    .catch(error => {
+                        console.error('Error sending visit:', error);
+                        alert('خطا در ارتباط با سرور.');
+                    });
+                });
+            }
+
+            // Init for existing drug fields on load
+            document.querySelectorAll('.drug-search-input').forEach(input => {
+                attachDrugSearchListeners(input);
+            });
+        });
+    </script>
+{% endblock %}

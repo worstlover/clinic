@@ -1,0 +1,85 @@
+{% extends 'base.html' %}
+{% load static %}
+{% load crispy_forms_tags %}
+
+{% block title %}{{ page_title }}{% endblock %}
+
+{% block content %}
+<div class="container-fluid mt-4">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h2 class="text-primary fw-bold">{{ page_title }}</h2>
+        <a href="{% url 'drugs:supplier_list' %}" class="btn btn-secondary btn-lg shadow-sm">
+            <i class="fas fa-arrow-right me-2"></i> بازگشت به لیست تامین‌کنندگان
+        </a>
+    </div>
+
+    {# Display Messages #}
+    {% if messages %}
+        <div class="messages mb-4">
+            {% for message in messages %}
+                <div class="alert alert-{{ message.tags }} alert-dismissible fade show" role="alert">
+                    {{ message }}
+                    <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                </div>
+            {% endfor %}
+        </div>
+    {% endif %}
+
+    <div class="card shadow-lg border-0">
+        <div class="card-header bg-gradient-success text-white">
+            <h5 class="mb-0">فرم تامین‌کننده</h5>
+        </div>
+        <div class="card-body">
+            <form method="post">
+                {% csrf_token %}
+                <div class="row g-3">
+                    <div class="col-md-6">
+                        {{ form.name|as_crispy_field }}
+                    </div>
+                    <div class="col-md-6">
+                        {{ form.contact_person|as_crispy_field }}
+                    </div>
+                    <div class="col-md-6">
+                        {{ form.phone|as_crispy_field }}
+                    </div>
+                    <div class="col-md-6">
+                        {{ form.email|as_crispy_field }}
+                    </div>
+                    <div class="col-12">
+                        {{ form.address|as_crispy_field }}
+                    </div>
+                    <div class="col-12">
+                        {{ form.notes|as_crispy_field }}
+                    </div>
+                    {# If you added is_active field to the model and want to show it in the form #}
+                    {#
+                    <div class="col-12 mt-3">
+                        <div class="form-check">
+                            {{ form.is_active }}
+                            <label class="form-check-label" for="{{ form.is_active.id_for_label }}">
+                                {{ form.is_active.label }}
+                            </label>
+                        </div>
+                    </div>
+                    #}
+                </div>
+                <hr>
+                <div class="d-flex justify-content-end gap-2">
+                    <button type="submit" class="btn btn-primary btn-lg shadow-sm">
+                        <i class="fas fa-save me-2"></i> ذخیره
+                    </button>
+                    {% if supplier %} {# If it's an update page #}
+                    <a href="{% url 'drugs:supplier_detail' pk=supplier.pk %}" class="btn btn-outline-secondary btn-lg shadow-sm">
+                        <i class="fas fa-times me-2"></i> انصراف
+                    </a>
+                    {% else %} {# If it's a create page #}
+                    <a href="{% url 'drugs:supplier_list' %}" class="btn btn-outline-secondary btn-lg shadow-sm">
+                        <i class="fas fa-times me-2"></i> انصراف
+                    </a>
+                    {% endif %}
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}

@@ -1,0 +1,80 @@
+{% extends "base.html" %}
+{% load crispy_forms_tags static %}
+
+{% block extra_head %}
+    {{ form.media }}
+{% endblock %}
+
+{% block content %}
+<div class="card">
+    <div class="card-header">
+        <h4 class="card-title">{{ page_title }}</h4>
+        <p class="card-category">
+            در این بخش می‌توانید بر اساس تحلیل مصرف یا موجودی انبار، یک پیش‌نویس برای درخواست دارو ایجاد کنید.
+        </p>
+    </div>
+    <div class="card-body">
+        <form method="post" novalidate>
+            {% csrf_token %}
+            
+            {% if form.non_field_errors %}
+                <div class="alert alert-danger">{{ form.non_field_errors }}</div>
+            {% endif %}
+
+            <div class="row">
+                <div class="col-md-6">{{ form.start_date|as_crispy_field }}</div>
+                <div class="col-md-6">{{ form.end_date|as_crispy_field }}</div>
+            </div>
+
+            <hr>
+            <div class="mb-3">
+                <label class="form-label"><strong>{{ form.suggestion_method.label }}</strong></label>
+                <div class="form-check">
+                    <input class="form-check-input" type="checkbox" id="select-all-methods">
+                    <label class="form-check-label fw-bold" for="select-all-methods">انتخاب همه روش‌ها</label>
+                </div>
+                <div id="div_id_suggestion_method" class="mt-2">
+                    {% for checkbox in form.suggestion_method %}
+                        <div class="form-check form-check-inline">
+                            {{ checkbox.tag }}
+                            <label class="form-check-label" for="{{ checkbox.id_for_label }}">{{ checkbox.choice_label }}</label>
+                        </div>
+                    {% endfor %}
+                </div>
+                {% if form.suggestion_method.errors %}
+                    <div class="text-danger small">{{ form.suggestion_method.errors.as_text }}</div>
+                {% endif %}
+                 <small class="form-text text-muted">{{ form.suggestion_method.help_text }}</small>
+            </div>
+
+            <hr>
+            <div class="row">
+                <div class="col-md-6">{{ form.percentage_increase|as_crispy_field }}</div>
+                <div class="col-md-6">{{ form.low_stock_threshold|as_crispy_field }}</div>
+            </div>
+
+            <div class="mt-4">
+                <button type="submit" class="btn btn-primary">
+                    <i class="fas fa-cogs"></i> ایجاد پیش‌نویس درخواست
+                </button>
+                <a href="{% url 'drugs:drug_request_list' %}" class="btn btn-secondary">انصراف</a>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+    const selectAllCheckbox = document.getElementById('select-all-methods');
+    const methodCheckboxes = document.querySelectorAll('input[name="suggestion_method"]');
+
+    selectAllCheckbox.addEventListener('change', function(e) {
+        methodCheckboxes.forEach(function(checkbox) {
+            checkbox.checked = e.target.checked;
+        });
+    });
+});
+</script>
+{% endblock %}

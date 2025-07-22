@@ -1,0 +1,25 @@
+<input type="{{ widget.type }}" name="{{ widget.name }}"{% if widget.value != None %} value="{{ widget.value|stringformat:'s' }}"{% endif %}{% include "django/forms/widgets/attrs.html" %}>
+
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        // این کد اطمینان حاصل می‌کند که ویجت ما فقط برای فیلدهای تاریخ شمسی فعال شود
+        $('.persian-datepicker-input').each(function() {
+            if (!$(this).data('datepicker-initialized')) {
+                // فرض می‌کنیم که شما یک کتابخانه تاریخ‌دهنده (datepicker) جاوااسکریپت برای تاریخ‌های شمسی دارید.
+                // اگر از کتابخانه‌ای مثل "MD.BootstrapPersianDateTimePicker" یا مشابه آن استفاده می‌کنید،
+                // کد مربوط به مقداردهی اولیه آن را اینجا قرار دهید.
+                // مثال (اگر از یک کتابخانه فرضی استفاده می‌کردید):
+                // $(this).datepicker({
+                //     // تنظیمات تاریخ‌دهنده شمسی شما
+                //     calendar: 'persian',
+                //     format: 'yyyy/mm/dd'
+                // });
+
+                // فعلا بدون یک DatePicker UI واقعی، فقط به عنوان TextInput عمل می‌کند
+                // اما با کلاس 'persian-datepicker-input' قابل شناسایی است.
+
+                $(this).data('datepicker-initialized', true); // جلوگیری از مقداردهی چندباره
+            }
+        });
+    });
+</script>

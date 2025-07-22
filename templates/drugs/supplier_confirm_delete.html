@@ -1,0 +1,41 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}{{ page_title }}{% endblock %}
+
+{% block content %}
+<div class="container-fluid mt-4">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h2 class="text-danger fw-bold">{{ page_title }}</h2>
+        <a href="{% url 'drugs:supplier_detail' pk=object.pk %}" class="btn btn-secondary btn-lg shadow-sm">
+            <i class="fas fa-arrow-right me-2"></i> بازگشت به جزئیات تامین‌کننده
+        </a>
+    </div>
+
+    <div class="alert alert-warning border-0 shadow-sm" role="alert">
+        <h4 class="alert-heading"><i class="fas fa-exclamation-triangle me-2"></i> هشدار حذف!</h4>
+        <p>آیا مطمئن هستید که می‌خواهید تامین‌کننده **"{{ object.name }}"** را حذف کنید؟</p>
+        <p class="mb-0">این عملیات قابل بازگشت نیست.</p>
+    </div>
+
+    <div class="card shadow-lg border-0">
+        <div class="card-header bg-danger text-white">
+            <h5 class="mb-0">تأیید حذف</h5>
+        </div>
+        <div class="card-body">
+            <form method="post">
+                {% csrf_token %}
+                <p>با حذف این تامین‌کننده، تمام اطلاعات مربوط به آن از سیستم حذف خواهد شد.</p>
+                <div class="d-flex justify-content-end gap-2 mt-4">
+                    <button type="submit" class="btn btn-danger btn-lg shadow-sm">
+                        <i class="fas fa-trash-alt me-2"></i> بله، حذف شود
+                    </button>
+                    <a href="{% url 'drugs:supplier_detail' pk=object.pk %}" class="btn btn-outline-secondary btn-lg shadow-sm">
+                        <i class="fas fa-times me-2"></i> انصراف
+                    </a>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}

@@ -1,0 +1,170 @@
+{% extends "base.html" %}
+{% load crispy_forms_tags static %}
+
+{% block extra_head %}
+    {{ form.media }}
+    {{ formset.media }}
+    <style>
+        .select2-container { width: 100% !important; }
+        .dynamic-formset {
+            border: 1px solid #ddd;
+            padding: 1rem;
+            margin-bottom: 1rem;
+            border-radius: 0.25rem;
+            background-color: #f8f9fa;
+        }
+        .formset-row {
+             display: flex;
+             align-items: flex-start;
+             gap: 1rem;
+        }
+        .formset-row .form-group {
+            flex-grow: 1;
+        }
+    </style>
+{% endblock %}
+
+{% block content %}
+<div class="card">
+    <div class="card-header">
+        <h4 class="card-title">{{ page_title }}</h4>
+    </div>
+    <div class="card-body">
+        <form method="post" id="drug-request-form">
+            {% csrf_token %}
+
+            <fieldset class="border p-3 mb-4">
+                <legend class="w-auto px-2">اطلاعات کلی درخواست</legend>
+                <div class="row">
+                    {# request_code به صورت خودکار تولید می‌شود و نباید اینجا نمایش داده شود #}
+                    <div class="col-md-4">{{ form.request_date|as_crispy_field }}</div>
+                    <div class="col-md-4">{{ form.requested_by|as_crispy_field }}</div>
+                    <div class="col-md-4">{{ form.assigned_approver|as_crispy_field }}</div>
+                </div>
+                <div class="row">
+                    <div class="col-md-6">{{ form.status|as_crispy_field }}</div>
+                </div>
+                {{ form.description|as_crispy_field }}
+            </fieldset>
+
+            <fieldset class="border p-3 mb-4">
+                <legend class="w-auto px-2">آیتم‌های درخواست</legend>
+                {{ formset.management_form }}
+                
+                {% if formset.non_form_errors %}
+                    <div class="alert alert-danger">{{ formset.non_form_errors }}</div>
+                {% endif %}
+
+                <div id="item-formset">
+                    {% for form in formset %}
+                        <div class="dynamic-formset" id="item-{{ forloop.counter0 }}">
+                            {{ form.id }}
+                            <div class="row">
+                                <div class="col-md-5">{{ form.drug|as_crispy_field }}</div>
+                                <div class="col-md-2">{{ form.requested_quantity|as_crispy_field }}</div>
+                                <div class="col-md-4">{{ form.notes|as_crispy_field }}</div>
+                                <div class="col-md-1 d-flex align-items-center pt-4">
+                                    {% if form.instance.pk %}
+                                        {# برای آیتم‌های موجود، چک‌باکس حذف نمایش داده می‌شود #}
+                                        {{ form.DELETE|as_crispy_field }}
+                                    {% else %}
+                                        {# برای آیتم‌های جدید، دکمه حذف نمایش داده می‌شود #}
+                                        <button type="button" class="btn btn-danger remove-form-row">حذف</button>
+                                    {% endif %}
+                                </div>
+                            </div>
+                        </div>
+                    {% endfor %}
+                </div>
+                
+                <button type="button" class="btn btn-secondary mt-2" id="add-form-row">
+                    <i class="fas fa-plus"></i> افزودن آیتم جدید
+                </button>
+            </fieldset>
+            
+            <button type="submit" class="btn btn-primary">ذخیره درخواست</button>
+            <a href="{% url 'drugs:drug_request_list' %}" class="btn btn-outline-secondary">بازگشت</a>
+        </form>
+    </div>
+</div>
+
+<template id="empty-form-template">
+    <div class="dynamic-formset">
+        <div class="row">
+            <div class="col-md-5">{{ formset.empty_form.drug|as_crispy_field }}</div>
+            <div class="col-md-2">{{ formset.empty_form.requested_quantity|as_crispy_field }}</div>
+            <div class="col-md-4">{{ formset.empty_form.notes|as_crispy_field }}</div>
+            <div class="col-md-1 d-flex align-items-center pt-4">
+                <button type="button" class="btn btn-danger remove-form-row">حذف</button>
+            </div>
+        </div>
+    </div>
+</template>
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+function updateElementIndex(el, prefix, ndx) {
+    const id_regex = new RegExp('(' + prefix + '-\\d+)');
+    const replacement = prefix + '-' + ndx;
+    if ($(el).attr("for")) $(el).attr("for", $(el).attr("for").replace(id_regex, replacement));
+    if (el.id) el.id = el.id.replace(id_regex, replacement);
+    if (el.name) el.name = el.name.replace(id_regex, replacement);
+}
+
+document.addEventListener('DOMContentLoaded', function () {
+    const addFormBtn = document.getElementById('add-form-row');
+    const formContainer = document.getElementById('item-formset');
+    const totalForms = document.getElementById('id_items-TOTAL_FORMS');
+    const formRegex = RegExp(`items-(\\d){1}-`, 'g');
+
+    addFormBtn.addEventListener('click', function (e) {
+        e.preventDefault();
+        const formNum = parseInt(totalForms.value);
+        const emptyFormTemplate = document.getElementById('empty-form-template').innerHTML.replace(/__prefix__/g, formNum);
+        
+        const newFormEl = document.createElement('div');
+        newFormEl.innerHTML = emptyFormTemplate;
+        
+        formContainer.append(newFormEl.firstElementChild);
+        totalForms.value = formNum + 1;
+        
+        // Initialize Select2 for the new row
+        // این بخش فقط برای فیلدهای Select2 موجود در ردیف جدید عمل می‌کند.
+        // از آنجا که هر ردیف جدید نیاز به مقداردهی اولیه Select2 دارد، این کد لازم است.
+        $(newFormEl).find('.django-select2').select2({
+             dir: "rtl",
+             language: "fa",
+             theme: 'bootstrap-5',
+             width: 'resolve'
+        });
+    });
+
+    formContainer.addEventListener('click', function(e) {
+        if (e.target && e.target.classList.contains('remove-form-row')) {
+            e.preventDefault();
+            e.target.closest('.dynamic-formset').remove();
+            
+            let forms = document.querySelectorAll('.dynamic-formset');
+            totalForms.value = forms.length;
+            for (let i=0; i<forms.length; i++) {
+                $(forms[i]).find(':input').each(function() {
+                    updateElementIndex(this, 'items', i);
+                });
+            }
+        }
+    });
+
+    // Initialize Select2 for existing fields on page load
+    // این بخش Select2 را برای تمام فیلدهای Select2 موجود در صفحه هنگام بارگذاری اولیه اعمال می‌کند.
+    // شامل فیلدهای 'requested_by', 'assigned_approver' و آیتم‌های اولیه فرم‌ست می‌شود.
+    $('.django-select2').select2({
+        dir: "rtl",
+        language: "fa",
+        theme: 'bootstrap-5',
+        width: 'resolve'
+    });
+});
+</script>
+{% endblock %}

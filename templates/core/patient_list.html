@@ -1,0 +1,299 @@
+{% extends 'base.html' %}
+{% load static %}
+{% load crispy_forms_tags %}
+{% load persian_dates %} {# اضافه شده برای نمایش تاریخ شمسی #}
+
+{% block content %}
+<div class="container-fluid">
+
+    <h1 class="h3 mb-4 text-gray-800">{{ page_title }}</h1>
+
+    <div class="card shadow mb-4">
+        <div class="card-body">
+            <div class="row mb-3">
+                <div class="col-md-6 mb-2"> {# Increased width for buttons #}
+                    <a href="{% url 'core:patient_create' %}" class="btn btn-success me-2"><i class="fas fa-plus me-2"></i>افزودن بیمار جدید</a>
+                    <button type="button" class="btn btn-info" id="printListBtn"><i class="fas fa-print me-2"></i>چاپ لیست</button> {# Added print button #}
+                </div>
+                <div class="col-md-6"> {# Adjusted width #}
+                    <form method="GET" action="{% url 'core:patient_list' %}" class="d-flex">
+                        <input type="text" name="q" class="form-control me-2" placeholder="جستجو بر اساس نام، کد ملی، موبایل و..." value="{{ search_query|default:'' }}">
+                        <button type="submit" class="btn btn-primary">جستجو</button>
+                    </form>
+                </div>
+            </div>
+
+            <div class="mb-3">
+                <button class="btn btn-info" type="button" data-bs-toggle="collapse" data-bs-target="#advancedFilters" aria-expanded="{% if advanced_filters_applied %}true{% else %}false{% endif %}" aria-controls="advancedFilters">
+                    <i class="fas fa-filter me-2"></i>فیلترهای پیشرفته
+                </button>
+            </div>
+
+            <div class="collapse {% if advanced_filters_applied %}show{% endif %}" id="advancedFilters">
+                <div class="card card-body mb-3">
+                    <form method="GET" action="{% url 'core:patient_list' %}">
+                        {% crispy filter.form %}
+                    </form>
+                </div>
+            </div>
+
+            {% if page_obj %}
+                <div class="table-responsive">
+                    <table class="table table-bordered table-hover text-center" id="dataTable" width="100%" cellspacing="0">
+                        <thead>
+                            <tr>
+                                <th>#</th>
+                                <th>عکس</th>
+                                <th>نام</th>
+                                <th>نام خانوادگی</th>
+                                <th>کد ملی</th>
+                                <th>کد پرسنلی</th>
+                                <th>شماره موبایل</th>
+                                <th>شرکت</th>
+                                <th>سن</th>
+                                <th>نیازمند پایش</th>
+                                <th>ثبت شده توسط</th>
+                                <th>تاریخ ثبت</th>
+                                <th>اقدامات</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for patient in page_obj %}
+                            <tr>
+                                <td>{{ forloop.counter0|add:page_obj.start_index }}</td>
+                                <td>
+                                    {% if patient.profile_picture %}
+                                        <img src="{{ patient.profile_picture.url }}" alt="عکس پروفایل" class="rounded-circle" width="50" height="50">
+                                    {% else %}
+                                        <img src="{% static 'media/default_profile.png' %}" alt="بدون عکس" class="rounded-circle" width="50" height="50">
+                                    {% endif %}
+                                </td>
+                                <td>{{ patient.first_name }}</td>
+                                <td>{{ patient.last_name }}</td>
+                                <td>{{ patient.national_code }}</td>
+                                <td>{{ patient.personnel_number|default:'---' }}</td>
+                                <td>{{ patient.phone_number|default:'---' }}</td>
+                                <td>{{ patient.company.name|default:'---' }}</td>
+                                <td>{{ patient.age|default:'---' }}</td>
+                                <td>{{ patient.is_monitored|yesno:"بله,خیر" }}</td>
+                                <td>{{ patient.registered_by.username|default:'---' }}</td>
+                                <td>{{ patient.registered_at|to_jalali:'%Y/%m/%d - %H:%M' }}</td>
+                                <td>
+                                    <div class="d-flex justify-content-center">
+                                        <a href="{% url 'core:patient_detail' patient.pk %}" class="btn btn-info btn-sm me-1" title="جزئیات"><i class="fas fa-eye"></i></a>
+                                        <a href="{% url 'core:patient_update' patient.pk %}" class="btn btn-warning btn-sm me-1" title="ویرایش"><i class="fas fa-edit"></i></a>
+                                        <a href="{% url 'visits:visit_create_for_patient' patient.pk %}" class="btn btn-success btn-sm me-1" title="ثبت ویزیت جدید"><i class="fas fa-notes-medical"></i></a>
+                                        {# Added button for lab results #}
+                                        <a href="{% url 'lab_results:patient_lab_results' patient.pk %}" class="btn btn-primary btn-sm me-1" title="نتایج آزمایشات"><i class="fas fa-flask"></i></a>
+                                        <button type="button" class="btn btn-danger btn-sm" data-bs-toggle="modal" data-bs-target="#deleteModal{{ patient.pk }}" title="حذف"><i class="fas fa-trash"></i></button>
+                                    </div>
+                                    <div class="modal fade" id="deleteModal{{ patient.pk }}" tabindex="-1" aria-labelledby="deleteModalLabel{{ patient.pk }}" aria-hidden="true">
+                                        <div class="modal-dialog">
+                                            <div class="modal-content">
+                                                <div class="modal-header">
+                                                    <h5 class="modal-title" id="deleteModalLabel{{ patient.pk }}">تایید حذف</h5>
+                                                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                                                </div>
+                                                <div class="modal-body text-center">
+                                                    آیا از حذف بیمار **{{ patient.first_name }} {{ patient.last_name }}** اطمینان دارید؟
+                                                </div>
+                                                <div class="modal-footer justify-content-center">
+                                                    <form action="{% url 'core:patient_delete' patient.pk %}" method="post" style="display: inline;">
+                                                        {% csrf_token %}
+                                                        <button type="submit" class="btn btn-danger">بله، حذف کن</button>
+                                                    </form>
+                                                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">خیر، انصراف</button>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+
+                {# Paginator #}
+                {% if page_obj.has_other_pages %}
+                    <nav aria-label="Page navigation example" class="mt-4">
+                        <ul class="pagination justify-content-center flex-wrap">
+                            {% if page_obj.has_previous %}
+                                <li class="page-item">
+                                    <a class="page-link" href="?page={{ page_obj.previous_page_number }}{% for key, value in request.GET.items %}{% if key != 'page' %}&{{ key }}={{ value }}{% endif %}{% endfor %}">قبلی</a>
+                                </li>
+                            {% else %}
+                                <li class="page-item disabled"><span class="page-link">قبلی</span></li>
+                            {% endif %}
+
+                            {% for i in page_obj.paginator.page_range %}
+                                {% if page_obj.number == i %}
+                                    <li class="page-item active"><span class="page-link">{{ i }}</span></li>
+                                {% else %}
+                                    <li class="page-item"><a class="page-link" href="?page={{ i }}{% for key, value in request.GET.items %}{% if key != 'page' %}&{{ key }}={{ value }}{% endif %}{% endfor %}">{{ i }}</a></li>
+                                {% endif %}
+                            {% endfor %}
+
+                            {% if page_obj.has_next %}
+                                <li class="page-item">
+                                    <a class="page-link" href="?page={{ page_obj.next_page_number }}{% for key, value in request.GET.items %}{% if key != 'page' %}&{{ key }}={{ value }}{% endif %}{% endfor %}">بعدی</a>
+                                </li>
+                            {% else %}
+                                <li class="page-item disabled"><span class="page-link">بعدی</span></li>
+                            {% endif %}
+                        </ul>
+                    </nav>
+                {% endif %}
+
+            {% else %}
+                <div class="alert alert-warning text-end" role="alert">
+                    {% if search_query or advanced_filters_applied %}
+                        هیچ بیماری با معیارهای جستجو/فیلتر یافت نشد.
+                    {% else %}
+                        هیچ بیماری برای نمایش وجود ندارد.
+                    {% endif %}
+                </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    $(document).ready(function() {
+        // Re-initialize datepickers on filter collapse show
+        $('#advancedFilters').on('shown.bs.collapse', function () {
+            initializeJalaliDatepickers();
+        });
+
+        // Initialize datepickers on page load (for initially visible fields)
+        initializeJalaliDatepickers();
+
+        function initializeJalaliDatepickers() {
+            if (typeof Calendar !== 'undefined' && typeof DateTimeShortcuts !== 'undefined') {
+                $('.jalali_date-date').each(function() {
+                    // Only initialize if not already done
+                    if (!$(this).data('datepicker-initialized')) {
+                        console.log("Initializing datepicker for:", this.id);
+                        Calendar.setup({
+                            inputField: this.id,
+                            ifFormat: "%Y/%m/%d",
+                            button: this.id + "_btn", // Assumes a button with id_btn exists, adjust if needed
+                            weekNumbers: false,
+                            dateType: 'jalali',
+                            eventName: 'focus', // or 'click'
+                            onSelect: function(cal) {
+                                cal.hide();
+                                $(this.inputField).trigger('change');
+                            }
+                        });
+                        $(this.inputField).data('datepicker-initialized', true); // Mark as initialized
+                    }
+                });
+            } else {
+                console.warn("Jalali Datepicker libraries (Calendar, DateTimeShortcuts) not fully loaded. Datepickers may not function correctly.");
+            }
+        }
+
+        // --- Print Functionality ---
+        $('#printListBtn').on('click', function() {
+            printFilteredPatientList();
+        });
+
+        function printFilteredPatientList() {
+            const printWindow = window.open('', '_blank');
+            const tableContent = document.getElementById('dataTable').outerHTML;
+            const filterTitle = generateFilterTitle();
+
+            let printContent = `
+                <html>
+                <head>
+                    <title>چاپ لیست بیماران</title>
+                    <link rel="stylesheet" href="{% static 'css/bootstrap.rtl.min.css' %}">
+                    <link rel="stylesheet" href="{% static 'css/style.css' %}">
+                    <style>
+                        body { font-family: 'Vazirmatn', sans-serif; direction: rtl; text-align: right; }
+                        h3 { text-align: center; margin-bottom: 20px; }
+                        table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+                        th, td { border: 1px solid #ddd; padding: 8px; text-align: right; }
+                        th { background-color: #f2f2f2; }
+                        @media print {
+                            body { -webkit-print-color-adjust: exact; }
+                            table { page-break-after: auto; }
+                            tr { page-break-inside: avoid; page-break-after: auto; }
+                            /* Ensure background colors print by overriding !important if needed, but the line below is often sufficient for common cases */
+                            /* td, th { background-color: #f2f2f2 !important; } */
+                        }
+                    </style>
+                </head>
+                <body>
+                    <h3>لیست بیماران</h3>
+                    <p style="text-align: center; margin-bottom: 30px;">${filterTitle}</p>
+                    ${tableContent}
+                    <div style="text-align: left; margin-top: 50px; font-size: 0.9em;">
+                        تاریخ چاپ: ${new Date().toLocaleDateString('fa-IR')}
+                    </div>
+                </body>
+                </html>
+            `;
+
+            printWindow.document.write(printContent);
+            printWindow.document.close();
+            printWindow.focus();
+            printWindow.print();
+        }
+
+        function generateFilterTitle() {
+            const urlParams = new URLSearchParams(window.location.search);
+            let titleParts = [];
+
+            // Mapping of URL parameter names to Persian labels
+            const paramLabels = {
+                'q': 'عبارت جستجو',
+                'first_name': 'نام',
+                'last_name': 'نام خانوادگی',
+                'national_code': 'کد ملی',
+                'phone_number': 'شماره موبایل',
+                'gender': 'جنسیت',
+                'company': 'شرکت', // اگر ID هست و نیاز به تبدیل به نام دارید، اینجا پیچیده‌تر می‌شود
+                'is_monitored': 'نیازمند پایش',
+                'registered_by': 'ثبت شده توسط', // اگر ID هست و نیاز به تبدیل به نام دارید، اینجا پیچیده‌تر می‌شود
+                'birth_date_0': 'تاریخ تولد از',
+                'birth_date_1': 'تاریخ تولد تا',
+                'next_periodic_examination_due_0': 'تاریخ معاینه بعدی از',
+                'next_periodic_examination_due_1': 'تاریخ معاینه بعدی تا',
+            };
+
+            urlParams.forEach((value, key) => {
+                if (value && key !== 'page' && paramLabels[key]) { // Exclude 'page' and unknown params
+                    let label = paramLabels[key];
+                    let displayValue = value;
+
+                    // Handle specific value translations (e.g., gender, boolean)
+                    if (key === 'gender') {
+                        if (value === 'male') displayValue = 'مرد';
+                        else if (value === 'female') displayValue = 'زن';
+                        else if (value === 'other') displayValue = 'سایر';
+                    } else if (key === 'is_monitored') {
+                        displayValue = (value === 'on' || value === 'True' || value === '1') ? 'بله' : 'خیر';
+                    }
+                    // For company and registered_by, if they are IDs, you might need to fetch names from a server endpoint
+                    // For now, it will show the ID/value directly from the URL.
+                    // If you need to display actual names for company/registered_by,
+                    // this requires more advanced JavaScript (e.g., AJAX to fetch name by ID)
+                    // or passing a map from Django context.
+
+                    titleParts.push(`${label}: ${displayValue}`);
+                }
+            });
+
+            if (titleParts.length > 0) {
+                return "بر اساس: " + titleParts.join('، ');
+            } else {
+                return "بدون فیلتر خاص";
+            }
+        }
+    });
+</script>
+{% endblock %}

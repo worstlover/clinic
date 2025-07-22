@@ -1,0 +1,369 @@
+<!DOCTYPE html>
+{% load jalali_tags %}
+<html lang="fa" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>فاکتور خرید - {{ invoice.invoice_number }}</title>
+    {# استفاده از Bootstrap برای استایل پایه #}
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    
+    {# فونت وزیری یا B Nazanin (اگر در سیستم کاربر نصب باشد) #}
+    <style>
+        @font-face {
+            font-family: 'Vazirmatn';
+            src: url('https://cdn.jsdelivr.net/gh/rastikerdar/vazirmatn@v33.003/misc/web/Vazirmatn-Regular.woff2') format('woff2');
+            font-weight: 400;
+            font-style: normal;
+        }
+        @font-face {
+            font-family: 'Vazirmatn';
+            src: url('https://cdn.jsdelivr.net/gh/rastikerdar/vazirmatn@v33.003/misc/web/Vazirmatn-Bold.woff2') format('woff2');
+            font-weight: 700;
+            font-style: normal;
+        }
+        /* اگر فونت B Nazanin روی سیستم کاربر نصب باشد، به عنوان جایگزین استفاده می‌شود */
+        body {
+            font-family: 'Vazirmatn', 'B Nazanin', Tahoma, Arial, sans-serif;
+            margin: 25mm; 
+            font-size: 11pt; 
+            color: #333;
+            direction: rtl;
+        }
+        .invoice-container {
+            max-width: 210mm; 
+            margin: 0 auto;
+            background: #fff;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.1); 
+            padding: 30px;
+            border: 1px solid #eee;
+            border-radius: 8px;
+            overflow: hidden; 
+        }
+        .invoice-header {
+            text-align: center;
+            margin-bottom: 5px; 
+            border-bottom: 2px solid #0d6efd;
+            padding-bottom: 15px;
+        }
+        .invoice-header h1 {
+            font-size: 28pt;
+            color: #0d6efd; 
+            margin: 0;
+            padding: 0;
+            font-weight: bold;
+        }
+        
+        .invoice-status-section {
+            text-align: center; 
+            font-weight: bold;
+            font-size: 10pt; 
+            margin-top: 10px; 
+            margin-bottom: 20px; 
+        }
+        .invoice-status-section .badge { 
+            display: inline-block; 
+            padding: .3em .6em; 
+            border-radius: .25rem;
+            font-size: 90%; 
+            line-height: 1;
+            text-align: center;
+            white-space: nowrap;
+            vertical-align: baseline;
+        }
+
+        .invoice-details-row {
+            overflow: hidden; 
+            margin-bottom: 20px;
+        }
+        .invoice-details-col {
+            width: 48%; 
+            float: right; 
+            padding: 0 1%;
+            box-sizing: border-box; 
+        }
+        .invoice-details-col.left-aligned { 
+            float: left; 
+            text-align: left; 
+        }
+        .invoice-details-col.right-aligned { 
+            text-align: right; 
+        }
+        
+        .invoice-details-col div {
+            margin-bottom: 10px;
+        }
+        .info-label {
+            font-weight: bold;
+            color: #555;
+            min-width: 150px; 
+            display: inline-block; 
+        }
+        .info-value {
+            display: inline-block; 
+            padding-right: 5px; 
+        }
+
+        .section-title {
+            font-size: 16pt;
+            font-weight: bold;
+            color: #0d6efd;
+            border-bottom: 1px solid #0d6efd;
+            padding-bottom: 5px;
+            margin-top: 30px;
+            margin-bottom: 15px;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 15px;
+            font-size: 10pt;
+        }
+        th, td {
+            border: 1px solid #e0e0e0;
+            padding: 10px;
+            text-align: right;
+            vertical-align: middle;
+        }
+        th {
+            background-color: #f2f2f2;
+            font-weight: bold;
+            color: #444;
+            text-align: center;
+        }
+        td.text-center { text-align: center; }
+        td.text-end { text-align: right; } 
+        td.text-start { text-align: left; } 
+
+        .total-row {
+            background-color: #e6f7ff; 
+            font-weight: bold;
+            font-size: 12pt;
+        }
+        .amount-in-words {
+            font-weight: bold;
+            color: #0d6efd;
+            font-size: 12pt;
+            margin-top: 10px;
+            display: block;
+        }
+        .signatures-section {
+            margin-top: 50px;
+            padding-top: 20px;
+            border-top: 1px dashed #ccc; 
+            overflow: hidden; 
+            text-align: center; 
+        }
+        .signature-box {
+            width: 48%; 
+            float: right; 
+            margin: 0 1%;
+            box-sizing: border-box;
+            text-align: center;
+        }
+        .signature-box:nth-child(2) { 
+            float: left;
+        }
+
+        .signature-label {
+            font-weight: bold;
+            margin-bottom: 40px; 
+            display: block;
+        }
+        .signature-line {
+            border-bottom: 1px solid #333; 
+            width: 80%;
+            margin: 0 auto 10px auto;
+        }
+
+        /* کلاس‌های مخصوص پنهان کردن در پرینت */
+        @media print {
+            body {
+                margin: 0;
+                padding: 0;
+                box-shadow: none;
+                border: none;
+            }
+            .invoice-container {
+                box-shadow: none;
+                border: none;
+                padding: 0;
+                margin: 0;
+                width: 100%;
+            }
+            .no-print {
+                display: none !important;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="invoice-container">
+        {# عنوان فاکتور #}
+        <div class="invoice-header">
+            <h1>فاکتور خرید</h1>
+        </div>
+
+        {# وضعیت فاکتور #}
+        <div class="invoice-status-section">
+            <span class="info-label me-2">وضعیت فاکتور:</span> 
+            {% if invoice.status == 'final' %}
+                <span class="badge bg-success text-white">نهایی شده</span>
+            {% elif invoice.status == 'draft' %}
+                <span class="badge bg-info text-dark">پیش‌نویس</span>
+            {% elif invoice.status == 'paid' %}
+                <span class="badge bg-primary text-white">پرداخت شده</span>
+            {% elif invoice.status == 'pending' %}
+                <span class="badge bg-warning text-dark">در انتظار پرداخت</span>
+            {% elif invoice.status == 'cancelled' %}
+                <span class="badge bg-danger text-white">لغو شده</span>
+            {% else %}
+                <span class="badge bg-secondary text-white">{{ invoice.get_status_display }}</span>
+            {% endif %}
+        </div>
+
+        {# اطلاعات کلی فاکتور (خریدار، فروشنده، تاریخ‌ها) با چیدمان Float #}
+        <div class="invoice-details-row">
+            {# ستون سمت راست (در RTL) برای شماره فاکتور، خریدار، فروشنده #}
+            <div class="invoice-details-col right-aligned">
+                <div>
+                    <span class="info-label">شماره فاکتور:</span> 
+                    <span class="info-value">{{ invoice.invoice_number }}</span>
+                </div>
+                <div>
+                    <span class="info-label">خریدار:</span> 
+                    <span class="info-value">گندله‌سازی بهاباد</span> 
+                </div>
+                <div>
+                    <span class="info-label">فروشنده:</span> 
+                    <span class="info-value">{{ invoice.supplier.name|default:"ناشناخته" }}</span> 
+                </div>
+            </div>
+            {# ستون سمت چپ (در RTL) برای تاریخ‌ها و کاربر ثبت کننده #}
+            <div class="invoice-details-col left-aligned">
+                <div>
+                    <span class="info-label">تاریخ فاکتور:</span> 
+                    <span class="info-value">{{ invoice.get_jalali_invoice_date }}</span>
+                </div>
+                <div>
+                    <span class="info-label">تاریخ ثبت سیستم:</span> 
+                    <span class="info-value">{{ invoice.created_at|to_jalali:"%Y/%m/%d - %H:%M" }}</span>
+                </div>
+                <div>
+                    <span class="info-label">ثبت شده توسط:</span> 
+                    <span class="info-value">{{ request.user.get_full_name|default:request.user.username }}</span> 
+                </div>
+            </div>
+        </div>
+
+        {# جزئیات اقلام #}
+        <h3 class="section-title">جزئیات اقلام فاکتور</h3>
+        {% if invoice_items %}
+        <table class="table table-bordered table-striped" id="invoice_items_table"> {# ID به جدول اضافه شد #}
+            <thead>
+                <tr>
+                    <th class="text-center">ردیف</th>
+                    <th class="text-center">دارو</th>
+                    <th class="text-center">شماره بچ</th>
+                    <th class="text-center">تاریخ انقضا</th>
+                    <th class="text-center">تعداد</th>
+                    <th class="text-center">قیمت واحد (ریال)</th>
+                    <th class="text-center">مبلغ جزء (ریال)</th> 
+                </tr>
+            </thead>
+            <tbody>
+                {% for item in invoice_items %}
+                <tr>
+                    <td class="text-center">{{ forloop.counter }}</td>
+                    <td>{{ item.drug.name }}</td>
+                    <td class="text-center">{{ item.batch_number|default:"-" }}</td>
+                    <td class="text-center">{{ item.expiry_date|to_jalali:"%Y/%m/%d"|default:"-" }}</td>
+                    {# ⭐ کلاس‌های خاص برای تعداد و قیمت واحد اضافه شد ⭐ #}
+                    <td class="text-center item-quantity">{{ item.quantity|floatformat:"0" }}</td>
+                    <td class="text-center item-unit-price">{{ item.unit_price|floatformat:"0" }}</td>
+                    <td class="text-center item-total-price"></td> {# ⭐ این سلول خالی می‌ماند تا با JS پر شود ⭐ #}
+                </tr>
+                {% endfor %}
+                <tr class="total-row">
+                    <td colspan="6" class="text-end">مبلغ کل فاکتور:</td>
+                    <td class="text-center" id="calculated_total_amount">{{ invoice.total_amount|floatformat:"0" }} ریال</td> {# ⭐ ID اضافه شد برای محاسبه مجدد total_amount ⭐ #}
+                </tr>
+                <tr>
+                    <td colspan="7" class="text-end">
+                        مبلغ کل به حروف:
+                        <span class="amount-in-words">{{ total_amount_in_words }} ریال</span>
+                    </td>
+                </tr>
+            </tbody>
+        </table>
+        {% else %}
+        <p class="text-center text-muted py-3">هیچ آیتمی برای این فاکتور ثبت نشده است.</p>
+        {% endif %}
+
+        {# ملاحظات #}
+        <h3 class="section-title">ملاحظات</h3>
+        <div class="mb-5">
+            <p>{{ invoice.notes|default:"-"|linebreaksbr }}</p>
+        </div>
+
+        {# مهر و امضا #}
+        <div class="signatures-section">
+            <div class="signature-box">
+                <span class="signature-label">مهر و امضای فروشنده:</span>
+                <div class="signature-line"></div>
+            </div>
+            <div class="signature-box">
+                <span class="signature-label">مهر و امضای خریدار:</span>
+                <div class="signature-line"></div>
+            </div>
+        </div>
+
+        {# دکمه چاپ واقعی (که در زمان پرینت پنهن می‌شود) #}
+        <div class="text-center mt-5 no-print">
+            <button class="btn btn-success" onclick="window.print()">
+                <i class="fas fa-print me-2"></i> شروع چاپ
+            </button>
+        </div>
+
+    </div>
+    {# Font Awesome برای آیکون‌ها #}
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/js/all.min.js"></script>
+    {# Bootstrap Bundle (JS) برای عملکرد صحیح بوت استرپ (در این مورد ضروری نیست، اما عادت خوبی است) #}
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+
+    {# ⭐⭐ کد جاوااسکریپت برای محاسبه مبلغ جزء در فرانت‌اند ⭐⭐ #}
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            const table = document.getElementById('invoice_items_table');
+            if (!table) return; // اگر جدول وجود نداشت، کاری انجام نده
+
+            const rows = table.querySelectorAll('tbody tr:not(.total-row)'); // تمام ردیف‌های آیتم‌ها به جز ردیف جمع کل
+            let overallTotal = 0; // برای جمع کل محاسبه شده
+
+            rows.forEach(row => {
+                const quantityCell = row.querySelector('.item-quantity');
+                const unitPriceCell = row.querySelector('.item-unit-price');
+                const totalItemPriceCell = row.querySelector('.item-total-price');
+
+                if (quantityCell && unitPriceCell && totalItemPriceCell) {
+                    // حذف جداکننده هزارگان (کامای فارسی) و تبدیل به عدد
+                    const quantity = parseFloat(quantityCell.textContent.replace(/,/g, '').replace(/٬/g, '')) || 0;
+                    const unitPrice = parseFloat(unitPriceCell.textContent.replace(/,/g, '').replace(/٬/g, '')) || 0;
+
+                    const totalItemPrice = (quantity * unitPrice);
+                    overallTotal += totalItemPrice; // اضافه کردن به جمع کل
+
+                    // فرمت کردن مبلغ جزء با جداکننده هزارگان و نمایش در سلول
+                    totalItemPriceCell.textContent = totalItemPrice.toFixed(0).replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+                }
+            });
+
+            // بروزرسانی مبلغ کل فاکتور در انتهای جدول
+            const calculatedTotalAmountElement = document.getElementById('calculated_total_amount');
+            if (calculatedTotalAmountElement) {
+                calculatedTotalAmountElement.textContent = overallTotal.toFixed(0).replace(/\B(?=(\d{3})+(?!\d))/g, ',') + ' ریال';
+            }
+        });
+    </script>
+</body>
+</html>

@@ -1,0 +1,319 @@
+{% extends 'base.html' %} {# اطمینان حاصل کنید که base.html پایه اصلی قالب شماست #}
+{% load static %}
+{% load crispy_forms_tags %}
+{% load humanize %} {# برای فرمت‌بندی اعداد، اگر نیاز باشد #}
+
+{% block title %}{{ page_title }}{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h2>{{ page_title }}</h2>
+        {% if drug_request.request_code %}
+            {# نمایش کد درخواست به صورت فقط خواندنی در بالای صفحه #}
+            <span class="badge bg-primary p-2">کد درخواست: {{ drug_request.request_code }}</span>
+        {% endif %}
+    </div>
+
+    {% if messages %}
+        <div class="messages mb-4">
+            {% for message in messages %}
+                <div class="alert alert-{{ message.tags }} alert-dismissible fade show" role="alert">
+                    {{ message }}
+                    <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                </div>
+            {% endfor %}
+        </div>
+    {% endif %}
+
+    <div class="card shadow-sm">
+        <div class="card-header bg-light">
+            <h4 class="mb-0">{{ page_title }}</h4>
+        </div>
+        <div class="card-body">
+            <form method="post" id="request-form" novalidate>
+                {% csrf_token %}
+
+                {# خطاهای کلی فرم (غیر فیلدی) #}
+                {% if form.non_field_errors %}
+                    <div class="alert alert-danger">
+                        {% for error in form.non_field_errors %}
+                            <p>{{ error }}</p>
+                        {% endfor %}
+                    </div>
+                {% endif %}
+
+                <fieldset class="border p-3 mb-4 rounded">
+                    <legend class="w-auto px-2 fs-6">اطلاعات اصلی درخواست</legend>
+                    <div class="row">
+                        {# نمایش فیلد request_code به صورت فقط خواندنی (چون در فرم editable نیست) #}
+                        <div class="col-md-4">
+                            <div class="mb-3 form-group">
+                                <label class="form-label fw-bold">کد درخواست:</label>
+                                {# مطمئن شوید که آبجکت drug_request در context موجود است #}
+                                <p class="form-control-plaintext">{{ drug_request.request_code }}</p>
+                            </div>
+                        </div>
+                        {# فیلد تاریخ درخواست (شمسی) #}
+                        <div class="col-md-4">{{ form.request_date|as_crispy_field }}</div>
+                        {# فیلد درخواست کننده #}
+                        <div class="col-md-4">{{ form.requested_by|as_crispy_field }}</div>
+                    </div>
+                    <div class="row">
+                        {# فیلد مسئول بررسی/تایید #}
+                        <div class="col-md-6">{{ form.assigned_approver|as_crispy_field }}</div>
+                        {# فیلد وضعیت #}
+                        <div class="col-md-6">{{ form.status|as_crispy_field }}</div>
+                    </div>
+                    {# فیلد توضیحات #}
+                    {{ form.description|as_crispy_field }}
+                </fieldset>
+
+                {# فرم‌ست آیتم‌های درخواست دارو #}
+                <fieldset class="border p-3 mb-4 rounded">
+                    <legend class="w-auto px-2 fs-6">آیتم‌های درخواست دارو</legend>
+                    {{ formset.management_form }}
+                    <div id="formset-container">
+                        {% for item_form in formset %}
+                            <div class="item-form border rounded p-3 mb-3 bg-light position-relative">
+                                {% if formset.can_delete %}
+                                    <button type="button" class="btn-close remove-item-btn" aria-label="حذف" style="position: absolute; top: 10px; right: 10px;"></button>
+                                {% endif %}
+                                {% if item_form.non_field_errors %}
+                                    <div class="alert alert-danger">{{ item_form.non_field_errors }}</div>
+                                {% endif %}
+                                <div class="row">
+                                    <div class="col-md-6">{{ item_form.drug|as_crispy_field }}</div>
+                                    <div class="col-md-3">{{ item_form.requested_quantity|as_crispy_field }}</div>
+                                    <div class="col-md-3">{{ item_form.approved_quantity|as_crispy_field }}</div>
+                                </div>
+                                <div class="row">
+                                    <div class="col-md-12">{{ item_form.notes|as_crispy_field }}</div>
+                                </div>
+                                {{ item_form.id }} {# فیلد ID پنهان برای ویرایش #}
+                                {{ item_form.DELETE }} {# فیلد DELETE پنهان برای حذف #}
+                            </div>
+                        {% endfor %}
+                    </div>
+                    <button type="button" class="btn btn-info btn-sm" id="add-item-btn">
+                        <i class="fas fa-plus"></i> افزودن آیتم جدید
+                    </button>
+                </fieldset>
+
+                <div class="mt-4 d-flex justify-content-between">
+                    <button type="submit" class="btn btn-success">
+                        <i class="fas fa-save"></i> ذخیره تغییرات
+                    </button>
+                    <a href="{% url 'drugs:drug_request_detail' pk=drug_request.pk %}" class="btn btn-secondary">
+                        <i class="fas fa-arrow-left"></i> بازگشت
+                    </a>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+    {{ form.media }} {# برای CSS و JS ویجت‌های Select2 و JalaliDate #}
+    {{ formset.media }} {# اگر formset هم نیاز به مدیا دارد #}
+
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            const formsetContainer = document.getElementById('formset-container');
+            const addItemButton = document.getElementById('add-item-btn');
+            const totalForms = document.querySelector('input[name="{{ formset.management_form.prefix }}-TOTAL_FORMS"]');
+            const templateForm = formsetContainer.children[0] ? formsetContainer.children[0].cloneNode(true) : null;
+
+            // اگر هیچ فرمی وجود ندارد، یک فرم خالی برای Template ایجاد کنید
+            if (!templateForm) {
+                // این بخش باید با ساختار یک فرم آیتم خالی متناسب با پروژه شما پر شود
+                // مثال (این فقط یک نمونه است و نیاز به تطبیق دارد):
+                const emptyFormHtml = `
+                    <div class="item-form border rounded p-3 mb-3 bg-light position-relative">
+                        <button type="button" class="btn-close remove-item-btn" aria-label="حذف" style="position: absolute; top: 10px; right: 10px;"></button>
+                        <div class="row">
+                            <div class="col-md-6">
+                                <div class="mb-3 form-group">
+                                    <label class="form-label" for="id_form-__prefix__-drug">نام دارو:</label>
+                                    <select name="form-__prefix__-drug" class="form-select select2-single-item" id="id_form-__prefix__-drug">
+                                        <option value="">---------</option>
+                                    </select>
+                                </div>
+                            </div>
+                            <div class="col-md-3">
+                                <div class="mb-3 form-group">
+                                    <label class="form-label" for="id_form-__prefix__-requested_quantity">مقدار درخواستی:</label>
+                                    <input type="number" name="form-__prefix__-requested_quantity" class="form-control" id="id_form-__prefix__-requested_quantity">
+                                </div>
+                            </div>
+                            <div class="col-md-3">
+                                <div class="mb-3 form-group">
+                                    <label class="form-label" for="id_form-__prefix__-approved_quantity">مقدار تایید شده:</label>
+                                    <input type="number" name="form-__prefix__-approved_quantity" class="form-control" id="id_form-__prefix__-approved_quantity">
+                                </div>
+                            </div>
+                        </div>
+                        <div class="row">
+                            <div class="col-md-12">
+                                <div class="mb-3 form-group">
+                                    <label class="form-label" for="id_form-__prefix__-notes">توضیحات آیتم:</label>
+                                    <textarea name="form-__prefix__-notes" cols="40" rows="3" class="form-control" id="id_form-__prefix__-notes"></textarea>
+                                </div>
+                            </div>
+                        </div>
+                        <input type="hidden" name="form-__prefix__-id" id="id_form-__prefix__-id">
+                        <input type="checkbox" name="form-__prefix__-DELETE" id="id_form-__prefix__-DELETE" style="display: none;">
+                    </div>
+                `;
+                const tempDiv = document.createElement('div');
+                tempDiv.innerHTML = emptyFormHtml.trim();
+                const firstChild = tempDiv.firstChild; // این عنصر فرم قالب خواهد بود
+                // قبل از کلون کردن، مطمئن شوید select2 initialization را حذف یا تغییر دهید تا فقط روی عناصر جدید اعمال شود
+                if (firstChild) {
+                    const select2Element = firstChild.querySelector('.select2-single-item');
+                    if (select2Element && $(select2Element).data('select2')) {
+                        $(select2Element).select2('destroy');
+                    }
+                }
+                var templateFormHtml = firstChild.outerHTML; // HTML خام فرم قالب
+            } else {
+                // اگر فرم موجود است، آن را برای استفاده به عنوان قالب آماده کنید
+                templateForm.querySelectorAll('input, select, textarea').forEach(input => {
+                    input.value = ''; // مقادیر قبلی را پاک کنید
+                    if (input.type === 'checkbox' || input.type === 'radio') {
+                        input.checked = false;
+                    }
+                });
+                // پاک کردن خطاها یا پیام‌های Crispy Forms
+                templateForm.querySelectorAll('.invalid-feedback, .is-invalid, .alert').forEach(el => el.remove());
+                templateForm.querySelectorAll('.form-group, .mb-3').forEach(el => {
+                    el.classList.remove('is-invalid');
+                    el.classList.remove('is-valid');
+                });
+
+                // ریشه‌کن کردن Select2 از عنصر قالب
+                const select2Element = templateForm.querySelector('.select2-single-item');
+                if (select2Element && $(select2Element).data('select2')) {
+                    $(select2Element).select2('destroy');
+                    select2Element.innerHTML = '<option value="">---------</option>'; // پاک کردن گزینه‌های قبلی
+                }
+                var templateFormHtml = templateForm.outerHTML;
+            }
+
+
+            function updateElementIndex(el, prefix, ndx) {
+                const idRegex = new RegExp(`(${prefix}-(\\d+)-)`, 'g');
+                const nameRegex = new RegExp(`(${prefix}-(\\d+)-)`, 'g');
+                el.innerHTML = el.innerHTML.replace(idRegex, `${prefix}-${ndx}-`);
+                el.innerHTML = el.innerHTML.replace(nameRegex, `${prefix}-${ndx}-`);
+
+                // Update 'for' attributes of labels
+                el.querySelectorAll('label').forEach(label => {
+                    const currentFor = label.getAttribute('for');
+                    if (currentFor && currentFor.includes(prefix)) {
+                        label.setAttribute('for', currentFor.replace(idRegex, `${prefix}-${ndx}-`));
+                    }
+                });
+
+                // Re-initialize Select2 for the new element if it exists
+                const select2Elements = el.querySelectorAll('.select2-single-item');
+                select2Elements.forEach(selectElement => {
+                    // Destroy any old Select2 instance before re-initializing
+                    if ($(selectElement).data('select2')) {
+                        $(selectElement).select2('destroy');
+                    }
+                    $(selectElement).select2({
+                        theme: 'bootstrap-5', // استفاده از تم Bootstrap 5
+                        width: 'resolve'
+                    });
+                });
+
+                // Re-initialize JalaliDate pickers
+                el.querySelectorAll('.jalali_date-date').forEach(dateInput => {
+                    // Destroy any old datepicker instance
+                    if ($(dateInput).data('datepicker')) {
+                        $(dateInput).datepicker('destroy');
+                    }
+                    $(dateInput).datepicker({
+                        dateFormat: 'yy/mm/dd',
+                        showOtherMonths: true,
+                        selectOtherMonths: true,
+                        changeMonth: true,
+                        changeYear: true,
+                        // Add other Jalali Date picker options if needed
+                    });
+                });
+            }
+
+            addItemButton.addEventListener('click', function() {
+                const currentForms = document.querySelectorAll('.item-form').length;
+                const newFormHtml = templateFormHtml.replace(/__prefix__/g, currentForms);
+                const newFormDiv = document.createElement('div');
+                newFormDiv.innerHTML = newFormHtml.trim();
+                const newFormElement = newFormDiv.firstChild;
+                formsetContainer.appendChild(newFormElement);
+
+                updateElementIndex(newFormElement, 'form', currentForms);
+                totalForms.value = parseInt(totalForms.value) + 1;
+
+                // اضافه کردن event listener برای دکمه حذف جدید
+                newFormElement.querySelector('.remove-item-btn').addEventListener('click', function() {
+                    deleteForm(this);
+                });
+            });
+
+            function deleteForm(button) {
+                const formToDelete = button.closest('.item-form');
+                const deleteCheckbox = formToDelete.querySelector('input[type="checkbox"][name$="-DELETE"]');
+                if (deleteCheckbox) {
+                    deleteCheckbox.checked = true;
+                    formToDelete.style.display = 'none'; // یا کاملاً حذف کنید: formToDelete.remove();
+                } else {
+                    formToDelete.remove(); // اگر چک‌باکس DELETE وجود ندارد، مستقیماً حذف کنید
+                }
+                updateFormIndexes();
+            }
+
+            // اضافه کردن event listeners برای دکمه‌های حذف موجود
+            document.querySelectorAll('.remove-item-btn').forEach(button => {
+                button.addEventListener('click', function() {
+                    deleteForm(this);
+                });
+            });
+
+            function updateFormIndexes() {
+                let index = 0;
+                document.querySelectorAll('.item-form').forEach(formElement => {
+                    // فقط فرم‌های قابل مشاهده را به‌روزرسانی کنید
+                    if (formElement.style.display !== 'none') {
+                        updateElementIndex(formElement, 'form', index);
+                        index++;
+                    }
+                });
+                totalForms.value = index; // تعداد فرم‌های فعال را به‌روز کنید
+            }
+
+            // Initialization for existing forms on page load
+            document.querySelectorAll('.item-form').forEach((formElement, index) => {
+                updateElementIndex(formElement, 'form', index); // برای اطمینان از صحت ایندکس‌ها
+            });
+
+            // Initialize Select2 for existing fields on page load
+            $('.select2-single-item').select2({
+                theme: 'bootstrap-5', // استفاده از تم Bootstrap 5
+                width: 'resolve' // برای تنظیم عرض بر اساس عنصر والد
+            });
+
+            // Initialize Jalali Date pickers for existing fields on page load
+            $('.jalali_date-date').datepicker({
+                dateFormat: 'yy/mm/dd',
+                showOtherMonths: true,
+                selectOtherMonths: true,
+                changeMonth: true,
+                changeYear: true,
+                // می‌توانید گزینه‌های دیگری مانند minDate, maxDate را اینجا اضافه کنید
+            });
+        });
+    </script>
+{% endblock %}

@@ -1,0 +1,66 @@
+{# D:\final\drugs\templates\drugs\drug_request_detail.html (Updated and Corrected) #}
+{% extends "base.html" %}
+{% load jformat %}
+
+{% block title %}جزئیات درخواست {{ drug_request.request_code }}{% endblock %}
+
+{% block content %}
+<div class="card shadow-sm">
+    <div class="card-header bg-light d-flex justify-content-between align-items-center">
+        <h4 class="mb-0">جزئیات درخواست: {{ drug_request.request_code }}</h4>
+        <div>
+            {# خط 12 اصلاح شد: پرانتزها حذف شدند #}
+            {% if drug_request.status == 'pending' and user == drug_request.requested_by or user == drug_request.assigned_approver or user.is_superuser %}
+                <a href="{% url 'drugs:drug_request_update' drug_request.pk %}" class="btn btn-warning"><i class="fas fa-edit"></i> ویرایش</a>
+            {% endif %}
+            {# خط 15 اصلاح شد: پرانتزها حذف شدند #}
+            {% if drug_request.status == 'pending' and user == drug_request.requested_by or user.is_superuser %}
+            <form action="{% url 'drugs:drug_request_delete' drug_request.pk %}" method="post" class="d-inline" onsubmit="return confirm('آیا از حذف این درخواست اطمینان دارید؟');">
+                {% csrf_token %}
+                <button type="submit" class="btn btn-danger"><i class="fas fa-trash"></i> حذف</button>
+            </form>
+            {% endif %}
+        </div>
+    </div>
+    <div class="card-body">
+        <div class="row mb-3 p-3 border rounded">
+            <div class="col-md-4"><strong>درخواست‌کننده (امضا):</strong> {{ drug_request.requested_by.get_full_name }}</div>
+            <div class="col-md-4"><strong>تاریخ درخواست (امضا):</strong> {{ drug_request.request_date|jformat:"%Y/%m/%d %H:%M" }}</div>
+            <div class="col-md-4"><strong>وضعیت:</strong> <span class="badge bg-primary fs-6">{{ drug_request.get_status_display }}</span></div>
+            <div class="col-md-4 mt-2"><strong>مسئول بررسی/تایید:</strong> {{ drug_request.assigned_approver.get_full_name|default:"-" }}</div>
+            <div class="col-md-8 mt-2"><strong>توضیحات:</strong> {{ drug_request.description|default:"-" }}</div>
+        </div>
+        
+        <h5 class="mt-4">اقلام درخواستی</h5>
+        <div class="table-responsive">
+            <table class="table table-sm table-bordered">
+                <thead class="table-light">
+                    <tr><th>دارو</th><th>تعداد</th><th>ملاحظات</th></tr>
+                </thead>
+                <tbody>
+                    {% for item in drug_request.items.all %}
+                    <tr><td>{{ item.drug.name }}</td><td>{{ item.requested_quantity }}</td><td>{{ item.notes|default:"-" }}</td></tr>
+                    {% empty %}
+                    <tr><td colspan="3" class="text-center">هیچ آیتمی ثبت نشده است.</td></tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        
+        <h5 class="mt-4">تاریخچه گردش کار</h5>
+        <ul class="list-group">
+            {% for log in drug_request.workflow_logs.all %}
+            <li class="list-group-item">
+                <p class="mb-1"><strong>{{ log.get_action_display|default:log.action }}:</strong> {{ log.notes }}</p>
+                <small class="text-muted">توسط: {{ log.user.get_full_name }} در {{ log.timestamp|jformat:"%Y/%m/%d - %H:%M" }}</small>
+            </li>
+            {% empty %}
+            <li class="list-group-item">هیچ سابقه‌ای برای این درخواست ثبت نشده است.</li>
+            {% endfor %}
+        </ul>
+    </div>
+    <div class="card-footer text-end">
+           <a href="{% url 'drugs:drug_request_list' %}" class="btn btn-secondary"><i class="fas fa-arrow-left"></i> بازگشت به لیست</a>
+    </div>
+</div>
+{% endblock %}

@@ -1,0 +1,194 @@
+/* D:\final\static\css\style.css */
+
+body {
+    overflow-x: hidden;
+}
+
+body.filter-sidebar-active {
+    overflow: hidden; /* جلوگیری از اسکرول بدنه اصلی وقتی سایدبار فیلتر باز است */
+}
+
+#wrapper {
+    display: flex;
+}
+
+/* استایل های سایدبار اصلی (داشبورد) */
+#sidebar-wrapper {
+    min-height: 100vh;
+    margin-right: -15rem; /* برای RTL سایدبار به صورت پیش فرض به راست پنهان می شود */
+    transition: margin .25s ease-out;
+    width: 15rem; /* عرض سایدبار */
+    position: fixed; /* سایدبار ثابت باشد */
+    top: 0;
+    right: 0; /* برای RTL سایدبار به راست می چسبد */
+    z-index: 1000;
+}
+
+#sidebar-wrapper .sidebar-heading {
+    padding: 0.875rem 1.25rem;
+    font-size: 1.2rem;
+}
+
+#sidebar-wrapper .list-group {
+    width: 15rem;
+}
+
+#page-content-wrapper {
+    min-width: 100vw;
+    margin-left: 0; /* برای RTL محتوا به چپ می چسبد */
+    transition: margin .25s ease-out;
+    padding-left: 0 !important; /* مطمئن شویم padding چپ اضافه نباشد */
+    padding-right: 0 !important; /* مطمئن شویم padding راست اضافه نباشد */
+}
+
+#wrapper.toggled #sidebar-wrapper {
+    margin-right: 0; /* سایدبار نمایش داده می شود */
+}
+
+#wrapper.toggled #page-content-wrapper {
+    margin-right: 15rem; /* محتوا به اندازه سایدبار جابجا می شود */
+}
+
+@media (min-width: 768px) {
+    #sidebar-wrapper {
+        margin-right: 0; /* در دسکتاپ سایدبار همیشه باز باشد و به راست بچسبد */
+    }
+    #page-content-wrapper {
+        min-width: 0;
+        width: 100%;
+        margin-right: 15rem; /* فاصله از سایدبار ثابت در دسکتاپ */
+        margin-left: 0; /* مطمئن شویم margin-left اضافی نباشد */
+    }
+    #wrapper.toggled #sidebar-wrapper {
+        margin-right: -15rem; /* بستن سایدبار در دسکتاپ با toggle (پنهان شدن به سمت راست) */
+    }
+    #wrapper.toggled #page-content-wrapper {
+        margin-right: 0; /* محتوا به راست بر می گردد در حالت بسته */
+    }
+}
+
+/* استایل های سفارشی بیشتر */
+.form-control {
+    direction: rtl; /* جهت متن در فرم ها راست به چپ */
+    text-align: right; /* تراز متن در فرم ها راست */
+}
+
+/* کنترل ارتفاع textarea ها */
+textarea.form-control {
+    min-height: 90px; /* حداقل ارتفاع برای textarea ها - می توانید تنظیم کنید */
+    resize: vertical; /* فقط اجازه تغییر سایز عمودی را بدهید */
+}
+
+.form-label {
+    text-align: right;
+    width: 100%;
+}
+
+/* جدید: استایل های سایدبار فیلتر */
+.filter-sidebar {
+    position: fixed;
+    top: 0;
+    right: -350px; /* سایدبار به طور پیش فرض پنهان است، 350px عرضش */
+    width: 350px; /* عرض سایدبار */
+    height: 100%;
+    background-color: #f8f9fa; /* رنگ روشن برای سایدبار فیلتر */
+    box-shadow: -2px 0 10px rgba(0, 0, 0, 0.3);
+    transition: right 0.3s ease-in-out; /* انیمیشن برای ورود و خروج */
+    z-index: 1050; /* بالاتر از Navbar و سایدبار اصلی */
+    overflow-y: auto; /* برای اسکرول محتوای زیاد */
+    padding: 20px;
+    display: flex;
+    flex-direction: column;
+}
+
+.filter-sidebar.open {
+    right: 0; /* سایدبار وارد صفحه میشه */
+}
+
+/* استایل برای Overlay (لایه تیره پشت سایدبار) */
+.filter-sidebar-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(0, 0, 0, 0.5);
+    z-index: 1040; /* بین سایدبار فیلتر و محتوای اصلی */
+    display: none; /* به طور پیش فرض پنهان */
+}
+
+/* وقتی سایدبار باز است، Overlay هم نمایش داده شود */
+.filter-sidebar.open + .filter-sidebar-overlay {
+    display: block;
+}
+
+/* در حالت RTL، انیمیشن تغییر می کند (این قبلا در base.html بود و اینجا منتقل شده است) */
+html[dir="rtl"] .filter-sidebar {
+    left: -350px; /* سایدبار به طور پیش فرض پنهان است، 350px عرضش */
+    right: auto; /* راست به چپ را لغو می کند */
+    transition: left 0.3s ease-in-out; /* انیمیشن برای ورود و خروج */
+}
+
+html[dir="rtl"] .filter-sidebar.open {
+    left: 0; /* سایدبار وارد صفحه میشه */
+    right: auto;
+}
+
+
+/* استایل برای دکمه بستن سایدبار */
+.filter-sidebar-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 20px;
+    padding-bottom: 10px;
+    border-bottom: 1px solid #eee;
+}
+
+.filter-sidebar-header h5 {
+    margin-bottom: 0;
+    font-weight: bold;
+    color: #343a40; /* رنگ عنوان سایدبار */
+}
+
+.filter-sidebar-close-btn {
+    background: none;
+    border: none;
+    font-size: 1.5rem;
+    color: #6c757d;
+    cursor: pointer;
+    padding: 0;
+    line-height: 1;
+}
+
+.filter-sidebar-close-btn:hover {
+    color: #000;
+}
+
+/* فیلدهای فرم در سایدبار */
+.filter-sidebar .form-control {
+    width: 100%; /* مطمئن شوید که فیلدها عرض کامل را می گیرند */
+    margin-bottom: 10px; /* فاصله بین فیلدها */
+}
+
+.filter-sidebar .btn {
+    width: 100%;
+    margin-top: 15px; /* فاصله دکمه ها از فیلدها */
+}
+
+.filter-sidebar .card-body {
+    padding: 0; /* حذف پدینگ اضافی از card-body در سایدبار */
+}
+
+/* تغییراتی برای ریسپانسیو بودن (موبایل) */
+@media (max-width: 768px) {
+    .filter-sidebar {
+        width: 80%; /* عرض بیشتر در موبایل برای استفاده بهتر از فضا */
+        /* در RTL */
+        left: -80%;
+        right: auto;
+    }
+    .filter-sidebar.open {
+        left: 0;
+    }
+}

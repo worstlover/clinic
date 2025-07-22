@@ -1,0 +1,178 @@
+{# D:\final\core\templates\core\patient_detail.html #}
+{% extends 'base.html' %}
+{% load static %}
+{% load persian_dates %} {# بارگذاری فیلترهای تاریخ شمسی #}
+
+{% block content %}
+    <h1 class="content-header-padding text-end">{{ page_title }}</h1>
+
+    {# کارت جزئیات بیمار #}
+    <div class="card shadow-sm border-0 mb-4 mx-3">
+        <div class="card-header bg-primary text-white text-end py-3">
+            <h5 class="mb-0">جزئیات بیمار: {{ patient.first_name }} {{ patient.last_name }}</h5>
+        </div>
+        <div class="card-body">
+            <div class="row align-items-center"> {# align-items-center برای تراز عمودی #}
+                <div class="col-md-3 text-center mb-3 mb-md-0"> {# ستون کوچکتر برای عکس و دکمه‌های اصلی #}
+                    {% if patient.profile_picture %}
+                        <img src="{{ patient.profile_picture.url }}" alt="عکس پروفایل" class="img-fluid rounded-circle border border-2 border-light shadow-sm mb-3" style="width: 150px; height: 150px; object-fit: cover;">
+                    {% else %}
+                        <img src="{% static 'images/default_profile.png' %}" alt="عکس پیش‌فرض" class="img-fluid rounded-circle border border-2 border-light shadow-sm mb-3" style="width: 150px; height: 150px; object-fit: cover;">
+                    {% endif %}
+                    <h4 class="mb-1">{{ patient.first_name }} {{ patient.last_name }}</h4>
+                    {% if patient.age is not None %}
+                        <p class="text-muted small">سن: {{ patient.age }} سال</p>
+                    {% endif %}
+                    <div class="d-flex justify-content-center mt-3 flex-wrap"> {# دکمه‌ها را به مرکز می‌برد و در صورت نیاز می‌شکند #}
+                        <a href="{% url 'core:patient_update' patient.pk %}" class="btn btn-info btn-sm me-2 mb-2"><i class="fas fa-edit me-1"></i>ویرایش</a>
+                        <a href="{% url 'core:patient_delete' patient.pk %}" class="btn btn-danger btn-sm mb-2"><i class="fas fa-trash-alt me-1"></i>حذف</a>
+                    </div>
+                </div>
+                <div class="col-md-9 text-end"> {# ستون بزرگتر برای اطلاعات دقیق‌تر #}
+                    <ul class="list-group list-group-flush border-0">
+                        <li class="list-group-item d-flex justify-content-between align-items-center">
+                            <strong>کد ملی:</strong> <span>{{ patient.national_code|default:"-" }}</span>
+                        </li>
+                        <li class="list-group-item d-flex justify-content-between align-items-center">
+                            <strong>کد پرسنلی:</strong> <span>{{ patient.personnel_number|default:"-" }}</span>
+                        </li>
+                        <li class="list-group-item d-flex justify-content-between align-items-center">
+                            <strong>جنسیت:</strong> <span>{{ patient.get_gender_display|default:"-" }}</span>
+                        </li>
+                        <li class="list-group-item d-flex justify-content-between align-items-center">
+                            <strong>تاریخ تولد:</strong> <span>{{ patient.date_of_birth|to_jalali:"%Y/%m/%d"|default:"-" }}</span>
+                        </li>
+                        <li class="list-group-item d-flex justify-content-between align-items-center">
+                            <strong>تلفن همراه:</strong> <span>{{ patient.phone_number|default:"-" }}</span>
+                        </li>
+                        <li class="list-group-item d-flex justify-content-between align-items-center">
+                            <strong>تلفن ثابت:</strong> <span>{{ patient.landline_number|default:"-" }}</span>
+                        </li>
+                        <li class="list-group-item d-flex justify-content-between align-items-center">
+                            <strong>ایمیل:</strong> <span>{{ patient.email|default:"-" }}</span>
+                        </li>
+                        <li class="list-group-item d-flex justify-content-between align-items-center">
+                            <strong>آدرس:</strong> <span>{{ patient.address|default:"-" }}</span>
+                        </li>
+                        <li class="list-group-item d-flex justify-content-between align-items-center">
+                            <strong>گروه خونی:</strong> <span>{{ patient.get_blood_type_display|default:"-" }}</span>
+                        </li>
+                        <li class="list-group-item d-flex justify-content-between align-items-center">
+                            <strong>نوع بیمه:</strong> <span>{{ patient.get_insurance_type_display|default:"-" }}</span>
+                        </li>
+                        <li class="list-group-item d-flex justify-content-between align-items-center">
+                            <strong>وضعیت تأهل:</strong> <span>{{ patient.get_marital_status_display|default:"-" }}</span>
+                        </li>
+                        <li class="list-group-item d-flex justify-content-between align-items-center">
+                            <strong>تحصیلات:</strong> <span>{{ patient.get_education_level_display|default:"-" }}</span>
+                        </li>
+                        <li class="list-group-item d-flex justify-content-between align-items-center">
+                            <strong>شرکت:</strong> <span>{{ patient.company.name|default:"-" }}</span>
+                        </li>
+                        <li class="list-group-item d-flex justify-content-between align-items-center">
+                            <strong>سمت شغلی:</strong> <span>{{ patient.job_title|default:"-" }}</span>
+                        </li>
+                        <li class="list-group-item d-flex justify-content-between align-items-center">
+                            <strong>اتباع خارجی:</strong> <span>{% if patient.is_foreign_national %}بله{% else %}خیر{% endif %}</span>
+                        </li>
+                        <li class="list-group-item d-flex justify-content-between align-items-center">
+                            <strong>تاریخ ثبت:</strong> <span>{{ patient.registered_at|to_jalali_datetime:"%Y/%m/%d %H:%M" }}</span>
+                        </li>
+                        <li class="list-group-item d-flex justify-content-between align-items-center">
+                            <strong>آخرین بروزرسانی:</strong> <span>{{ patient.updated_at|to_jalali_datetime:"%Y/%m/%d %H:%M" }}</span>
+                        </li>
+                        <li class="list-group-item d-flex justify-content-between align-items-center">
+                        <li class="list-group-item d-flex justify-content-between align-items-center">
+                            <strong>ثبت شده توسط:</strong>
+                            <span>
+                                {% if patient.registered_by %}
+                                    {{ patient.registered_by.first_name|default:patient.registered_by.username }}
+                                {% else %}
+                                    - {# یا می‌توانید بنویسید "نامشخص" یا "سیستم" #}
+                                {% endif %}
+                            </span>
+                        </li>
+                        <li class="list-group-item d-flex justify-content-between align-items-center">
+                            <strong>حساسیت:</strong> <span>{{ patient.allergies|default:"-" }}</span>
+                        </li>
+                        <li class="list-group-item d-flex justify-content-between align-items-center">
+                            <strong>سوابق پزشکی:</strong> <span>{{ patient.medical_history|default:"-" }}</span>
+                        </li>
+                        <li class="list-group-item d-flex justify-content-between align-items-center">
+                            <strong>شغل:</strong> <span>{{ patient.occupation|default:"-" }}</span>
+                        </li>
+                        <li class="list-group-item d-flex justify-content-between align-items-center">
+                            <strong>آخرین معاینه دوره‌ای:</strong> <span>{{ patient.last_periodic_examination_date|to_jalali:"%Y/%m/%d"|default:"-" }}</span>
+                        </li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    {# کارت سابقه ویزیت‌ها #}
+    <div class="card shadow-sm border-0 mb-4 mx-3">
+        <div class="card-header bg-secondary text-white text-end py-3 d-flex justify-content-between align-items-center">
+            <h5 class="mb-0">سابقه ویزیت‌ها</h5>
+            <a href="{% url 'visits:visit_create_for_patient' patient.pk %}" class="btn btn-success btn-sm"><i class="fas fa-plus me-1"></i>افزودن ویزیت جدید</a>
+        </div>
+        <div class="card-body">
+            {% if patient.visits.all %} {# 'visits' is the related_name from Visit model back to Patient #}
+                <div class="table-responsive">
+                    <table class="table table-hover table-striped text-end">
+                        <thead>
+                            <tr>
+                                <th scope="col">ردیف</th> {# ستون جدید برای شماره ردیف #}
+                                <th scope="col">تاریخ ویزیت</th>
+                                <th scope="col">علت مراجعه</th>
+                                <th scope="col">نتیجه درمان</th> {# تغییر نام ستون #}
+                                <th scope="col">داروهای تجویز شده</th>
+                                <th scope="col">ملاحظات</th>
+                                <th scope="col">پزشک معالج</th> {# تغییر نام ستون #}
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for visit in patient.visits.all %}
+                            <tr>
+                                <td class="text-center">{{ forloop.counter }}</td> {# شماره ردیف #}
+                                <td class="text-nowrap">
+                                    {# لینک به صفحه جزئیات ویزیت #}
+                                    <a href="{% url 'visits:visit_detail' visit.pk %}" class="text-decoration-none text-primary fw-bold">
+                                        {{ visit.visit_date|to_jalali_datetime:"%Y/%m/%d %H:%M" }}
+                                    </a>
+                                </td>
+                                <td>{{ visit.get_reason_for_visit_display|default:"-" }}</td> {# اصلاح نمایش #}
+                                <td>{{ visit.get_treatment_result_display|default:"-"|truncatechars:100 }}</td> {# اصلاح نمایش #}
+                                <td>
+                                    {% if visit.items.all %} {# اصلاح related_name #}
+                                        <ul class="list-unstyled mb-0 small">
+                                            {% for visit_item in visit.items.all %} {# اصلاح related_name #}
+                                                <li>{{ visit_item.drug.name }} (تعداد: {{ visit_item.quantity }})</li>
+                                            {% endfor %}
+                                        </ul>
+                                    {% else %}
+                                        -
+                                    {% endif %}
+                                </td>
+                                <td>{{ visit.notes|default:"-"|truncatechars:150 }}</td> {# ملاحظات #}
+                                <td>
+                                    {% if visit.doctor %} {# اصلاح فیلد #}
+                                        {{ visit.doctor.first_name|default:visit.doctor.username }}
+                                    {% else %}
+                                        -
+                                    {% endif %}
+                                </td>
+                                {# ستون "عملیات" حذف شد طبق درخواست شما #}
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            {% else %}
+                <div class="alert alert-info text-center" role="alert">
+                    هیچ سابقه ویزیت برای این بیمار یافت نشد. می‌توانید <a href="{% url 'visits:visit_create_for_patient' patient.pk %}" class="alert-link">اولین ویزیت</a> را ثبت کنید.
+                </div>
+            {% endif %}
+        </div>
+    </div>
+{% endblock %}

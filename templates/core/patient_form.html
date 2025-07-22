@@ -1,0 +1,211 @@
+{# D:\final\core\templates\core\patient_form.html #}
+{% extends 'base.html' %}
+{% load static %}
+{% load persian_dates %}
+
+{% block content %}
+    <h1 class="content-header-padding">{{ page_title }}</h1>
+
+    <div class="card shadow-sm border-0 mb-4 mx-3">
+        <div class="card-header bg-primary text-white">
+            <h5 class="mb-0">{{ page_title }}</h5>
+        </div>
+        <div class="card-body">
+            <form method="post" enctype="multipart/form-data">
+                {% csrf_token %}
+
+                {# نمایش پیام‌های سیستم #}
+                {% if messages %}
+                    {% for message in messages %}
+                        <div class="alert alert-{{ message.tags }} alert-dismissible fade show" role="alert">
+                            {{ message }}
+                            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                        </div>
+                    {% endfor %}
+                {% endif %}
+
+                {# نمایش خطاهای غیر فیلد (global errors) #}
+                {% if form.non_field_errors %}
+                    <div class="alert alert-danger" role="alert">
+                        {% for error in form.non_field_errors %}
+                            {{ error }}
+                        {% endfor %}
+                    </div>
+                {% endif %}
+
+                <div class="row">
+                    <div class="col-md-4 mb-3">
+                        <label for="{{ form.first_name.id_for_label }}" class="form-label">{{ form.first_name.label }}:</label>
+                        {{ form.first_name }}
+                        {% if form.first_name.errors %}<div class="text-danger">{{ form.first_name.errors }}</div>{% endif %}
+                    </div>
+                    <div class="col-md-4 mb-3">
+                        <label for="{{ form.last_name.id_for_label }}" class="form-label">{{ form.last_name.label }}:</label>
+                        {{ form.last_name }}
+                        {% if form.last_name.errors %}<div class="text-danger">{{ form.last_name.errors }}</div>{% endif %}
+                    </div>
+                    <div class="col-md-4 mb-3">
+                        <label for="{{ form.phone_number.id_for_label }}" class="form-label">{{ form.phone_number.label }}:</label>
+                        {{ form.phone_number }}
+                        <div class="form-text text-muted">{{ form.phone_number.help_text }}</div>
+                        {% if form.phone_number.errors %}<div class="text-danger">{{ form.phone_number.errors }}</div>{% endif %}
+                    </div>
+                </div>
+
+                <div class="row">
+                    <div class="col-md-4 mb-3">
+                        <label for="{{ form.gender.id_for_label }}" class="form-label">{{ form.gender.label }}:</label>
+                        {{ form.gender }}
+                        {% if form.gender.errors %}<div class="text-danger">{{ form.gender.errors }}</div>{% endif %}
+                    </div>
+                    <div class="col-md-4 mb-3">
+                        <label for="{{ form.blood_type.id_for_label }}" class="form-label">{{ form.blood_type.label }}:</label>
+                        {{ form.blood_type }}
+                        {% if form.blood_type.errors %}<div class="text-danger">{{ form.blood_type.errors }}</div>{% endif %}
+                    </div>
+                    <div class="col-md-4 mb-3">
+                        <label for="{{ form.insurance_type.id_for_label }}" class="form-label">{{ form.insurance_type.label }}:</label>
+                        {{ form.insurance_type }}
+                        {% if form.insurance_type.errors %}<div class="text-danger">{{ form.insurance_type.errors }}</div>{% endif %}
+                    </div>
+                </div>
+
+                <div class="row">
+                    <div class="col-md-4 mb-3">
+                        <label for="{{ form.company.id_for_label }}" class="form-label">{{ form.company.label }}:</label>
+                        {{ form.company }}
+                        {% if form.company.errors %}<div class="text-danger">{{ form.company.errors }}</div>{% endif %}
+                    </div>
+                    <div class="col-md-4 mb-3">
+                        <label for="{{ form.occupation.id_for_label }}" class="form-label">{{ form.occupation.label }}:</label>
+                        {{ form.occupation }}
+                        {% if form.occupation.errors %}<div class="text-danger">{{ form.occupation.errors }}</div>{% endif %}
+                    </div>
+                    <div class="col-md-4 mb-3">
+                        <label for="{{ form.personnel_number.id_for_label }}" class="form-label">{{ form.personnel_number.label }}:</label>
+                        {{ form.personnel_number }}
+                        {% if form.personnel_number.errors %}<div class="text-danger">{{ form.personnel_number.errors }}</div>{% endif %}
+                    </div>
+                </div>
+
+                <div class="mb-3 form-check form-check-reverse text-end">
+                    {{ form.is_foreign_national }}
+                    <label class="form-check-label" for="{{ form.is_foreign_national.id_for_label }}">{{ form.is_foreign_national.label }}</label>
+                    {% if form.is_foreign_national.errors %}<div class="text-danger">{{ form.is_foreign_national.errors }}</div>{% endif %}
+                </div>
+
+                <div class="row">
+                    <div class="col-md-6 mb-3" id="national-code-field">
+                        <label for="{{ form.national_code.id_for_label }}" class="form-label">{{ form.national_code.label }}:</label>
+                        {{ form.national_code }}
+                        <div class="form-text text-muted">{{ form.national_code.help_text }}</div>
+                        {% if form.national_code.errors %}<div class="text-danger">{{ form.national_code.errors }}</div>{% endif %}
+                    </div>
+                    <div class="col-md-6 mb-3" id="passport-number-field" {% if not form.instance.is_foreign_national %}style="display: none;"{% endif %}>
+                        <label for="{{ form.passport_number.id_for_label }}" class="form-label">{{ form.passport_number.label }}:</label>
+                        {{ form.passport_number }}
+                        <div class="form-text text-muted">{{ form.passport_number.help_text }}</div>
+                        {% if form.passport_number.errors %}<div class="text-danger">{{ form.passport_number.errors }}</div>{% endif %}
+                    </div>
+                </div>
+                
+                {# فیلدهای تاریخ تولد و معاینه دوره‌ای که با AdminJalaliDateWidget رندر می‌شوند #}
+                <div class="row">
+                    <div class="col-md-6 mb-3">
+                        <label for="{{ form.date_of_birth.id_for_label }}" class="form-label">{{ form.date_of_birth.label }}:</label>
+                        {{ form.date_of_birth }}
+                        <div class="form-text text-muted">{{ form.date_of_birth.help_text }}</div>
+                        {% if form.date_of_birth.errors %}<div class="text-danger">{{ form.date_of_birth.errors }}</div>{% endif %}
+                    </div>
+                    <div class="col-md-6 mb-3">
+                        <label for="{{ form.last_periodic_examination_date.id_for_label }}" class="form-label">{{ form.last_periodic_examination_date.label }}:</label>
+                        {{ form.last_periodic_examination_date }}
+                        <div class="form-text text-muted">{{ form.last_periodic_examination_date.help_text }}</div>
+                        {% if form.last_periodic_examination_date.errors %}<div class="text-danger">{{ form.last_periodic_examination_date.errors }}</div>{% endif %}
+                    </div>
+                </div>
+
+                {# ردیف نمایش سن بیمار حذف شد #}
+
+                <div class="mb-3">
+                    <label for="{{ form.address.id_for_label }}" class="form-label">{{ form.address.label }}:</label>
+                    {{ form.address }}
+                    {% if form.address.errors %}<div class="text-danger">{{ form.address.errors }}</div>{% endif %}
+                </div>
+
+                <div class="mb-3">
+                    <label for="{{ form.allergies.id_for_label }}" class="form-label">{{ form.allergies.label }}:</label>
+                    {{ form.allergies }}
+                    {% if form.allergies.errors %}<div class="text-danger">{{ form.allergies.errors }}</div>{% endif %}
+                </div>
+                
+                <div class="mb-3">
+                    <label for="{{ form.medical_history.id_for_label }}" class="form-label">{{ form.medical_history.label }}:</label>
+                    {{ form.medical_history }}
+                    {% if form.medical_history.errors %}<div class="text-danger">{{ form.medical_history.errors }}</div>{% endif %}
+                </div>
+
+                <div class="mb-3">
+                    <label for="{{ form.profile_picture.id_for_label }}" class="form-label">{{ form.profile_picture.label }}:</label>
+                    {% if form.instance.profile_picture %}
+                        <p><img src="{{ form.instance.profile_picture.url }}" alt="عکس فعلی" class="img-thumbnail" style="max-width: 100px; max-height: 100px; object-fit: cover;"></p>
+                    {% endif %}
+                    {{ form.profile_picture }}
+                    {% if form.profile_picture.errors %}<div class="text-danger">{{ form.profile_picture.errors }}</div>{% endif %}
+                </div>
+
+                <div class="mb-3 form-check form-check-reverse text-end">
+                    {{ form.is_monitored }}
+                    <label class="form-check-label" for="{{ form.is_monitored.id_for_label }}">{{ form.is_monitored.label }}</label>
+                    {% if form.is_monitored.errors %}<div class="text-danger">{{ form.is_monitored.errors }}</div>{% endif %}
+                </div>
+
+                <div class="d-flex justify-content-end mt-4">
+                    <button type="submit" class="btn btn-primary me-2"><i class="fas fa-save me-1"></i>ذخیره</button>
+                    <a href="{% url 'core:patient_list' %}" class="btn btn-secondary">بازگشت</a>
+                </div>
+            </form>
+        </div>
+    </div>
+{% endblock %}
+
+{% block extra_js %}
+    {{ block.super }} {# حفظ اسکریپت‌های موجود در base.html #}
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            const isForeignNationalCheckbox = document.getElementById('id_is_foreign_national');
+            const nationalCodeInput = document.getElementById('id_national_code');
+            const passportNumberInput = document.getElementById('id_passport_number');
+            const nationalCodeFieldRow = document.getElementById('national-code-field');
+            const passportNumberFieldRow = document.getElementById('passport-number-field');
+
+            function toggleNationalCodeAndPassportRequired() {
+                const isForeign = isForeignNationalCheckbox.checked;
+
+                // مدیریت نمایش و required بودن فیلدها
+                nationalCodeFieldRow.style.display = isForeign ? 'none' : 'block';
+                passportNumberFieldRow.style.display = isForeign ? 'block' : 'none';
+
+                if (isForeign) {
+                    nationalCodeInput.removeAttribute('required');
+                    nationalCodeInput.value = ''; // پاک کردن مقدار در صورت تغییر
+                    passportNumberInput.setAttribute('required', 'required');
+                } else {
+                    nationalCodeInput.setAttribute('required', 'required');
+                    passportNumberInput.removeAttribute('required');
+                    passportNumberInput.value = ''; // پاک کردن مقدار در صورت تغییر
+                }
+            }
+            
+            // فراخوانی اولیه تابع برای تنظیمات اولیه فرم
+            toggleNationalCodeAndPassportRequired();
+
+            // اضافه کردن شنونده رویداد برای تغییر وضعیت تبعه خارجی
+            if (isForeignNationalCheckbox) {
+                isForeignNationalCheckbox.addEventListener('change', toggleNationalCodeAndPassportRequired);
+            }
+
+            // بخش مربوط به محاسبه سن حذف شد، بنابراین نیازی به listener برای date_of_birth_jalali نیست.
+        });
+    </script>
+{% endblock %}

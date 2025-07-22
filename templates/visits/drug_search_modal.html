@@ -1,0 +1,98 @@
+<div class="modal-dialog modal-lg" role="document">
+    <div class="modal-content">
+        <div class="modal-header">
+            <h5 class="modal-title" id="drugSearchModalLabel">جستجوی دارو</h5>
+            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+        </div>
+        <div class="modal-body">
+            <form id="drugSearchForm" method="GET" action="{% url 'visits:drug_search_modal' %}">
+                <div class="input-group mb-3">
+                    <input type="text" name="q" class="form-control" placeholder="جستجو بر اساس نام دارو یا نام ژنریک" value="{{ query }}">
+                    <button class="btn btn-outline-primary" type="submit">جستجو</button>
+                </div>
+            </form>
+            <div class="table-responsive">
+                <table class="table table-hover table-striped">
+                    <thead>
+                        <tr>
+                            <th>نام دارو</th>
+                            <th>نام ژنریک</th>
+                            <th>موجودی</th> {# assuming you want to show quantity if available #}
+                            <th></th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% if drugs %}
+                            {% for drug in drugs %}
+                                <tr>
+                                    <td>{{ drug.name }}</td>
+                                    <td>{{ drug.generic_name|default:"---" }}</td>
+                                    <td>{{ drug.total_quantity|default:"نامشخص" }}</td> {# Display total_quantity if exists on Drug model #}
+                                    <td>
+                                        <button type="button" class="btn btn-success btn-sm select-drug-btn"
+                                                data-drug-id="{{ drug.id }}"
+                                                data-drug-name="{{ drug.name }}">
+                                            انتخاب
+                                        </button>
+                                    </td>
+                                </tr>
+                            {% endfor %}
+                        {% else %}
+                            <tr>
+                                <td colspan="4" class="text-center">هیچ دارویی یافت نشد.</td>
+                            </tr>
+                        {% endif %}
+                    </tbody>
+                </table>
+            </div>
+            {# Optional: Add pagination links here if using paginator in view #}
+        </div>
+        <div class="modal-footer">
+            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">بستن</button>
+        </div>
+    </div>
+</div>
+
+<script>
+    $(document).ready(function() {
+        // Handle the "انتخاب" button click
+        $('.select-drug-btn').on('click', function() {
+            const drugId = $(this).data('drug-id');
+            const drugName = $(this).data('drug-name');
+
+            // Find the correct formset row's input in the parent window.
+            // This relies on the global 'currentDrugInputTarget' set in visit_form.html
+            if (window.opener.currentDrugInputTarget) {
+                // Set the display name in the text input
+                window.opener.jQuery(window.opener.currentDrugInputTarget).val(drugName);
+                // Set the hidden ID in the corresponding hidden input
+                // Assuming the hidden input is named something like 'drug_id_hidden'
+                // and is a sibling or closely related to the display input
+                const formsetPrefix = window.opener.jQuery(window.opener.currentDrugInputTarget).attr('id').split('-')[0]; // e.g., 'id_visitdrug_set'
+                const formsetIndex = window.opener.jQuery(window.opener.currentDrugInputTarget).attr('id').split('-')[1]; // e.g., '0'
+                const hiddenInputId = `#${formsetPrefix}-${formsetIndex}-drug_id_hidden`;
+                window.opener.jQuery(hiddenInputId).val(drugId);
+            }
+            
+            // Close the current modal
+            const drugSearchModalElement = document.getElementById('drugSearchModal');
+            const drugSearchModal = bootstrap.Modal.getInstance(drugSearchModalElement);
+            if (drugSearchModal) {
+                drugSearchModal.hide();
+                // Clean up modal after hiding
+                $(drugSearchModalElement).on('hidden.bs.modal', function () {
+                    $(this).remove();
+                    $('.modal-backdrop').remove(); // Remove residual backdrop
+                });
+            }
+        });
+
+        // Focus on search input when modal is shown
+        const drugSearchModalElement = document.getElementById('drugSearchModal');
+        if (drugSearchModalElement) {
+            drugSearchModalElement.addEventListener('shown.bs.modal', function () {
+                $('#drugSearchForm input[name="q"]').focus();
+            });
+        }
+    });
+</script>

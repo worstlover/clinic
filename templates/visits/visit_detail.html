@@ -1,0 +1,125 @@
+{% extends 'base.html' %}
+{% load persian_dates %}
+{% load crispy_forms_tags %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h1 class="h3 mb-0 text-gray-800">{{ page_title }}</h1>
+        <a href="{% url 'visits:visit_list' %}" class="btn btn-secondary"><i class="fas fa-arrow-left me-2"></i> بازگشت به لیست</a>
+    </div>
+
+    <div class="card shadow border-0">
+        <div class="card-header d-flex justify-content-between align-items-center flex-wrap">
+            {# نمایش تاریخ و ساعت ویزیت در هدر کارت #}
+            <h5 class="mb-0"><i class="fas fa-calendar-alt me-2"></i>{{ visit.visit_date|to_jalali:'%Y/%m/%d - %H:%M' }}</h5>
+            <div>
+                {% if visit.status == 'completed' %}<span class="badge bg-success fs-6">تکمیل شده</span>
+                {% elif visit.status == 'referred' %}<span class="badge bg-info fs-6">ارجاع شده</span>
+                {% else %}<span class="badge bg-warning text-dark fs-6">در حال بررسی</span>{% endif %}
+            </div>
+        </div>
+        <div class="card-body">
+            <div class="row">
+                {# بخش اطلاعات بیمار #}
+                <div class="col-md-12 mb-4">
+                    <h5><i class="fas fa-user-injured text-primary me-2"></i>اطلاعات بیمار</h5>
+                    <div class="row">
+                        <div class="col-md-3 mb-2">
+                            <p class="mb-0"><strong>بیمار:</strong> <a href="{% url 'core:patient_detail' visit.patient.pk %}">{{ visit.patient.full_name }}</a></p>
+                        </div>
+                        <div class="col-md-3 mb-2">
+                            <p class="mb-0"><strong>کد ملی:</strong> {{ visit.patient.national_code|default:'--' }}</p>
+                        </div>
+                        <div class="col-md-3 mb-2">
+                            <p class="mb-0"><strong>کد پرسنلی:</strong> {{ visit.patient.personnel_number|default:'--' }}</p>
+                        </div>
+                    </div>
+                </div>
+
+                {# بخش اطلاعات ویزیت #}
+                <div class="col-md-12 mb-4">
+                    <h5><i class="fas fa-file-medical text-primary me-2"></i>اطلاعات ویزیت</h5>
+                    <div class="row">
+                        <div class="col-md-3 mb-2">
+                            <p class="mb-0"><strong>پزشک ثبت کننده:</strong> {{ visit.doctor.get_full_name|default:'--' }}</p> {# عنوان فیلد از "کاربر ثبت کننده" به "پزشک ثبت کننده" تغییر یافت #}
+                        </div>
+                        <div class="col-md-3 mb-2">
+                            <p class="mb-0"><strong>کاربر مسئول فعلی:</strong> {{ visit.assigned_to.get_full_name|default:'--' }}</p>
+                        </div>
+                        {# نمایش زمان ثبت در سیستم (created_at) #}
+                        <div class="col-md-3 mb-2">
+                            <p class="mb-0"><strong>زمان ثبت در سیستم:</strong> {{ visit.created_at|to_jalali:'%Y/%m/%d - %H:%M'|default:'--' }}</p>
+                        </div>
+                        {# نمایش زمان آخرین به‌روزرسانی (updated_at) #}
+                        <div class="col-md-3 mb-2">
+                            <p class="mb-0"><strong>آخرین به‌روزرسانی:</strong> {{ visit.updated_at|to_jalali:'%Y/%m/%d - %H:%M'|default:'--' }}</p>
+                        </div>
+                        <div class="col-md-3 mb-2">
+                            <p class="mb-0"><strong>علت مراجعه:</strong> {{ visit.reason_for_visit.name|default:'--' }}</p>
+                        </div>
+                        <div class="col-md-3 mb-2">
+                            <p class="mb-0"><strong>نتیجه درمان:</strong> {{ visit.treatment_result.name|default:'--' }}</p>
+                        </div>
+                        <div class="col-md-3 mb-2">
+                            <p class="mb-0"><strong>نوع حادثه:</strong> {{ visit.get_incident_type_display|default:'--' }}</p>
+                        </div>
+                        <div class="col-md-3 mb-2">
+                            <p class="mb-0"><strong>فشار خون:</strong> {{ visit.blood_pressure|default:'--' }}</p>
+                        </div>
+                        <div class="col-md-3 mb-2">
+                            <p class="mb-0"><strong>قد:</strong> {% if visit.height_cm %}{{ visit.height_cm }} سانتی‌متر{% else %}--{% endif %}</p>
+                        </div>
+                        <div class="col-md-3 mb-2">
+                            <p class="mb-0"><strong>وزن:</strong> {% if visit.weight_kg %}{{ visit.weight_kg }} کیلوگرم{% else %}--{% endif %}</p>
+                        </div>
+                        <div class="col-md-3 mb-2">
+                            <p class="mb-0"><strong>BMI:</strong> {% if visit.bmi %}{{ visit.bmi }}{% else %}--{% endif %}</p>
+                        </div>
+                        <div class="col-md-3 mb-2">
+                            <p class="mb-0"><strong>ضربان قلب:</strong> {% if visit.heart_rate %}{{ visit.heart_rate }} در دقیقه{% else %}--{% endif %}</p>
+                        </div>
+                        <div class="col-md-3 mb-2">
+                            <p class="mb-0"><strong>دما:</strong> {% if visit.temperature %}{{ visit.temperature }} سانتی‌گراد{% else %}--{% endif %}</p>
+                        </div>
+                    </div>
+                </div>
+                {# بخش ملاحظات تمام عرض را بگیرد #}
+                <div class="col-12 mt-3"><p class="bg-light p-3 rounded"><strong>ملاحظات:</strong> {{ visit.notes|linebreaksbr|default:'ملاحظاتی ثبت نشده.' }}</p></div>
+            </div>
+            <hr>
+            <h5><i class="fas fa-pills text-success me-2"></i>داروهای تجویز شده</h5>
+            {% if visit.items.all %}
+                <ul class="list-group">
+                {% for item in visit.items.all %}
+                    <li class="list-group-item d-flex justify-content-between align-items-center">
+                        <div><strong>{{ item.drug.name }}</strong> <small class="text-muted d-block">{{ item.notes|default:'' }}</small></div>
+                        <span class="badge bg-primary rounded-pill">{{ item.quantity }} عدد</span>
+                    </li>
+                {% endfor %}
+                </ul>
+            {% else %}
+                <div class="alert alert-warning">هیچ دارویی تجویز نشده است.</div>
+            {% endif %}
+        </div>
+        
+        <div class="card-footer bg-light text-center py-3">
+            {% if visit.status != 'completed' %}
+                {% if visit.assigned_to == request.user or request.user.is_superuser %}
+                    <a href="{% url 'visits:visit_update' visit.pk %}" class="btn btn-warning mx-1"><i class="fas fa-edit me-2"></i>ویرایش</a>
+                    <button type="button" class="btn btn-info mx-1" data-bs-toggle="modal" data-bs-target="#referModal"><i class="fas fa-share-square me-2"></i>ارجاع</button>
+                    <button type="button" class="btn btn-success mx-1" data-bs-toggle="modal" data-bs-target="#completeModal"><i class="fas fa-check-circle me-2"></i>تکمیل ویزیت</button>
+                {% else %}
+                    <p class="my-2 text-muted">این ویزیت به <strong>{{ visit.assigned_to.get_full_name }}</strong> ارجاع داده شده و در دست بررسی است.</p>
+                {% endif %}
+            {% else %}
+                <p class="my-2 text-success"><i class="fas fa-lock me-2"></i> این ویزیت تکمیل و بایگانی شده است.</p>
+            {% endif %}
+        </div>
+    </div>
+
+    {# Modals - بدون تغییر #}
+    <div class="modal fade" id="referModal" tabindex="-1"><div class="modal-dialog"><form action="{% url 'visits:refer_visit' visit.pk %}" method="post"><div class="modal-content"><div class="modal-header"><h5 class="modal-title">ارجاع ویزیت</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div><div class="modal-body">{% csrf_token %}{{ referral_form|crispy }}</div><div class="modal-footer"><button type="submit" class="btn btn-primary">ثبت ارجاع</button><button type="button" class="btn btn-secondary" data-bs-dismiss="modal">انصراف</button></div></div></form></div></div>
+    <div class="modal fade" id="completeModal" tabindex="-1"><div class="modal-dialog"><form action="{% url 'visits:complete_visit' visit.pk %}" method="post"><div class="modal-content"><div class="modal-header"><h5 class="modal-title">تایید تکمیل ویزیت</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div><div class="modal-body">{% csrf_token %}<p>آیا از تکمیل این ویزیت اطمینان دارید؟</p><p class="text-danger"><strong>توجه:</strong> با این کار، موجودی انبار کسر شده و امکان ویرایش ویزیت وجود نخواهد داشت.</p></div><div class="modal-footer"><button type="submit" class="btn btn-success">بله، تکمیل کن</button><button type="button" class="btn btn-secondary" data-bs-dismiss="modal">انصراف</button></div></div></form></div></div>
+</div>
+{% endblock %}

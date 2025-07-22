@@ -1,0 +1,448 @@
+{% extends 'base.html' %}
+{% load crispy_forms_tags %}
+{% load static %}
+{% load widget_tweaks %}
+{% load jalali_tags %} {# اگر از تبدیل تاریخ شمسی استفاده می‌کنید #}
+
+{% block extra_head %}
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script> {# jQuery اینجا باید اول لود شود #}
+    <script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
+
+    {# CKEditor JavaScript files moved here, after jQuery #}
+    <script src="{% static 'ckeditor/ckeditor/ckeditor.js' %}"></script>
+    <script src="{% static 'ckeditor/ckeditor/adapters/jquery.js' %}"></script>
+    <script>
+        // این مسیر پایه برای CKEditor است تا فایل‌های داخلی خود را پیدا کند.
+        // با فرض اینکه ckeditor.js در 'static/ckeditor/ckeditor/' قرار دارد.
+        CKEDITOR_BASEPATH = '{% static "ckeditor/ckeditor/" %}';
+    </script>
+    
+    {# Select2 CSS #}
+    <link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet" />
+    <style>
+        /* Custom styles for select2 to match your theme */
+        .select2-container .select2-selection--multiple {
+            min-height: 38px;
+            border: 1px solid #ced4da;
+            border-radius: 0.25rem;
+            padding: 5px;
+        }
+        .select2-container--default .select2-selection--multiple .select2-selection__choice {
+            background-color: #007bff;
+            color: white;
+            border: 1px solid #007bff;
+            border-radius: 4px;
+            padding: 0 5px;
+            margin-top: 5px;
+        }
+        .select2-container--default .select2-selection--multiple .select2-selection__choice__remove {
+            color: white;
+            margin-right: 5px;
+        }
+        .select2-container--default .select2-results__option--highlighted.select2-results__option--selectable {
+            background-color: #007bff;
+            color: white;
+        }
+    </style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <h1 class="h3 mb-4 text-gray-800">{{ page_title }}</h1>
+
+    <div class="card shadow mb-4">
+        <div class="card-header py-3">
+            <h6 class="m-0 font-weight-bold text-primary">
+                جزئیات پیام
+                <a href="{% url 'clinic_messages:message_inbox' %}" class="btn btn-sm btn-outline-secondary float-right">
+                    <i class="fas fa-arrow-left"></i> بازگشت به صندوق ورودی
+                </a>
+                <a href="{% url 'clinic_messages:message_export_word' message.id %}" class="btn btn-sm btn-success float-right mr-2">
+                    <i class="fas fa-file-word"></i> دانلود به صورت Word
+                </a>
+            </h6>
+        </div>
+        <div class="card-body">
+            <div class="row mb-3">
+                <div class="col-md-6">
+                    <strong>فرستنده:</strong> {{ message.sender.get_full_name|default:message.sender.username }}
+                </div>
+                <div class="col-md-6 text-right">
+                    <strong>تاریخ ارسال:</strong> {{ message.created_at|to_jalali:"%Y/%m/%d %H:%M" }}
+                </div>
+            </div>
+            <div class="row mb-3">
+                <div class="col-md-12">
+                    <strong>گیرندگان:</strong>
+                    {# این خط را اصلاح کردم تا از related_name صحیح استفاده کند #}
+                    {% for recipient_status in message.recipients_status.all %}
+                        <span class="badge badge-secondary">{{ recipient_status.recipient.get_full_name|default:recipient_status.recipient.username }}</span>
+                        {% if not forloop.last %},{% endif %}
+                    {% empty %}
+                        <span class="text-muted">ندارد</span>
+                    {% endfor %}
+                </div>
+            </div>
+            <div class="row mb-3">
+                <div class="col-md-12">
+                    <strong>موضوع:</strong> {{ message.subject }}
+                </div>
+            </div>
+            <div class="row mb-4">
+                <div class="col-md-12">
+                    <strong>متن پیام:</strong>
+                    <div class="message-body border p-3 rounded" style="background-color: #f8f9fc;">
+                        {{ message.body|safe }} {# Use |safe to render HTML from CKEditor #}
+                    </div>
+                </div>
+            </div>
+
+            {% if message.attachments.exists %}
+            <div class="row mb-4">
+                <div class="col-md-12">
+                    <strong>پیوست‌ها:</strong>
+                    <ul class="list-group">
+                        {% for attachment in message.attachments.all %}
+                            <li class="list-group-item d-flex justify-content-between align-items-center">
+                                <a href="{{ attachment.file.url }}" target="_blank" download>
+                                    <i class="fas fa-file-download mr-2"></i> {{ attachment.file_name|default:attachment.file.name }}
+                                </a>
+                                <span class="badge badge-primary badge-pill">{{ attachment.uploaded_at|to_jalali:"%Y/%m/%d" }}</span>
+                            </li>
+                        {% endfor %}
+                    </ul>
+                </div>
+            </div>
+            {% endif %}
+
+            {# Display parent message if it's a reply #}
+            {% if message.parent_message %}
+            <div class="row mb-4">
+                <div class="col-md-12">
+                    <p class="text-muted">
+                        این پیام در پاسخ به
+                        <a href="{% url 'clinic_messages:message_detail' message.parent_message.pk %}">پیام اصلی {{ message.parent_message.subject }}</a>
+                        ارسال شده است.
+                    </p>
+                </div>
+            </div>
+            {% endif %}
+
+            {# Display replies to this message #}
+            {% if message.replies.exists %}
+            <div class="row mt-4">
+                <div class="col-md-12">
+                    <h5>پاسخ‌ها:</h5>
+                    <div class="list-group">
+                        {% for reply in message.replies.all|dictsortreversed:"created_at" %}
+                        <a href="{% url 'clinic_messages:message_detail' reply.pk %}" class="list-group-item list-group-item-action flex-column align-items-start">
+                            <div class="d-flex w-100 justify-content-between">
+                                <h6 class="mb-1">{{ reply.subject }}</h6>
+                                <small class="text-muted">{{ reply.created_at|to_jalali:"%Y/%m/%d %H:%M" }}</small>
+                            </div>
+                            <p class="mb-1 text-truncate">{{ reply.body|striptags|truncatechars:100 }}</p>
+                            <small>فرستنده: {{ reply.sender.get_full_name|default:reply.sender.username }}</small>
+                        </a>
+                        {% endfor %}
+                    </div>
+                </div>
+            </div>
+            {% endif %}
+
+
+            {# Reply Form Section #}
+            <hr class="mt-5 mb-4">
+            <h4 class="mb-4 text-gray-800">پاسخ به این پیام</h4>
+            <form method="post" enctype="multipart/form-data">
+                {% csrf_token %}
+
+                {# Main Message Form Fields for Reply #}
+                <div class="row">
+                    <div class="col-md-12">
+                        <label for="{{ reply_form.recipients.id_for_label }}">گیرندگان:</label>
+                        <select id="{{ reply_form.recipients.id_for_label }}" name="{{ reply_form.recipients.html_name }}" class="form-control select2" multiple="multiple" disabled>
+                            {# Loop through initial choices to pre-select them for display #}
+                            {% for user in reply_form.recipients.field.queryset %}
+                                {% if user.pk in reply_form.recipients.initial %}
+                                    <option value="{{ user.pk }}" selected>{{ user.get_full_name|default:user.username }}</option>
+                                {% endif %}
+                            {% endfor %}
+                        </select>
+                        {# A hidden input to ensure the recipient ID is actually sent with the form #}
+                        {% for recipient_pk in reply_form.recipients.initial %}
+                            <input type="hidden" name="recipients" value="{{ recipient_pk }}">
+                        {% endfor %}
+                        {% if reply_form.recipients.errors %}<div class="text-danger">{{ reply_form.recipients.errors }}</div>{% endif %}
+                    </div>
+                </div>
+                <div class="row">
+                    <div class="col-md-12">
+                        {{ reply_form.subject|as_crispy_field }}
+                    </div>
+                </div>
+                <div class="row">
+                    <div class="col-md-12">
+                        {{ reply_form.body|as_crispy_field }}
+                    </div>
+                </div>
+
+                {# Docx to HTML Conversion Section for Reply Form #}
+                <div class="form-group mb-3">
+                    <label for="docx-upload-input-reply">تبدیل فایل Word به متن پیام:</label>
+                    <div class="input-group">
+                        <div class="custom-file">
+                            <input type="file" class="custom-file-input" id="docx-upload-input-reply" accept=".docx">
+                            <label class="custom-file-label" for="docx-upload-input-reply">انتخاب فایل .docx</label>
+                        </div>
+                        <div class="input-group-append">
+                            <button class="btn btn-info" type="button" id="upload-docx-button-reply">تبدیل و درج</button>
+                        </div>
+                    </div>
+                    <small class="form-text text-muted">فایل Word شما به HTML تبدیل شده و در کادر متن پیام قرار می‌گیرد.</small>
+                    <div id="docx-upload-status-reply" class="mt-2"></div>
+                </div>
+
+
+                {# Hidden fields for related_visit, related_drug_request, and parent_message #}
+                {{ reply_form.related_visit }}
+                {{ reply_form.related_drug_request }}
+                {{ reply_form.parent_message }}
+
+
+                <h3>پیوست‌ها:</h3>
+                <div id="attachments-formset-reply" class="mb-3">
+                    {{ reply_attachment_formset.management_form }}
+                    {% for form in reply_attachment_formset %}
+                        <div class="attachment-item-reply card card-body mb-2">
+                            {% for hidden_field in form.hidden_fields %}
+                                {{ hidden_field }}
+                            {% endfor %}
+                            {% for field in form.visible_fields %}
+                                <div class="mb-2">
+                                    {{ field.label_tag }}
+                                    {{ field }}
+                                    {% if field.help_text %}
+                                        <small class="form-text text-muted">{{ field.help_text }}</small>
+                                    {% endif %}
+                                    {% for error in field.errors %}
+                                        <div class="text-danger">{{ error }}</div>
+                                    {% endfor %}
+                                </div>
+                            {% endfor %}
+                            {% if form.instance.pk %}
+                                <div class="form-check">
+                                    <input type="checkbox" name="{{ form.prefix }}-DELETE" id="id_{{ form.prefix }}-DELETE" class="form-check-input">
+                                    <label class="form-check-label" for="id_{{ form.prefix }}-DELETE">حذف این پیوست</label>
+                                </div>
+                            {% endif %}
+                            <button type="button" class="btn btn-danger btn-sm mt-2 remove-attachment-form-reply">حذف</button>
+                        </div>
+                    {% endfor %}
+                </div>
+
+                {# Template for new empty attachment forms for reply #}
+                <template id="empty-form-template-reply">
+                    <div class="attachment-item-reply card card-body mb-2">
+                        {% for hidden_field in reply_attachment_formset.empty_form.hidden_fields %}
+                            {{ hidden_field }}
+                        {% endfor %}
+                        {% for field in reply_attachment_formset.empty_form.visible_fields %}
+                            <div class="mb-2">
+                                {{ field.label_tag }}
+                                {{ field|attr:"name:attachments_reply-__prefix__-file"|attr:"id:id_attachments_reply-__prefix__-file" }}
+                                {% if field.help_text %}
+                                    <small class="form-text text-muted">{{ field.help_text }}</small>
+                                {% endif %}
+                            </div>
+                        {% endfor %}
+                        <button type="button" class="btn btn-danger btn-sm mt-2 remove-attachment-form-reply">حذف</button>
+                    </div>
+                </template>
+                
+                <button type="button" class="btn btn-secondary mt-2" id="add-attachment-form-reply">افزودن پیوست</button>
+
+                <button type="submit" class="btn btn-primary mt-3">ارسال پاسخ</button>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
+    
+    <script>
+        $(document).ready(function() {
+            // Initialize CKEditor for the reply_form body field
+            $('#id_body').each(function() { // Assuming reply_form.body has id 'id_body'
+                var fieldId = $(this).attr('id');
+                CKEDITOR.replace(fieldId, {
+                    filebrowserUploadUrl: '{% url "clinic_messages:ckeditor_upload_file" %}',
+                    filebrowserBrowseUrl: '/ckfinder/browser/', // If using CKFinder
+                    filebrowserImageBrowseUrl: '/ckfinder/browser/', // If using CKFinder
+                    filebrowserFlashBrowseUrl: '/ckfinder/browser/', // If using CKFinder
+                    filebrowserUploadMethod: 'form',
+                    extraPlugins: 'uploadimage,image2',
+                    toolbar: [
+                        { name: 'document', items: ['Source', '-', 'Save', 'NewPage', 'Preview', 'Print', '-', 'Templates'] },
+                        { name: 'clipboard', items: ['Cut', 'Copy', 'Paste', 'PasteText', 'PasteFromWord', '-', 'Undo', 'Redo'] },
+                        { name: 'editing', items: ['Find', 'Replace', '-', 'SelectAll', '-', 'Scayt'] },
+                        '/',
+                        { name: 'basicstyles', items: ['Bold', 'Italic', 'Underline', 'Strike', 'Subscript', 'Superscript', '-', 'RemoveFormat'] },
+                        { name: 'paragraph', items: ['NumberedList', 'BulletedList', '-', 'Outdent', 'Indent', '-', 'Blockquote', 'CreateDiv', '-', 'JustifyLeft', 'JustifyCenter', 'JustifyRight', 'JustifyBlock', '-', 'BidiLtr', 'BidiRtl', 'Language'] },
+                        { name: 'links', items: ['Link', 'Unlink', 'Anchor'] },
+                        { name: 'insert', items: ['Image', 'Flash', 'Table', 'HorizontalRule', 'Smiley', 'SpecialChar', 'PageBreak', 'Iframe'] },
+                        '/',
+                        { name: 'styles', items: ['Styles', 'Format', 'Font', 'FontSize'] },
+                        { name: 'colors', items: ['TextColor', 'BGColor'] },
+                        { name: 'tools', items: ['Maximize', 'ShowBlocks'] },
+                        { name: 'others', items: ['-'] },
+                        { name: 'about', items: ['About'] }
+                    ]
+                });
+            });
+
+            // Initialize Select2 for recipients field (specific to reply form)
+            // It will be disabled, but still needs Select2 to render correctly if it's a select element
+            $('#{{ reply_form.recipients.id_for_label }}').select2({
+                placeholder: "گیرنده انتخاب شده است (قابل تغییر نیست)",
+                allowClear: false, // Cannot clear in reply
+                multiple: false, // In reply, usually single recipient (the sender of the original message)
+                minimumInputLength: 0, // No search needed, it's pre-filled
+                tags: true, // Allow tags to correctly display pre-filled data without AJAX if disabled
+                templateSelection: function(data) {
+                    // Custom selection rendering for disabled select2
+                    if (data.id) {
+                        return data.text;
+                    }
+                    return data.placeholder;
+                }
+            }).on('select2:opening', function(e) {
+                // Prevent opening dropdown if disabled
+                e.preventDefault();
+            });
+
+
+            // Formset Management Logic for REPLY form (different IDs/prefixes)
+            var emptyFormHtmlTemplateReply = $('#empty-form-template-reply').html();
+            var totalFormsReply = $('#id_attachments_reply-TOTAL_FORMS');
+            var initialFormsReply = $('#id_attachments_reply-INITIAL_FORMS');
+
+            // Ensure initialForms and totalForms are set to 0 if not already
+            if (initialFormsReply.val() === '') {
+                initialFormsReply.val('0');
+            }
+            if (totalFormsReply.val() === '') {
+                totalFormsReply.val('0');
+            }
+
+            $('#add-attachment-form-reply').on('click', function() {
+                var currentFormCount = parseInt(totalFormsReply.val());
+                var newFormHtml = emptyFormHtmlTemplateReply.replace(/__prefix__/g, currentFormCount);
+                $('#attachments-formset-reply').append(newFormHtml);
+                totalFormsReply.val(currentFormCount + 1); // Increment TOTAL_FORMS
+            });
+
+            $('#attachments-formset-reply').on('click', '.remove-attachment-form-reply', function() {
+                var formToRemove = $(this).closest('.attachment-item-reply');
+                var deleteInput = formToRemove.find('input[type="checkbox"][id$="-DELETE"]');
+                
+                if (deleteInput.length > 0) {
+                    deleteInput.prop('checked', true);
+                    formToRemove.hide();
+                } else {
+                    formToRemove.remove();
+                }
+                
+                updateTotalFormsReply(); // Use specific update function for reply formset
+            });
+
+            function updateTotalFormsReply() {
+                var visibleFormCount = 0;
+                $('#attachments-formset-reply .attachment-item-reply').each(function(index) {
+                    var formItem = $(this);
+                    var deleteCheckbox = formItem.find('input[type="checkbox"][id$="-DELETE"]');
+                    
+                    if (deleteCheckbox.length === 0 || !deleteCheckbox.is(':checked')) {
+                        formItem.find(':input, label').each(function() {
+                            var name = $(this).attr('name');
+                            var id = $(this).attr('id');
+                            var forAttr = $(this).attr('for');
+
+                            // Ensure prefix matches 'attachments_reply-'
+                            if (name) {
+                                $(this).attr('name', name.replace(/attachments_reply-\d+-/g, `attachments_reply-${visibleFormCount}-`));
+                            }
+                            if (id) {
+                                $(this).attr('id', id.replace(/attachments_reply-\d+-/g, `attachments_reply-${visibleFormCount}-`));
+                            }
+                            if (forAttr) {
+                                $(this).attr('for', forAttr.replace(/attachments_reply-\d+-/g, `attachments_reply-${visibleFormCount}-`));
+                            }
+                        });
+                        visibleFormCount++;
+                    }
+                });
+                totalFormsReply.val(visibleFormCount);
+            }
+            
+            updateTotalFormsReply();
+
+            // Docx Upload Logic for Reply Form
+            $('#upload-docx-button-reply').on('click', function() {
+                var docxFile = $('#docx-upload-input-reply')[0].files[0];
+                var statusDiv = $('#docx-upload-status-reply');
+                var bodyFieldId = 'id_body'; // Assuming the reply form body field always has ID 'id_body'
+
+                if (!docxFile) {
+                    statusDiv.html('<div class="alert alert-warning">لطفا یک فایل .docx انتخاب کنید.</div>');
+                    return;
+                }
+
+                if (!docxFile.name.toLowerCase().endsWith('.docx')) {
+                    statusDiv.html('<div class="alert alert-warning">فقط فایل‌های .docx مجاز هستند.</div>');
+                    return;
+                }
+
+                statusDiv.html('<div class="alert alert-info">در حال تبدیل فایل... لطفا منتظر بمانید.</div>');
+
+                var formData = new FormData();
+                formData.append('docx_file', docxFile);
+                formData.append('csrfmiddlewaretoken', '{{ csrf_token }}'); // Add CSRF token
+
+                $.ajax({
+                    url: '{% url "clinic_messages:convert_docx_to_html" %}',
+                    type: 'POST',
+                    data: formData,
+                    processData: false, // Don't process the files
+                    contentType: false, // Set content type to false as jQuery will tell the server its a multipart request
+                    success: function(response) {
+                        if (response.html_content) {
+                            // Set the HTML content to CKEditor instance
+                            CKEDITOR.instances[bodyFieldId].setData(response.html_content);
+                            statusDiv.html('<div class="alert alert-success">فایل با موفقیت تبدیل و درج شد.</div>');
+                        } else {
+                            statusDiv.html('<div class="alert alert-danger">خطا در تبدیل فایل.</div>');
+                        }
+                    },
+                    error: function(xhr, status, error) {
+                        var errorMessage = "خطا در برقراری ارتباط با سرور.";
+                        if (xhr.responseJSON && xhr.responseJSON.error) {
+                            errorMessage = xhr.responseJSON.error;
+                        }
+                        statusDiv.html('<div class="alert alert-danger">' + errorMessage + '</div>');
+                        console.error("AJAX Error:", error, xhr.responseText);
+                    }
+                });
+            });
+
+            // Update custom-file-label when a file is selected for docx upload
+            $('#docx-upload-input-reply').on('change', function() {
+                var fileName = $(this).val().split('\\').pop();
+                $(this).next('.custom-file-label').html(fileName);
+            });
+
+        });
+    </script>
+{% endblock %}

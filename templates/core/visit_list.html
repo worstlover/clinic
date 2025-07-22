@@ -1,0 +1,150 @@
+{# D:\final\core\templates\core\visit_list.html #}
+{% extends 'base.html' %}
+{% load persian_dates %}
+{% load static %}
+{% load crispy_forms_tags %}
+
+{% block content %}
+    <h1 class="content-header-padding">{{ page_title }}</h1>
+
+    <div class="card shadow-sm border-0 mb-4 mx-3">
+        <div class="card-body">
+            <div class="row mb-3">
+                <div class="col-md-6">
+                    <a href="{% url 'visits:visit_create' %}" class="btn btn-success mb-3"><i class="fas fa-plus me-2"></i>ثبت ویزیت جدید</a>
+                </div>
+                <div class="col-md-6">
+                    {# فرم جستجوی موجود شما برای فیلد 'q' #}
+                    <form method="GET" action="{% url 'visits:visit_list' %}" class="d-flex">
+                        <input type="text" name="q" class="form-control me-2" placeholder="جستجو بر اساس نام بیمار، کد ملی، علت مراجعه، تشخیص" value="{{ search_query|default:'' }}">
+                        <button type="submit" class="btn btn-outline-secondary">جستجو</button>
+                        {% if search_query %}
+                            <a href="{% url 'visits:visit_list' %}" class="btn btn-outline-danger ms-2" title="پاک کردن جستجو">
+                                <i class="fas fa-times"></i>
+                            </a>
+                        {% endif %}
+                    </form>
+                </div>
+            </div>
+
+            <div class="mb-3">
+                <button class="btn btn-info" type="button" data-bs-toggle="collapse" data-bs-target="#advancedFilters" aria-expanded="{% if advanced_filters_applied %}true{% else %}false{% endif %}" aria-controls="advancedFilters">
+                    <i class="fas fa-filter me-2"></i>فیلترهای پیشرفته
+                </button>
+            </div>
+
+            <div class="collapse {% if advanced_filters_applied %}show{% endif %}" id="advancedFilters">
+                <div class="card card-body mb-3">
+                    <form method="GET" action="{% url 'visits:visit_list' %}">
+                        {% crispy filter.form %}
+                        {% if request.GET.q %}
+                            <input type="hidden" name="q" value="{{ request.GET.q }}">
+                        {% endif %}
+                        <div class="d-flex justify-content-end mt-3">
+                            <button type="submit" class="btn btn-primary me-2"><i class="fas fa-search me-2"></i>اعمال فیلتر</button>
+                            <a href="{% url 'visits:visit_list' %}" class="btn btn-outline-secondary"><i class="fas fa-times me-2"></i>پاک کردن فیلترها</a>
+                        </div>
+                    </form>
+                </div>
+            </div>
+
+            {% if page_obj %}
+                <div class="table-responsive">
+                    <table class="table table-bordered table-hover text-center" id="dataTable" width="100%" cellspacing="0">
+                        <thead>
+                            <tr>
+                                <th>#</th>
+                                <th>بیمار</th>
+                                <th>تاریخ ویزیت</th>
+                                <th>علت مراجعه</th>
+                                <th>تشخیص</th>
+                                <th>نوع حادثه</th>
+                                <th>نتیجه درمان</th>
+                                <th>پزشک</th>
+                                <th>اقدامات</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for visit in page_obj %}
+                                <tr>
+                                    <td>{{ forloop.counter0|add:page_obj.start_index }}</td>
+                                    <td>
+                                        <a href="{% url 'core:patient_detail' visit.patient.pk %}">
+                                            {{ visit.patient.first_name }} {{ visit.patient.last_name }}
+                                        </a>
+                                    </td>
+                                    <td>{{ visit.visit_date|to_jalali:'%Y/%m/%d - %H:%M' }}</td>
+                                    <td>{{ visit.reason.name|default:'---' }}</td>
+                                    <td>{{ visit.diagnosis|default:'---' }}</td>
+                                    <td>{{ visit.accident_type.name|default:'---' }}</td>
+                                    <td>{{ visit.treatment_outcome.name|default:'---' }}</td>
+                                    <td>{{ visit.registered_by.get_full_name|default:visit.registered_by.username }}</td>
+                                    <td>
+                                        <div class="d-flex justify-content-center">
+                                            <a href="{% url 'visits:visit_detail' visit.pk %}" class="btn btn-info btn-sm me-1" title="جزئیات"><i class="fas fa-eye"></i></a>
+                                            <a href="{% url 'visits:visit_update' visit.pk %}" class="btn btn-warning btn-sm me-1" title="ویرایش"><i class="fas fa-edit"></i></a>
+                                            <button type="button" class="btn btn-danger btn-sm" data-bs-toggle="modal" data-bs-target="#deleteModal{{ visit.pk }}" title="حذف"><i class="fas fa-trash"></i></button>
+                                        </div>
+                                        <div class="modal fade" id="deleteModal{{ visit.pk }}" tabindex="-1" aria-labelledby="deleteModalLabel{{ visit.pk }}" aria-hidden="true">
+                                            <div class="modal-dialog">
+                                                <div class="modal-content">
+                                                    <div class="modal-header">
+                                                        <h5 class="modal-title" id="deleteModalLabel{{ visit.pk }}">تایید حذف</h5>
+                                                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                                                    </div>
+                                                    <div class="modal-body text-center">
+                                                        آیا از حذف ویزیت بیمار **{{ visit.patient.first_name }} {{ visit.patient.last_name }}** در تاریخ **{{ visit.visit_date|to_jalali:'%Y/%m/%d' }}** اطمینان دارید؟
+                                                    </div>
+                                                    <div class="modal-footer justify-content-center">
+                                                        <form action="{% url 'visits:visit_delete' visit.pk %}" method="post" style="display: inline;">
+                                                            {% csrf_token %}
+                                                            <button type="submit" class="btn btn-danger">بله، حذف کن</button>
+                                                        </form>
+                                                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">خیر، انصراف</button>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </td>
+                                </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+
+                {# Paginator #}
+                {% if page_obj.has_other_pages %}
+                    <nav aria-label="Page navigation example" class="mt-4">
+                        <ul class="pagination justify-content-center flex-wrap">
+                            {% if page_obj.has_previous %}
+                                <li class="page-item">
+                                    <a class="page-link" href="?page={{ page_obj.previous_page_number }}{% for key, value in request.GET.items %}{% if key != 'page' %}&{{ key }}={{ value }}{% endif %}{% endfor %}">قبلی</a>
+                                </li>
+                            {% endif %}
+
+                            {% for i in page_obj.paginator.page_range %}
+                                {% if page_obj.number == i %}
+                                    <li class="page-item active"><span class="page-link">{{ i }}</span></li>
+                                {% else %}
+                                    <li class="page-item"><a class="page-link" href="?page={{ i }}{% for key, value in request.GET.items %}{% if key != 'page' %}&{{ key }}={{ value }}{% endif %}{% endfor %}">{{ i }}</a></li>
+                                {% endif %}
+                            {% endfor %}
+
+                            {% if page_obj.has_next %}
+                                <li class="page-item"><a class="page-link" href="?page={{ page_obj.next_page_number }}{% for key, value in request.GET.items %}{% if key != 'page' %}&{{ key }}={{ value }}{% endif %}{% endfor %}">بعدی</a></li>
+                            {% endif %}
+                        </ul>
+                    </nav>
+                {% endif %}
+            {% else %}
+                <div class="alert alert-warning text-end" role="alert">
+                    {% if search_query or advanced_filters_applied %}
+                        هیچ ویزیتی با معیارهای جستجو/فیلتر یافت نشد.
+                    {% else %}
+                        هیچ ویزیتی برای نمایش وجود ندارد.
+                    {% endif %}
+                </div>
+            {% endif %}
+        </div>
+    </div>
+{% endblock %}

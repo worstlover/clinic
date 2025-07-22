@@ -1,0 +1,492 @@
+
+{% load crispy_forms_tags %}
+{% load static %}
+{% load jalali_tags %} 
+
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ page_title }}</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css">
+    <link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet" />
+    <link rel="stylesheet" href="{% static 'css/style.css' %}"> 
+    
+    {# فونت Vazirmatn از Google Fonts #}
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Vazirmatn:wght@300;400;500;700&display=swap" rel="stylesheet">
+
+    {# CSS های مورد نیاز برای AdminJalaliDateWidget (فقط برای invoice_date) #}
+    {{ form.media.css }}
+    {{ formset.media.css }}
+
+    <style>
+        body {
+            background-color: #f8f9fa;
+            font-family: 'Vazirmatn', sans-serif; /* اعمال فونت Vazirmatn */
+        }
+        .container {
+            max-width: 1200px;
+        }
+        .card {
+            border: none;
+            box-shadow: 0 4px 8px rgba(0,0,0,.05);
+            margin-bottom: 25px;
+        }
+        .form-control:focus {
+            box-shadow: 0 0 0 0.25rem rgba(13, 110, 253, 0.25);
+            border-color: #86b7fe;
+        }
+        .item-row {
+            border: 1px solid #e0e0e0;
+            padding: 15px;
+            margin-bottom: 20px;
+            border-radius: 8px;
+            background-color: #fff;
+            box-shadow: 0 2px 4px rgba(0,0,0,.03);
+        }
+        .item-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 15px;
+            border-bottom: 1px dashed #e9ecef;
+            padding-bottom: 10px;
+        }
+        .delete-row-btn { 
+            color: #dc3545;
+            cursor: pointer;
+            font-size: 1.2em;
+        }
+        .item-subtotal-display {
+            font-weight: bold;
+            text-align: right;
+            padding-top: 10px;
+            color: #007bff;
+            font-size: 1.1em;
+        }
+        .total-invoice-amount-display {
+            font-weight: bold;
+            text-align: left;
+            font-size: 1.3em;
+            color: #28a745;
+            margin-top: 20px;
+        }
+        /* اصلاح استایل Select2 برای Bootstrap 5 */
+        .select2-container .select2-selection--single {
+            height: calc(2.25rem + 2px); 
+            display: flex;
+            align-items: center;
+            border: 1px solid #ced4da;
+            border-radius: 0.25rem;
+            font-family: 'Vazirmatn', sans-serif; /* اعمال فونت به Select2 */
+        }
+        .select2-container--default .select2-selection--single .select2-selection__arrow {
+            height: calc(2.25rem + 2px); 
+            top: 0;
+            right: 0;
+            position: absolute;
+            width: 30px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .select2-container--default .select2-selection--single .select2-selection__rendered {
+            line-height: normal; 
+            padding-left: 0.75rem;
+            padding-right: 0.75rem;
+        }
+        .select2-container--open {
+            z-index: 99999; 
+        }
+        .select2-search__field {
+            width: 100% !important; 
+            font-family: 'Vazirmatn', sans-serif; /* اعمال فونت به فیلد جستجوی Select2 */
+        }
+
+        /* برای فیلدهای number که فلش نمی‌خواهند */
+        input[type=number]::-webkit-inner-spin-button, 
+        input[type=number]::-webkit-outer-spin-button { 
+            -webkit-appearance: none; 
+            margin: 0; 
+        }
+        input[type=number] {
+            -moz-appearance: textfield;
+        }
+
+        /* استایل برای نمایش تاریخ شمسی */
+        .jalali-display-text {
+            display: block; 
+            margin-top: 5px; 
+            font-size: 0.85em; 
+            color: #555; 
+            font-weight: bold;
+        }
+    </style>
+</head>
+<body>
+    <div class="container mt-5 mb-5">
+        <h2 class="mb-4 text-center">{{ page_title }}</h2>
+
+        {% if messages %}
+            {% for message in messages %}
+                <div class="alert alert-{{ message.tags }} alert-dismissible fade show" role="alert">
+                    {{ message }}
+                    <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                </div>
+            {% endfor %}
+        {% endif %}
+
+        <form method="post" id="purchase-invoice-form">
+            {% csrf_token %}
+            <div class="card p-4 shadow-sm">
+                <div class="row">
+                    <div class="col-md-4">
+                        {{ form.invoice_number|as_crispy_field }}
+                    </div>
+                    <div class="col-md-4">
+                        {{ form.invoice_date|as_crispy_field }} 
+                    </div>
+                    <div class="col-md-4">
+                        {{ form.status|as_crispy_field }} {# 'status' بازگردانده شد #}
+                    </div>
+                </div>
+                <div class="row">
+                    <div class="col-md-6">
+                        {{ form.supplier|as_crispy_field }}
+                    </div>
+                    <div class="col-md-6">
+                        {{ form.notes|as_crispy_field }}
+                    </div>
+                </div>
+            </div>
+
+            <h4 class="mt-4 mb-3">آیتم‌های فاکتور</h4>
+            <div id="formset-container">
+                {{ formset.management_form }}
+                {% for item_form in formset %}
+                    <div class="item-row mb-4" id="item-{{ forloop.counter0 }}">
+                        <div class="item-header">
+                            <h5>آیتم {{ forloop.counter }}</h5>
+                            {% if item_form.DELETE %}
+                                <div class="form-check form-switch">
+                                    {{ item_form.DELETE }}
+                                    <label class="form-check-label" for="{{ item_form.DELETE.id_for_label }}">حذف آیتم</label>
+                                </div>
+                            {% endif %}
+                        </div>
+                        <div class="row">
+                            <div class="col-md-6">
+                                <div class="mb-3">
+                                    <label for="{{ item_form.drug.id_for_label }}" class="form-label">{{ item_form.drug.label }}</label>
+                                    {{ item_form.drug }} 
+                                    {% if item_form.drug.errors %}
+                                        <div class="invalid-feedback d-block">{{ item_form.drug.errors }}</div>
+                                    {% endif %}
+                                </div>
+                            </div>
+                            <div class="col-md-3">
+                                {{ item_form.quantity|as_crispy_field }}
+                            </div>
+                            <div class="col-md-3">
+                                {{ item_form.unit_price|as_crispy_field }}
+                            </div>
+                        </div>
+                        <div class="row">
+                            <div class="col-md-6">
+                                {# فیلد expiry_date برای ورودی میلادی (YYYY-MM-DD) #}
+                                {{ item_form.expiry_date|as_crispy_field }} 
+                                {# نمایش تاریخ شمسی تبدیل شده از میلادی #}
+                                <span class="jalali-display-text" id="{{ item_form.expiry_date.id_for_label }}_jalali_display">
+                                    {% if item_form.instance.expiry_date %}
+                                        {# این مقدار اولیه توسط JS خوانده و به شمسی تبدیل میشود #}
+                                        تاریخ شمسی: 
+                                    {% endif %}
+                                </span>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="mb-3">
+                                    <label class="form-label">مبلغ جزئی (تعداد × قیمت واحد):</label>
+                                    <p class="form-control-plaintext item-subtotal-display"></p>
+                                </div>
+                            </div>
+                            {{ item_form.id }} 
+                            {{ item_form.total_item_price }} 
+                        </div>
+                    </div>
+                {% endfor %}
+            </div>
+
+            <div class="d-grid gap-2">
+                <button type="button" class="btn btn-secondary mt-3" id="add-item-btn">
+                    <i class="fas fa-plus"></i> افزودن آیتم جدید
+                </button>
+            </div>
+            
+            <hr class="mt-4 mb-4">
+            
+            <div class="d-flex justify-content-end mb-4">
+                <div class="p-2">
+                    <h5>مبلغ کل فاکتور: <span id="total-invoice-amount-display" class="total-invoice-amount-display">0.00</span> ریال</h5>
+                </div>
+            </div>
+
+            <div class="d-grid gap-2">
+                <button type="submit" class="btn btn-primary btn-lg">
+                    <i class="fas fa-save"></i> ذخیره فاکتور
+                </button>
+                <a href="{% url 'drugs:purchase_invoice_list' %}" class="btn btn-outline-secondary">
+                    <i class="fas fa-arrow-left"></i> بازگشت
+                </a>
+            </div>
+        </form>
+    </div>
+
+    <template id="empty-form-template">
+        <div class="item-row mb-4">
+            <div class="item-header">
+                <h5>آیتم جدید</h5> 
+                <div class="form-check form-switch">
+                    {{ formset.empty_form.DELETE }}
+                    <label class="form-check-label" for="{{ formset.empty_form.DELETE.id_for_label }}">حذف آیتم</label>
+                </div>
+            </div>
+            <div class="row">
+                <div class="col-md-6">
+                    <div class="mb-3">
+                        <label for="{{ formset.empty_form.drug.id_for_label }}" class="form-label">{{ formset.empty_form.drug.label }}</label>
+                        {{ formset.empty_form.drug }} 
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    {{ formset.empty_form.quantity|as_crispy_field }}
+                </div>
+                <div class="col-md-3">
+                    {{ formset.empty_form.unit_price|as_crispy_field }}
+                </div>
+            </div>
+            <div class="row">
+                <div class="col-md-6">
+                    {# فیلد expiry_date برای ورودی میلادی #}
+                    {{ formset.empty_form.expiry_date|as_crispy_field }} 
+                    {# نمایش تاریخ شمسی تبدیل شده از میلادی #}
+                    <span class="jalali-display-text" id="{{ formset.empty_form.expiry_date.id_for_label }}_jalali_display"></span>
+                </div>
+                <div class="col-md-6">
+                    <div class="mb-3">
+                        <label class="form-label">مبلغ جزئی (تعداد × قیمت واحد):</label>
+                        <p class="form-control-plaintext item-subtotal-display"></p>
+                    </div>
+                </div>
+                {{ formset.empty_form.id }}
+                {{ formset.empty_form.total_item_price }}
+            </div>
+        </div>
+    </template>
+
+    <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+    
+    {# JS های مورد نیاز برای AdminJalaliDateWidget (فقط برای invoice_date) #}
+    {{ form.media.js }}
+    {{ formset.media.js }}
+
+    <script src="{% static 'js/persian-date.min.js' %}"></script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/i18n/fa.js"></script>
+    
+    <script>
+        $(document).ready(function() {
+            function initializeSelect2Drug(element) {
+                element.select2({
+                    dir: "rtl",
+                    language: "fa",
+                    placeholder: 'نام یا کد دارو را جستجو کنید...',
+                    allowClear: true,
+                    ajax: {
+                        url: "{% url 'drugs:search_drugs_ajax' %}", 
+                        dataType: 'json',
+                        delay: 250, 
+                        data: function (params) {
+                            return {
+                                q: params.term, 
+                                page: params.page
+                            };
+                        },
+                        processResults: function (data, params) {
+                            params.page = params.page || 1;
+                            return {
+                                results: data.results,
+                                pagination: {
+                                    more: (params.page * 10) < data.count 
+                                }
+                            };
+                        },
+                        cache: true
+                    },
+                    minimumInputLength: 2, 
+                    templateResult: function (data) {
+                        return data.loading ? data.text : $('<span>' + data.text + '</span>');
+                    },
+                    templateSelection: function (data) {
+                        return data.text;
+                    }
+                });
+            }
+
+            function initializeSelect2Supplier(element) {
+                element.select2({
+                    dir: "rtl",
+                    language: "fa",
+                    placeholder: 'نام تامین‌کننده را انتخاب کنید...',
+                    allowClear: true,
+                });
+            }
+
+            // تابع برای تبدیل تاریخ میلادی (از ورودی type="date") به شمسی و نمایش آن
+            function initializeGregorianToJalaliDisplay(element) {
+                if (element.is('input[type="date"]')) {
+                    var jalaliDisplaySpan = $('#' + element.attr('id') + '_jalali_display');
+
+                    function updateJalaliDisplay() {
+                        var gregorianDateStr = element.val(); // Get YYYY-MM-DD from input[type="date"]
+                        if (gregorianDateStr) {
+                            try {
+                                var parts = gregorianDateStr.split('-');
+                                var year = parseInt(parts[0]);
+                                var month = parseInt(parts[1]);
+                                var day = parseInt(parts[2]);
+                                
+                                if (!isNaN(year) && !isNaN(month) && !isNaN(day)) {
+                                    // persianDate expects month as 1-12
+                                    var pd = new persianDate([year, month, day]); 
+                                    // نمایش تاریخ شمسی با فرمت YYYY/MM/DD
+                                    jalaliDisplaySpan.text('تاریخ شمسی: ' + pd.format('YYYY/MM/DD'));
+                                } else {
+                                    jalaliDisplaySpan.text('تاریخ نامعتبر'); 
+                                }
+                            } catch (e) {
+                                console.error("Error converting Gregorian to Jalali:", e);
+                                jalaliDisplaySpan.text('خطا در تبدیل تاریخ');
+                            }
+                        } else {
+                            jalaliDisplaySpan.text(''); 
+                        }
+                    }
+
+                    // Initial display on load (if a date is already present)
+                    updateJalaliDisplay();
+
+                    // Update on change
+                    element.on('change', updateJalaliDisplay);
+                }
+            }
+            
+            function updateSubtotal() {
+                var row = $(this).closest('.item-row');
+                var quantity = parseFloat(row.find('input[name$="-quantity"]').val()) || 0;
+                var unitPrice = parseFloat(row.find('input[name$="-unit_price"]').val()) || 0;
+                var subtotal = quantity * unitPrice;
+
+                row.find('.item-subtotal-display').text(subtotal.toLocaleString('fa-IR')); 
+                row.find('input[name$="-total_item_price"]').val(subtotal.toFixed(2));
+
+                updateTotalAmount();
+            }
+
+            function updateTotalAmount() {
+                var total = 0;
+                $('.item-row').each(function() {
+                    if (!$(this).find('input[type="checkbox"][id$="-DELETE"]').is(':checked')) {
+                        var quantity = parseFloat($(this).find('input[name$="-quantity"]').val()) || 0;
+                        var unitPrice = parseFloat($(this).find('input[name$="-unit_price"]').val()) || 0;
+                        total += (quantity * unitPrice);
+                    }
+                });
+                $('#total-invoice-amount-display').text(total.toLocaleString('fa-IR'));
+            }
+
+            // --- فراخوانی توابع هنگام لود اولیه صفحه ---
+
+            $('.select2-drug').each(function() {
+                initializeSelect2Drug($(this));
+                var $element = $(this);
+                var drugId = $element.val();
+                if (drugId) {
+                    $.ajax({
+                        type: 'GET',
+                        url: "{% url 'drugs:search_drugs_ajax' %}",
+                        data: { id: drugId },
+                        dataType: 'json'
+                    }).done(function (data) {
+                        if (data.results && data.results.length > 0) {
+                            var drugData = data.results[0];
+                            if (!$element.find("option[value='" + drugData.id + "']").length) {
+                                var option = new Option(drugData.text, drugData.id, true, true);
+                                $element.append(option);
+                            }
+                            $element.trigger('change');
+                        }
+                    });
+                }
+            });
+
+            $('.select2-supplier').each(function() {
+                initializeSelect2Supplier($(this));
+            });
+
+            // مقداردهی اولیه تبدیل تاریخ میلادی به شمسی برای فیلدهای تاریخ انقضا موجود
+            $('.gregorian-date-input').each(function() {
+                initializeGregorianToJalaliDisplay($(this));
+            });
+            
+            $(document).on('input', '.item-quantity, .item-unit-price', updateSubtotal);
+            $(document).on('change', 'input[type="checkbox"][id$="-DELETE"]', updateTotalAmount); 
+
+            updateTotalAmount(); 
+            
+            $('#add-item-btn').click(function() {
+                var formsetContainer = $('#formset-container');
+                var totalFormsInput = $('#id_items-TOTAL_FORMS');
+                var currentForms = parseInt(totalFormsInput.val());
+                
+                var newFormHtml = $('#empty-form-template').html();
+                newFormHtml = newFormHtml.replace(/__prefix__/g, currentForms);
+                
+                var newFormRow = $(newFormHtml);
+                
+                newFormRow.find(':input').each(function() {
+                    var oldName = $(this).attr('name');
+                    if (oldName) {
+                        var newName = oldName.replace('-__prefix__-', '-' + currentForms + '-');
+                        var newId = 'id_' + newName;
+                        $(this).attr({'name': newName, 'id': newId});
+                    }
+                    if ($(this).is(':checkbox') || $(this).is(':radio')) {
+                        $(this).prop('checked', false);
+                    } else if ($(this).is('select')) {
+                        $(this).val(null).trigger('change');
+                    } else {
+                        $(this).val('');
+                    }
+                });
+                
+                newFormRow.attr('id', 'item-' + currentForms);
+                newFormRow.find('h5').text('آیتم ' + (currentForms + 1));
+                newFormRow.find('.item-subtotal-display').text('0.00');
+                
+                formsetContainer.append(newFormRow);
+                totalFormsInput.val(currentForms + 1);
+
+                initializeSelect2Drug(newFormRow.find('.select2-drug'));
+                initializeGregorianToJalaliDisplay(newFormRow.find('input[name$="-expiry_date"]')); 
+                
+                updateTotalAmount(); 
+            });
+        });
+    </script>
+</body>
+</html>

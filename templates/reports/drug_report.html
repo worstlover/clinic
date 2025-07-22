@@ -1,0 +1,288 @@
+{# D:\final\reports\templates\reports\drug_report.html #}
+{% extends 'base_report.html' %}
+{% load static %}
+{% load crispy_forms_tags %}
+
+{% block report_content %}
+    <h3 class="mb-4 text-center">جزئیات گزارش داروها</h3>
+
+    
+    {# ---------------- بخش نمایش نتایج (فقط زمانی که فیلتر اعمال شده) ---------------- #}
+    {% if is_filtered %}
+        <div class="row mb-4">
+            <div class="col-md-12">
+                <div class="card shadow-sm">
+                    <div class="card-body">
+                        <h5 class="card-title">آمار کلی موجودی داروها</h5>
+                        <p class="card-text">تعداد کل داروهای فیلتر شده: <strong>{{ total_drugs_count }} قلم</strong></p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        {# --- جدول موجودی انبار (نمایش شرطی بر اساس انتخاب کاربر) --- #}
+        <div class="table-responsive mb-4 card shadow-sm">
+            <div class="card-body">
+            {% if show_batch_details %}
+                <h5 class="card-title mb-3">موجودی انبار با جزئیات بچ‌ها</h5>
+                <table class="table table-bordered table-striped table-hover">
+                    <thead class="table-dark">
+                        <tr>
+                            <th scope="col">نام دارو</th>
+                            <th scope="col">بچ</th>
+                            <th scope="col">موجودی بچ</th>
+                            <th scope="col">تاریخ انقضا (شمسی)</th>
+                            <th scope="col">موجودی کل دارو</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for drug in drug_inventory_data %}
+                            {% for batch in drug.batches.all %}
+                            <tr>
+                                {% if forloop.first %}
+                                <td rowspan="{{ drug.batches.all|length|default:1 }}">{{ drug.name }}</td>
+                                {% endif %}
+                                <td>{{ batch.batch_number|default:"-" }}</td>
+                                <td>{{ batch.quantity }}</td>
+                                <td>{{ batch.get_jalali_expiry_date }}</td>
+                                {% if forloop.first %}
+                                <td rowspan="{{ drug.batches.all|length|default:1 }}"><strong>{{ drug.stock_quantity }}</strong></td>
+                                {% endif %}
+                            </tr>
+                            {% empty %}
+                                {# حالتی که دارو وجود دارد ولی بچ ندارد #}
+                                <tr>
+                                    <td>{{ drug.name }}</td>
+                                    <td colspan="3" class="text-center text-muted"><em>بدون بچ ثبت شده</em></td>
+                                    <td><strong>{{ drug.stock_quantity }}</strong></td>
+                                </tr>
+                            {% endfor %}
+                        {% empty %}
+                            <tr>
+                                <td colspan="5" class="text-center">هیچ دارویی با فیلترهای اعمال شده یافت نشد.</td>
+                            </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            {% else %}
+                <h5 class="card-title mb-3">موجودی انبار (کلی)</h5>
+                <table class="table table-bordered table-striped table-hover">
+                    <thead class="table-dark">
+                        <tr>
+                            <th scope="col">#</th>
+                            <th scope="col">نام دارو</th>
+                            <th scope="col">موجودی کل انبار</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for drug in drug_inventory_data %}
+                        <tr>
+                            <th scope="row">{{ forloop.counter }}</th>
+                            <td>{{ drug.name }}</td>
+                            <td>{{ drug.stock_quantity }}</td>
+                        </tr>
+                        {% empty %}
+                        <tr>
+                            <td colspan="3" class="text-center">هیچ دارویی با فیلترهای اعمال شده یافت نشد.</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            {% endif %}
+            </div>
+        </div>
+
+        {# --- بخش گزارش داروهای خریداری شده --- #}
+        <div class="row mb-4">
+            <div class="col-md-12">
+                <div class="card shadow-sm">
+                    <div class="card-body">
+                        <h5 class="card-title">آمار داروهای خریداری شده</h5>
+                        <p class="card-text">کل داروهای خریداری شده (تعداد): <strong>{{ total_purchased_quantity_overall|default:0 }}</strong></p>
+                        
+                        {% if top_5_purchased_drugs %}
+                        <h6>۵ داروی با بیشترین خرید:</h6>
+                        <table class="table table-bordered table-striped table-hover">
+                            <thead class="table-dark">
+                                <tr>
+                                    <th>#</th>
+                                    <th>نام دارو</th>
+                                    <th>تعداد خرید</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for drug in top_5_purchased_drugs %}
+                                <tr>
+                                    <td>{{ forloop.counter }}</td>
+                                    <td>{{ drug.drug__name }}</td>
+                                    <td>{{ drug.total_purchased_quantity }}</td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                        {% else %}
+                        <p class="text-muted">داده‌ای برای نمایش بیشترین داروهای خریداری شده وجود ندارد.</p>
+                        {% endif %}
+
+                        <div class="mt-4">
+                            <h6>نمودار ۵ داروی با بیشترین خرید</h6>
+                            <canvas id="topPurchasedChart"></canvas>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        {# --- بخش گزارش داروهای مصرف شده --- #}
+        <div class="row mb-4">
+            <div class="col-md-12">
+                <div class="card shadow-sm">
+                    <div class="card-body">
+                        <h5 class="card-title">آمار داروهای مصرف شده</h5>
+                        <p class="card-text">کل داروهای مصرف شده (تعداد): <strong>{{ total_consumed_quantity_overall|default:0 }}</strong></p>
+
+                        {% if top_5_consumed_drugs %}
+                        <h6>۵ داروی با بیشترین مصرف:</h6>
+                        <table class="table table-bordered table-striped table-hover">
+                            <thead class="table-dark">
+                                <tr>
+                                    <th>#</th>
+                                    <th>نام دارو</th>
+                                    <th>تعداد مصرف</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for drug in top_5_consumed_drugs %}
+                                <tr>
+                                    <td>{{ forloop.counter }}</td>
+                                    <td>{{ drug.drug__name }}</td>
+                                    <td>{{ drug.total_consumed_quantity }}</td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                        {% else %}
+                        <p class="text-muted">داده‌ای برای نمایش بیشترین داروهای مصرف شده وجود ندارد.</p>
+                        {% endif %}
+                        
+                        <div class="mt-4">
+                            <h6>نمودار ۵ داروی با بیشترین مصرف</h6>
+                            <canvas id="topConsumedChart"></canvas>
+                        </div>
+                        {# --- نمودار کمترین داروی مصرف شده --- #}
+                        {% if least_consumed_drug %}
+                        <div class="mt-4">
+                            <h6>نمودار کمترین داروی مصرف شده</h6>
+                            <canvas id="leastConsumedChart"></canvas>
+                        </div>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+        </div>
+    {% else %}
+        <div class="alert alert-info text-center" role="alert">
+            لطفاً از فیلترهای بالا برای مشاهده گزارش داروها استفاده کنید.
+        </div>
+    {% endif %}
+
+{% endblock report_content %}
+
+{% block extra_js %}
+    {{ block.super }}
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script>
+        document.addEventListener("DOMContentLoaded", function() {
+            // فعال‌سازی datepicker شمسی و سایر پلاگین‌ها در صورت وجود
+            // این کدها باید در base_report.html یا اینجا باشند
+            if (typeof $.fn.persianDatepicker === 'function') {
+                $('.jalali-datepicker').persianDatepicker({
+                    format: 'YYYY/MM/DD',
+                    autoClose: true,
+                    initialValueType: 'persian'
+                });
+            }
+
+            // --- نمودار ۵ داروی با بیشترین خرید ---
+            {% if top_5_purchased_drugs %}
+            const topPurchasedLabels = [{% for drug in top_5_purchased_drugs %}"{{ drug.drug__name|escapejs }}",{% endfor %}];
+            const topPurchasedData = [{% for drug in top_5_purchased_drugs %}{{ drug.total_purchased_quantity }},{% endfor %}];
+
+            const topPurchasedChartEl = document.getElementById('topPurchasedChart');
+            if (topPurchasedChartEl) {
+                new Chart(topPurchasedChartEl.getContext('2d'), {
+                    type: 'bar',
+                    data: {
+                        labels: topPurchasedLabels,
+                        datasets: [{
+                            label: 'تعداد خریداری شده',
+                            data: topPurchasedData,
+                            backgroundColor: 'rgba(54, 162, 235, 0.7)',
+                            borderColor: 'rgba(54, 162, 235, 1)',
+                            borderWidth: 1
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        scales: { y: { beginAtZero: true } }
+                    }
+                });
+            }
+            {% endif %}
+
+            // --- نمودار ۵ داروی با بیشترین مصرف ---
+            {% if top_5_consumed_drugs %}
+            const topConsumedLabels = [{% for drug in top_5_consumed_drugs %}"{{ drug.drug__name|escapejs }}",{% endfor %}];
+            const topConsumedData = [{% for drug in top_5_consumed_drugs %}{{ drug.total_consumed_quantity }},{% endfor %}];
+
+            const topConsumedChartEl = document.getElementById('topConsumedChart');
+            if (topConsumedChartEl) {
+                new Chart(topConsumedChartEl.getContext('2d'), {
+                    type: 'bar',
+                    data: {
+                        labels: topConsumedLabels,
+                        datasets: [{
+                            label: 'تعداد مصرف شده',
+                            data: topConsumedData,
+                            backgroundColor: 'rgba(255, 99, 132, 0.7)',
+                            borderColor: 'rgba(255, 99, 132, 1)',
+                            borderWidth: 1
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        scales: { y: { beginAtZero: true } }
+                    }
+                });
+            }
+            {% endif %}
+
+            {# --- نمودار کمترین داروی مصرف شده --- #}
+            {% if least_consumed_drug %}
+            const leastConsumedLabels = ["{{ least_consumed_drug.drug__name|escapejs }}"];
+            const leastConsumedData = [{{ least_consumed_drug.total_consumed_quantity }}];
+
+            const leastConsumedChartEl = document.getElementById('leastConsumedChart');
+            if (leastConsumedChartEl) {
+                new Chart(leastConsumedChartEl.getContext('2d'), {
+                    type: 'bar',
+                    data: {
+                        labels: leastConsumedLabels,
+                        datasets: [{
+                            label: 'تعداد مصرف شده',
+                            data: leastConsumedData,
+                            backgroundColor: 'rgba(75, 192, 192, 0.7)', 
+                            borderColor: 'rgba(75, 192, 192, 1)',
+                            borderWidth: 1
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        scales: { y: { beginAtZero: true } }
+                    }
+                });
+            }
+            {% endif %}
+        });
+    </script>
+{% endblock extra_js %}

@@ -1,0 +1,236 @@
+{# D:\final\drugs\drug_list.html #}
+
+{% extends 'base.html' %}
+{% load static %}
+{% load crispy_forms_tags %}
+{% load i18n %}
+
+{% block title %}{{ page_title }}{% endblock %}
+
+{% block content %}
+<div class="container-fluid mt-4">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h2 class="text-primary fw-bold">{{ page_title }}</h2>
+        <a href="{% url 'drugs:drug_create' %}" class="btn btn-success btn-lg shadow-sm">
+            <i class="fas fa-plus me-2"></i> ایجاد داروی جدید
+        </a>
+    </div>
+
+    {# فرم فیلترها #}
+    <div class="card mb-4 shadow-lg border-0">
+        <div class="card-header bg-gradient-info text-white d-flex align-items-center">
+            <i class="fas fa-filter me-2"></i>
+            <h5 class="mb-0">فیلتر داروها</h5>
+        </div>
+        <div class="card-body">
+            <form method="GET" class="row g-3 align-items-end">
+                {# فیلد نام دارو / ژنریک #}
+                <div class="col-md-3 col-sm-6">
+                    <div class="form-group">
+                        {{ filter.form.name.label_tag }}
+                        {{ filter.form.name }}
+                    </div>
+                </div>
+                {# فیلد کد دارو #}
+                <div class="col-md-3 col-sm-6">
+                    <div class="form-group">
+                        {{ filter.form.drug_code.label_tag }}
+                        {{ filter.form.drug_code }}
+                    </div>
+                </div>
+                {# فیلد شکل دارویی #}
+                <div class="col-md-3 col-sm-6">
+                    <div class="form-group">
+                        {{ filter.form.form.label_tag }}
+                        {{ filter.form.form }}
+                    </div>
+                </div>
+                
+                {# چک‌باکس‌ها در یک ردیف جداگانه یا با col-md-auto #}
+                <div class="col-md-auto d-flex align-items-end">
+                    <div class="form-check form-check-inline my-auto"> {# my-auto برای تراز عمودی #}
+                        {# ⭐ اینجا تغییرات اعمال شده ⭐ #}
+                        {{ filter.form.is_low_stock }} {# فقط تگ input را رندر می‌کند #}
+                        <label class="form-check-label custom-checkbox-label" for="{{ filter.form.is_low_stock.id_for_label }}">
+                            {{ filter.form.is_low_stock.label }}
+                        </label>
+                    </div>
+                </div>
+                <div class="col-md-auto d-flex align-items-end">
+                    <div class="form-check form-check-inline my-auto">
+                        {# ⭐ اینجا تغییرات اعمال شده ⭐ #}
+                        {{ filter.form.has_expiring_batches }} {# فقط تگ input را رندر می‌کند #}
+                        <label class="form-check-label custom-checkbox-label" for="{{ filter.form.has_expiring_batches.id_for_label }}">
+                            {{ filter.form.has_expiring_batches.label }}
+                        </label>
+                    </div>
+                </div>
+
+                <div class="col-md-auto">
+                    <button type="submit" class="btn btn-info shadow-sm me-2">
+                        <i class="fas fa-search me-2"></i> اعمال فیلتر
+                    </button>
+                    <a href="{% url 'drugs:drug_list' %}" class="btn btn-secondary shadow-sm">
+                        <i class="fas fa-times me-2"></i> پاک کردن فیلترها
+                    </a>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    {# نمایش پیام‌ها (مانند پیام‌های موفقیت یا خطا) #}
+    {% if messages %}
+        <div class="messages mb-4">
+            {% for message in messages %}
+                <div class="alert alert-{{ message.tags }} alert-dismissible fade show" role="alert">
+                    {{ message }}
+                    <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                </div>
+            {% endfor %}
+        </div>
+    {% endif %}
+
+    {# لیست داروها #}
+    {% if page_obj %}
+        <div class="table-responsive shadow-lg rounded-3">
+            <table class="table table-striped table-hover table-bordered align-middle">
+                <thead class="table-dark">
+                    <tr>
+                        <th scope="col" class="text-center">نام دارو</th>
+                        <th scope="col" class="text-center">کد دارو</th>
+                        <th scope="col" class="text-center">شکل دارویی</th>
+                        <th scope="col" class="text-center">موجودی کل</th>
+                        <th scope="col" class="text-center">حداقل هشدار</th>
+                        <th scope="col" class="text-center">انقضا/منقضی</th>
+                        <th scope="col" class="text-center">عملیات</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for drug in page_obj %}
+                    <tr>
+                        <td>
+                            <a href="{% url 'drugs:drug_detail' pk=drug.pk %}" class="text-decoration-none text-primary fw-bold">
+                                {{ drug.name }}
+                            </a>
+                            <small class="d-block text-muted">{{ drug.generic_name|default:"-" }}</small>
+                        </td>
+                        <td class="text-center">{{ drug.drug_code|default:"-" }}</td>
+                        <td class="text-center">{{ drug.get_form_display|default:"-" }}</td>
+                        <td class="text-center">
+                            {% if drug.total_stock is not None %}
+                                <span class="badge rounded-pill bg-{% if drug.total_stock <= drug.min_stock_alert %}warning{% else %}primary{% endif %} fs-6">
+                                    {{ drug.total_stock }}
+                                </span>
+                                {% if drug.total_stock <= drug.min_stock_alert %}
+                                    <small class="d-block text-warning fw-bold mt-1">موجودی کم!</small>
+                                {% endif %}
+                            {% else %}
+                                <span class="badge rounded-pill bg-secondary fs-6">0</span>
+                            {% endif %}
+                        </td>
+                        <td class="text-center">{{ drug.min_stock_alert }}</td>
+                        <td class="text-center">
+                            {% if drug.expired_batches_count > 0 %}
+                                <span class="badge bg-danger mb-1"><i class="fas fa-exclamation-triangle"></i> منقضی شده: {{ drug.expired_batches_count }}</span>
+                            {% endif %}
+                            {% if drug.expiring_soon_batches_count > 0 %}
+                                <span class="badge bg-warning text-dark"><i class="fas fa-hourglass-end"></i> انقضای نزدیک: {{ drug.expiring_soon_batches_count }}</span>
+                            {% elif not drug.expired_batches_count > 0 and not drug.expiring_soon_batches_count > 0 %}
+                                <span class="badge bg-success">فعلاً مشکلی نیست</span>
+                            {% endif %}
+                        </td>
+                        <td class="text-center">
+                            <div class="btn-group" role="group" aria-label="عملیات">
+                                <a href="{% url 'drugs:drug_detail' pk=drug.pk %}" class="btn btn-sm btn-info" title="جزئیات"><i class="fas fa-eye"></i></a>
+                                <a href="{% url 'drugs:drug_update' pk=drug.pk %}" class="btn btn-sm btn-warning" title="ویرایش"><i class="fas fa-edit"></i></a>
+                                {# <a href="{% url 'drugs:drug_delete' pk=drug.pk %}" class="btn btn-sm btn-danger" title="حذف"><i class="fas fa-trash"></i></a> #}
+                            </div>
+                        </td>
+                    </tr>
+                    {% empty %}
+                    <tr>
+                        <td colspan="7" class="text-center py-4 text-muted">
+                            <i class="fas fa-box-open fa-2x d-block mb-2"></i>
+                            هیچ دارویی با این مشخصات یافت نشد.
+                            <br>
+                            می‌توانید یک داروی جدید اضافه کنید.
+                            <a href="{% url 'drugs:drug_create' %}" class="btn btn-sm btn-link mt-2">افزودن دارو</a>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+
+        {# کنترل‌های صفحه‌بندی #}
+        <nav aria-label="صفحه‌بندی" class="mt-4">
+            <ul class="pagination justify-content-center flex-wrap">
+                {% if page_obj.has_previous %}
+                    <li class="page-item">
+                        <a class="page-link" href="?page={{ page_obj.previous_page_number }}&{{ request.GET.urlencode }}" aria-label="قبلی">
+                            <span aria-hidden="true">&laquo;</span>
+                            <span class="visually-hidden">قبلی</span>
+                        </a>
+                    </li>
+                {% endif %}
+
+                {% for i in paginator.page_range %}
+                    {% if paginator.num_pages > 10 %}
+                        {% if i == 1 or i == paginator.num_pages %}
+                            <li class="page-item {% if page_obj.number == i %}active{% endif %}">
+                                <a class="page-link" href="?page={{ i }}&{{ request.GET.urlencode }}">{{ i }}</a>
+                            </li>
+                        {% elif i >= page_obj.number|add:"-2" and i <= page_obj.number|add:"2" %}
+                            <li class="page-item {% if page_obj.number == i %}active{% endif %}">
+                                <a class="page-link" href="?page={{ i }}&{{ request.GET.urlencode }}">{{ i }}</a>
+                            </li>
+                        {% else %}
+                            {% ifchanged %}
+                                {% if i == page_obj.number|add:"-3" or i == page_obj.number|add:"3" %}
+                                    <li class="page-item disabled"><span class="page-link">...</span></li>
+                                {% endif %}
+                            {% endifchanged %}
+                        {% endif %}
+                    {% else %}
+                        <li class="page-item {% if page_obj.number == i %}active{% endif %}">
+                            <a class="page-link" href="?page={{ i }}&{{ request.GET.urlencode }}">{{ i }}</a>
+                        </li>
+                    {% endif %}
+                {% endfor %}
+
+                {% if page_obj.has_next %}
+                    <li class="page-item">
+                        <a class="page-link" href="?page={{ page_obj.next_page_number }}&{{ request.GET.urlencode }}" aria-label="بعدی">
+                            <span aria-hidden="true">&raquo;</span>
+                            <span class="visually-hidden">بعدی</span>
+                        </a>
+                    </li>
+                {% endif %}
+            </ul>
+        </nav>
+    {% else %}
+        <p class="text-center py-5 text-muted">
+            <i class="fas fa-box-open fa-3x d-block mb-3"></i>
+            در حال حاضر هیچ دارویی برای نمایش وجود ندارد.
+            <br>
+            می‌توانید یک داروی جدید اضافه کنید.
+            <a href="{% url 'drugs:drug_create' %}" class="btn btn-sm btn-link mt-2">افزودن دارو</a>
+        </p>
+    {% endif %}
+
+</div>
+
+{# اضافه کردن استایل سفارشی برای چک‌باکس‌ها #}
+<style>
+    .custom-checkbox-label {
+        font-weight: bold; /* متن لیبل را پررنگ می‌کند */
+        color: #007bff; /* رنگ آبی برای متن لیبل */
+        margin-right: 0.5rem; /* فاصله بین چک‌باکس و متن */
+    }
+    /* می‌توانید برای خود چک‌باکس استایل بیشتری اضافه کنید اگر نیاز بود */
+    .form-check-input:checked {
+        background-color: #28a745; /* رنگ سبز برای چک‌باکس تیک خورده */
+        border-color: #28a745;
+    }
+</style>
+{% endblock %}

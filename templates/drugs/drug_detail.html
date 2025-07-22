@@ -1,0 +1,103 @@
+{# D:\final\drugs\templates\drugs\drug_detail.html #}
+{% extends 'base.html' %}
+{% load static %}
+{% load persian_dates %}
+
+{% block title %}
+    جزئیات دارو: {{ drug.name }}
+{% endblock %}
+
+{% block content %}
+    <h1 class="content-header-padding">جزئیات دارو: {{ drug.name }}</h1>
+
+    <div class="card shadow-sm border-0 mb-4 mx-3">
+        <div class="card-body">
+            {% if messages %}
+                <div class="mb-3">
+                    {% for message in messages %}
+                        <div class="alert alert-{{ message.tags }} alert-dismissible fade show" role="alert">
+                            {{ message }}
+                            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                        </div>
+                    {% endfor %}
+                </div>
+            {% endif %}
+
+            <div class="row mb-3">
+                <div class="col-md-6 text-end">
+                    <strong>نام دارو:</strong> {{ drug.name }}
+                </div>
+                <div class="col-md-6 text-end">
+                    <strong>نام ژنریک:</strong> {{ drug.generic_name|default:"-" }}
+                </div>
+                <div class="col-md-6 text-end">
+                    <strong>کد دارو:</strong> {{ drug.drug_code|default:"-" }}
+                </div>
+                <div class="col-md-6 text-end">
+                    <strong>فرم دارو:</strong> {{ drug.get_drug_form_display }}
+                </div>
+                <div class="col-md-6 text-end">
+                    <strong>موجودی فعلی:</strong>
+                    <span class="badge {% if drug.is_low_stock %}bg-danger{% elif drug.current_stock < drug.reorder_point %}bg-warning{% else %}bg-success{% endif %}">
+                        {{ drug.total_quantity }}
+                    </span>
+                </div>
+                <div class="col-md-6 text-end">
+                    <strong>حداقل موجودی هشدار:</strong> {{ drug.min_stock_alert }}
+                </div>
+                <div class="col-md-6 text-end">
+                    <strong>نقطه سفارش مجدد:</strong> {{ drug.reorder_point }}
+                </div>
+                <div class="col-md-12 text-end">
+                    <strong>توضیحات:</strong> {{ drug.description|default:"-" }}
+                </div>
+            </div>
+
+            <hr class="my-4">
+
+            <h5 class="text-end mb-3">بچ‌های داروی موجود (تاریخ انقضا)</h5>
+            {% if drug.batches.exists %} {# فرض می‌کنیم در مدل Drug یک related_name='batches' به DrugBatch دارید #}
+                <div class="table-responsive">
+                    <table class="table table-hover table-striped text-end">
+                        <thead class="bg-light">
+                            <tr>
+                                <th scope="col">شماره بچ</th>
+                                <th scope="col">تعداد</th>
+                                <th scope="col">تاریخ انقضا</th>
+                                <th scope="col">وضعیت</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for batch in drug.batches.all %}
+                                <tr>
+                                    <td>{{ batch.batch_number|default:"-" }}</td>
+                                    <td>{{ batch.quantity }}</td>
+                                    <td>{{ batch.expiry_date|to_persian_date:"%Y/%m/%d" }}</td>
+                                    <td>
+                                        {% if batch.is_expired %}
+                                            <span class="badge bg-danger">منقضی شده</span>
+                                        {% elif batch.is_expiring_soon %}
+                                            <span class="badge bg-warning">نزدیک به انقضا</span>
+                                        {% else %}
+                                            <span class="badge bg-success">معتبر</span>
+                                        {% endif %}
+                                    </td>
+                                </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            {% else %}
+                <div class="alert alert-info text-end" role="alert">
+                    هیچ بچ دارویی برای این دارو ثبت نشده است.
+                </div>
+            {% endif %}
+
+            <div class="d-flex justify-content-end gap-2 mt-4">
+                <a href="{% url 'drugs:drug_update' drug.pk %}" class="btn btn-primary"><i class="fas fa-edit me-2"></i>ویرایش دارو</a>
+                <a href="{% url 'drugs:drug_delete' drug.pk %}" class="btn btn-danger"><i class="fas fa-trash-alt me-2"></i>حذف دارو</a>
+                <a href="{% url 'drugs:drug_list' %}" class="btn btn-secondary"><i class="fas fa-arrow-right-from-bracket me-2"></i>بازگشت به لیست داروها</a>
+            </div>
+        </div>
+    </div>
+{% endblock %}

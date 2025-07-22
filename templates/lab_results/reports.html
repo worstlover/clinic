@@ -1,0 +1,382 @@
+{# D:\final\templates\lab_results\reports.html #}
+
+{% extends 'base.html' %}
+
+{% block title %}گزارشات بیماران{% endblock %}
+
+{% block content %}
+{% load static %}
+
+<style>
+    /* استایل‌های پایه */
+    body {
+        font-family: 'B Nazanin', 'Vazirmatn', sans-serif;
+        margin: 20px;
+        padding: 0;
+        background-color: #f4f4f4;
+        color: #333;
+        line-height: 1.6;
+    }
+    .container {
+        max-width: 1000px;
+        margin: 20px auto;
+        background-color: #fff;
+        padding: 30px;
+        border-radius: 8px;
+        box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+    }
+    h1, h2, h3 {
+        color: #0056b3;
+        border-bottom: 2px solid #eee;
+        padding-bottom: 10px;
+        margin-top: 25px;
+    }
+    .report-section {
+        margin-bottom: 25px; /* کاهش فاصله برای نمای بهتر */
+        padding: 20px;
+        border: 1px solid #e0e0e0;
+        border-radius: 5px;
+        background-color: #fdfdfd;
+    }
+    .report-section-header {
+        background-color: #e9f5ff;
+        padding: 12px 15px;
+        border-radius: 5px;
+        margin-bottom: 20px;
+        font-weight: bold;
+        color: #004085;
+        font-size: 1.2em;
+        display: flex; /* برای تراز کردن عنوان و تعداد */
+        justify-content: space-between; /* برای تراز کردن عنوان و تعداد */
+        align-items: center; /* برای تراز کردن عنوان و تعداد */
+    }
+    .report-count { /* استایل برای نمایش تعداد */
+        font-size: 0.9em;
+        color: #007bff;
+        background-color: #cceeff;
+        padding: 5px 10px;
+        border-radius: 4px;
+    }
+    table {
+        width: 100%;
+        border-collapse: collapse;
+        margin-top: 15px;
+    }
+    th, td {
+        border: 1px solid #ddd;
+        padding: 10px;
+        text-align: right;
+    }
+    th {
+        background-color: #f2f2f2;
+        font-weight: bold;
+        color: #555;
+    }
+    tbody tr:nth-child(even) {
+        background-color: #f9f9f9;
+    }
+    .no-data {
+        color: #888;
+        font-style: italic;
+        text-align: center;
+        padding: 20px;
+    }
+    .filter-form {
+        background-color: #e6f7ff;
+        padding: 15px;
+        border-radius: 5px;
+        margin-bottom: 25px;
+        border: 1px solid #cceeff;
+        display: flex;
+        flex-wrap: wrap;
+        gap: 15px;
+        align-items: flex-end;
+    }
+    .filter-form div {
+        flex-grow: 1;
+        min-width: 150px;
+    }
+    .filter-form label {
+        display: block;
+        margin-bottom: 5px;
+        font-weight: bold;
+    }
+    .filter-form select,
+    .filter-form input[type="text"],
+    .filter-form button {
+        padding: 8px 12px;
+        border-radius: 4px;
+        border: 1px solid #ccc;
+        width: 100%;
+        box-sizing: border-box;
+    }
+    .filter-form button {
+        background-color: #007bff;
+        color: white;
+        cursor: pointer;
+        border: none;
+        transition: background-color 0.3s ease;
+        width: auto;
+    }
+    .filter-form button:hover {
+        background-color: #0056b3;
+    }
+    .button-group {
+        margin-top: 20px;
+        display: flex;
+        gap: 10px;
+        justify-content: flex-start;
+    }
+    .button-group a,
+    .button-group button {
+        padding: 10px 15px;
+        color: white;
+        text-decoration: none;
+        border-radius: 5px;
+        transition: background-color 0.3s ease;
+        border: none;
+        cursor: pointer;
+    }
+    .back-button { background-color: #6c757d; }
+    .back-button:hover { background-color: #5a6268; }
+    .print-button { background-color: #28a745; }
+    .print-button:hover { background-color: #218838; }
+
+    /* Print Specific Styles */
+    @media print {
+        body * {
+            visibility: hidden;
+        }
+        #printableArea, #printableArea * {
+            visibility: visible;
+        }
+        #printableArea {
+            position: absolute;
+            left: 0;
+            top: 0;
+            width: 100%;
+            margin: 0;
+            padding: 10px; /* کاهش padding برای چاپ بهتر */
+            box-shadow: none;
+            border: none;
+        }
+        h1, h2, h3 {
+            color: #000 !important;
+            border-bottom: 1px solid #ccc;
+        }
+        .report-section {
+            border: 1px solid #ccc;
+            page-break-inside: avoid;
+            margin-bottom: 20px;
+        }
+        table { page-break-inside: auto; }
+        tr { page-break-inside: avoid; page-break-after: auto; }
+        th, td {
+            color: #000;
+        }
+        th { background-color: #f2f2f2; }
+        .report-section-header, .report-count {
+            background-color: #eee !important;
+            color: #000 !important;
+        }
+        .no-data, .filter-form, .button-group {
+            display: none;
+        }
+    }
+</style>
+
+<div class="container">
+    <h1>گزارشات سیستم</h1>
+
+    <div class="filter-form">
+        <form method="GET" action="{% url 'reports:all_examinations_report' %}">
+            <div>
+                <label for="report_type">نوع گزارش:</label>
+                <select id="report_type" name="report_type">
+                    <option value="">یکی را انتخاب کنید...</option>
+                    <option value="no_exams" {% if selected_report_type == 'no_exams' %}selected{% endif %}>بیمارانی که معاینه دوره‌ای ندارند</option>
+                    <option value="no_personnel_id" {% if selected_report_type == 'no_personnel_id' %}selected{% endif %}>بیمارانی که کد پرسنلی ندارند</option>
+                    <option value="due_for_re_exam" {% if selected_report_type == 'due_for_re_exam' %}selected{% endif %}>بیمارانی که نیاز به معاینه مجدد دارند</option>
+                    <option value="conditional_final_opinion" {% if selected_report_type == 'conditional_final_opinion' %}selected{% endif %}>معاینات با نظریه نهایی (نهایی/مشروط)</option>
+                </select>
+            </div>
+            
+            <div>
+                <label for="re_exam_date_jalali">تاریخ هدف (برای معاینه مجدد):</label>
+                <input type="text" id="re_exam_date_jalali" name="re_exam_date_jalali" 
+                       placeholder="مثال: 1403/05/25" 
+                       value="{{ re_exam_target_date_jalali|default:'' }}">
+            </div>
+
+            <button type="submit">اعمال گزارش</button>
+        </form>
+    </div>
+
+    <div id="printableArea">
+        
+        {# گزارش ۱: بیمارانی که هیچ معاینه دوره‌ای ثبت شده ندارند #}
+        {% if selected_report_type == 'no_exams' %}
+        <div class="report-section">
+            <div class="report-section-header">
+                <span>بیمارانی که معاینه دوره‌ای ندارند</span>
+                {% if patients_without_exams %}
+                    <span class="report-count">تعداد یافت شده: {{ patients_without_exams|length }}</span>
+                {% endif %}
+            </div>
+            {% if patients_without_exams %}
+                <table>
+                    <thead>
+                        <tr>
+                            <th>ردیف</th>
+                            <th>نام کامل</th>
+                            <th>کد ملی</th>
+                            <th>شماره پاسپورت</th>
+                            <th>کد پرسنلی</th>
+                            <th>شماره تماس</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for patient in patients_without_exams %}
+                            <tr>
+                                <td>{{ forloop.counter }}</td>
+                                <td>{{ patient.full_name }}</td>
+                                <td>{{ patient.national_code|default:"-" }}</td>
+                                <td>{{ patient.passport_number|default:"-" }}</td>
+                                <td>{{ patient.personnel_number|default:"-" }}</td>
+                                <td>{{ patient.phone_number|default:"-" }}</td>
+                            </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            {% else %}
+                <div class="no-data">همه بیماران دارای حداقل یک معاینه دوره‌ای هستند.</div>
+            {% endif %}
+        </div>
+        {% endif %}
+
+        {# گزارش ۲: لیست نفراتی که کد پرسنلی ندارند #}
+        {% if selected_report_type == 'no_personnel_id' %}
+        <div class="report-section">
+            <div class="report-section-header">
+                <span>بیمارانی که کد پرسنلی ندارند</span>
+                {% if patients_without_personnel_id %}
+                    <span class="report-count">تعداد یافت شده: {{ patients_without_personnel_id|length }}</span>
+                {% endif %}
+            </div>
+            {% if patients_without_personnel_id %}
+                <table>
+                    <thead>
+                        <tr>
+                            <th>ردیف</th>
+                            <th>نام کامل</th>
+                            <th>کد ملی</th>
+                            <th>شماره پاسپورت</th>
+                            <th>شماره تماس</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for patient in patients_without_personnel_id %}
+                            <tr>
+                                <td>{{ forloop.counter }}</td>
+                                <td>{{ patient.full_name }}</td>
+                                <td>{{ patient.national_code|default:"-" }}</td>
+                                <td>{{ patient.passport_number|default:"-" }}</td>
+                                <td>{{ patient.phone_number|default:"-" }}</td>
+                            </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            {% else %}
+                <div class="no-data">کد پرسنلی برای همه بیماران کامل است.</div>
+            {% endif %}
+        </div>
+        {% endif %}
+
+        {# گزارش ۳: لیست نفراتی که نیاز به معاینه مجدد دارند #}
+        {% if selected_report_type == 'due_for_re_exam' %}
+        <div class="report-section">
+            <div class="report-section-header">
+                <span>بیمارانی که نیاز به معاینه مجدد دارند (تا تاریخ: {{ re_exam_target_date_jalali|default:"نامشخص" }})</span>
+                {% if patients_due_for_re_exam %}
+                    <span class="report-count">تعداد یافت شده: {{ patients_due_for_re_exam|length }}</span>
+                {% endif %}
+            </div>
+            {% if patients_due_for_re_exam %}
+                <table>
+                    <thead>
+                        <tr>
+                            <th>ردیف</th>
+                            <th>نام کامل</th>
+                            <th>کد پرسنلی</th>
+                            <th>آخرین تاریخ معاینه</th>
+                            <th>تاریخ اعتبار آزمایش</th>
+                            <th>شماره تماس</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for item in patients_due_for_re_exam %}
+                            <tr>
+                                <td>{{ forloop.counter }}</td>
+                                <td>{{ item.patient.full_name }}</td>
+                                <td>{{ item.patient.personnel_number|default:"-" }}</td>
+                                <td>{{ item.last_exam_date_jalali|default:"-" }}</td>
+                                <td>{{ item.expiry_date_jalali|default:"-" }}</td>
+                                <td>{{ item.patient.phone_number|default:"-" }}</td>
+                            </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            {% else %}
+                <div class="no-data">هیچ بیماری نیاز به معاینه مجدد در بازه زمانی مشخص شده ندارد.</div>
+            {% endif %}
+        </div>
+        {% endif %}
+
+        {# گزارش ۴: معاینات با نظریه نهایی (نهایی/مشروط) #}
+        {% if selected_report_type == 'conditional_final_opinion' %}
+        <div class="report-section">
+            <div class="report-section-header">
+                <span>معایناتی با نظریه نهایی (نهایی/مشروط)</span>
+                {% if conditional_final_opinion_exams %}
+                    <span class="report-count">تعداد یافت شده: {{ conditional_final_opinion_exams|length }}</span>
+                {% endif %}
+            </div>
+            {% if conditional_final_opinion_exams %}
+                <table>
+                    <thead>
+                        <tr>
+                            <th>ردیف</th>
+                            <th>نام بیمار</th>
+                            <th>کد پرسنلی</th>
+                            <th>تاریخ معاینه</th>
+                            <th>نظریه نهایی</th>
+                            <th>توضیحات کلی (علت مشروطی/شرط)</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for exam in conditional_final_opinion_exams %}
+                            <tr>
+                                <td>{{ forloop.counter }}</td>
+                                <td>{{ exam.patient.full_name }}</td>
+                                <td>{{ exam.patient.personnel_number|default:"-" }}</td>
+                                <td>{{ exam.exam_date_jalali|default:"-" }}</td>
+                                <td>{{ exam.final_opinion_conditions|default:"-" }}</td>
+                                <td>{{ exam.overall_notes|default:"-" }}</td>
+                            </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            {% else %}
+                <div class="no-data">هیچ معاینه‌ای با نظریه نهایی "نهایی" یا "مشروط" یافت نشد.</div>
+            {% endif %}
+        </div>
+        {% endif %}
+
+    </div> <div class="button-group">
+        <a href="{% url 'core:patient_list' %}" class="back-button">بازگشت به لیست بیماران</a>
+        <a href="{% url 'dashboard' %}" class="back-button">بازگشت به داشبورد</a>
+        <button onclick="window.print()" class="print-button">چاپ گزارش</button>
+    </div>
+</div>
+
+{% endblock content %}

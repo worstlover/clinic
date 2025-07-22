@@ -1,0 +1,56 @@
+{% extends 'base.html' %} {# ارث‌بری از قالب اصلی #}
+{% load static %} {# برای استفاده از فایل‌های استاتیک #}
+
+{% block content %}
+<div class="container-fluid">
+    <h1 class="h3 mb-4 text-gray-800">آپلود فایل‌های اکسل</h1>
+
+    <div class="messages mb-4">
+        {% if messages %}
+            <ul class="list-unstyled"> {# حذف استایل پیش‌فرض لیست #}
+                {% for message in messages %}
+                    <li{% if message.tags %} class="alert alert-{{ message.tags }} text-right"{% endif %} role="alert">
+                        {{ message }}
+                    </li>
+                {% endfor %}
+            </ul>
+        {% endif %}
+    </div>
+
+    <div class="card shadow mb-4">
+        <div class="card-body">
+            <div class="row">
+                <div class="col-md-6 mb-4">
+                    <h5 class="card-title text-gray-800">آپلود فایل اکسل نتایج معاینات دوره‌ای</h5>
+                    <p class="card-text">برای وارد کردن نتایج آزمایشات و معاینات دوره‌ای، فایل اکسل مربوطه را آپلود کنید.</p>
+                    <form method="post" enctype="multipart/form-data" action="{% url 'lab_results:process_import' %}">
+                        {% csrf_token %}
+                        <div class="mb-3">
+                            <label for="excel_file_results" class="form-label">انتخاب فایل نتایج معاینات:</label>
+                            <input type="file" class="form-control" id="excel_file_results" name="excel_file" accept=".xlsx, .xls" required>
+                        </div>
+                        <button type="submit" class="btn btn-primary">شروع وارد کردن نتایج</button>
+                    </form>
+                </div>
+
+                <div class="col-md-6 mb-4">
+                    <h5 class="card-title text-gray-800">آپلود فایل اکسل مشخصات پرسنل</h5>
+                    <p class="card-text">برای وارد کردن اطلاعات پایه و مشخصات پرسنل جدید، فایل اکسل مربوطه را آپلود کنید.</p>
+                    {# فرض بر این است که شما یک URL به نام 'core:upload_personnel_file' برای این منظور دارید #}
+                    {# اگر این URL را ندارید، باید آن را در urls.py اپلیکیشن core یا مربوطه تعریف کنید #}
+                    <a href="{% url 'core:upload_personnel_file' %}" class="btn btn-success">
+                        <i class="fas fa-upload me-2"></i> آپلود مشخصات پرسنل
+                    </a>
+                    <p class="mt-2 text-muted small">
+                        با کلیک بر روی این دکمه به صفحه جداگانه آپلود مشخصات پرسنل هدایت می‌شوید.
+                    </p>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+{# اگر اسکریپت‌های خاصی برای آپلود فایل‌ها نیاز دارید، اینجا اضافه کنید #}
+{% endblock %}

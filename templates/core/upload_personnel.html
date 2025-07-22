@@ -1,0 +1,44 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block content %}
+<div class="container-fluid">
+    <h1 class="h3 mb-4 text-gray-800">آپلود فایل اکسل مشخصات پرسنل</h1>
+
+    <div class="messages mb-4">
+        {% if messages %}
+            <ul class="list-unstyled">
+                {% for message in messages %}
+                    <li{% if message.tags %} class="alert alert-{{ message.tags }} text-right"{% endif %} role="alert">
+                        {{ message }}
+                    </li>
+                {% endfor %}
+            </ul>
+        {% endif %}
+    </div>
+
+    <div class="card shadow mb-4">
+        <div class="card-body">
+            <h5 class="card-title text-gray-800">فرم آپلود مشخصات پرسنل</h5>
+            <p class="card-text">
+                لطفاً فایل اکسل حاوی کد ملی، شماره پرسنلی، نام و نام خانوادگی پرسنل را آپلود کنید.
+                <br>
+                **سربرگ‌های ضروری در اکسل:** `کد ملی`, `شماره پرسنلی`, `نام`, `نام خانوادگی`
+            </p>
+            <form method="post" enctype="multipart/form-data" action="{% url 'core:process_personnel_import' %}">
+                {% csrf_token %}
+                <div class="mb-3">
+                    <label for="excel_file_personnel" class="form-label">انتخاب فایل مشخصات پرسنل:</label>
+                    <input type="file" class="form-control" id="excel_file_personnel" name="excel_file" accept=".xlsx, .xls" required>
+                </div>
+                <button type="submit" class="btn btn-primary">شروع وارد کردن مشخصات</button>
+                <a href="{% url 'lab_results:upload_excel_file' %}" class="btn btn-secondary ms-2">بازگشت به آپلود نتایج معاینات</a>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+{# اگر اسکریپت‌های خاصی نیاز است، اینجا اضافه کنید #}
+{% endblock %}

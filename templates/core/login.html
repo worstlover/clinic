@@ -1,0 +1,104 @@
+{% csrf_token %} 
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+   
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ورود به سیستم مدیریت درمانگاه</title>
+    <style>
+        /* استایل های CSS ساده برای فرم لاگین */
+        body {
+            font-family: Arial, sans-serif;
+            background-color: #f4f4f4;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            margin: 0;
+        }
+        .login-container {
+            background-color: #fff;
+            padding: 30px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+            width: 350px;
+            text-align: center;
+        }
+        .login-container h2 {
+            margin-bottom: 20px;
+            color: #333;
+        }
+        .form-group {
+            margin-bottom: 15px;
+            text-align: right; /* برای RTL */
+        }
+        .form-group label {
+            display: block;
+            margin-bottom: 5px;
+            color: #555;
+        }
+        .form-group input[type="text"],
+        .form-group input[type="password"] {
+            width: calc(100% - 20px); /* عرض منهای padding */
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            box-sizing: border-box; /* شامل padding و border در عرض */
+        }
+        .form-group button {
+            width: 100%;
+            padding: 10px;
+            background-color: #007bff;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 16px;
+            margin-top: 10px;
+        }
+        .form-group button:hover {
+            background-color: #0056b3;
+        }
+        .errorlist {
+            color: red;
+            text-align: right;
+            list-style-type: none;
+            padding: 0;
+            margin-top: -10px;
+            margin-bottom: 10px;
+        }
+    </style>
+</head>
+<body>
+    <div class="login-container">
+        <h2>ورود به سیستم</h2>
+        {% if form.errors %}
+            <ul class="errorlist">
+                {% for field in form %}
+                    {% for error in field.errors %}
+                        <li>{{ error }}</li>
+                    {% endfor %}
+                {% endfor %}
+                {% for error in form.non_field_errors %}
+                    <li>{{ error }}</li>
+                {% endfor %}
+            </ul>
+        {% endif %}
+        <form method="post">
+            {% csrf_token %} {# این تگ برای امنیت Django ضروری است #}
+            <div class="form-group">
+                <label for="{{ form.username.id_for_label }}">نام کاربری:</label>
+                <input type="text" name="{{ form.username.name }}" id="{{ form.username.id_for_label }}" required>
+            </div>
+            <div class="form-group">
+                <label for="{{ form.password.id_for_label }}">رمز عبور:</label>
+                <input type="password" name="{{ form.password.name }}" id="{{ form.password.id_for_label }}" required>
+            </div>
+            <div class="form-group">
+                <button type="submit">ورود</button>
+            </div>
+        </form>
+    </div>
+</body>
+</html>

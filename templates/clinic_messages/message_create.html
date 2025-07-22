@@ -1,0 +1,354 @@
+{% extends 'base.html' %}
+{% load crispy_forms_tags %}
+{% load static %}
+{% load widget_tweaks %}
+
+{% block extra_head %}
+    <script src="{% static 'ckeditor/ckeditor.js' %}" async defer></script>
+    <script src="{% static 'ckeditor/adapters/jquery.js' %}" async defer></script>
+    <script>
+        CKEDITOR_BASEPATH = '{% static "ckeditor/ckeditor/" %}';
+    </script>
+    
+    <link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet" />
+    <style>
+        /* Optional: Custom styles for select2 to match your theme */
+        .select2-container .select2-selection--multiple {
+            min-height: 38px;
+            border: 1px solid #ced4da;
+            border-radius: 0.25rem;
+            padding: 5px;
+        }
+        .select2-container--default .select2-selection--multiple .select2-selection__choice {
+            background-color: #007bff;
+            color: white;
+            border: 1px solid #007bff;
+            border-radius: 4px;
+            padding: 0 5px;
+            margin-top: 5px;
+        }
+        .select2-container--default .select2-selection--multiple .select2-selection__choice__remove {
+            color: white;
+            margin-right: 5px;
+        }
+        .select2-container--default .select2-results__option--highlighted.select2-results__option--selectable {
+            background-color: #007bff;
+            color: white;
+        }
+    </style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <h1 class="h3 mb-4 text-gray-800">{{ page_title }}</h1>
+
+    <div class="card shadow mb-4">
+        <div class="card-body">
+            <form method="post" enctype="multipart/form-data">
+                {% csrf_token %}
+
+                {# Main Message Form Fields #}
+                <div class="row">
+                    <div class="col-md-12">
+                        {# Recipients field: Enabled for selection in create message #}
+                        {{ form.recipients|as_crispy_field }} 
+                    </div>
+                </div>
+                <div class="row">
+                    <div class="col-md-12">
+                        {{ form.subject|as_crispy_field }}
+                    </div>
+                </div>
+
+                {# بخش جدید برای تبدیل Docx به HTML - منتقل شده از message_create.html اصلی #}
+                <div class="form-group mb-3">
+                    <label for="docxFileInput">تبدیل فایل Word (docx) به متن:</label>
+                    <div class="input-group">
+                        <input type="file" class="form-control" id="docxFileInput" accept=".docx">
+                        <button type="button" class="btn btn-outline-secondary" id="convertDocxToHtmlBtn">تبدیل و افزودن</button>
+                    </div>
+                    <small class="form-text text-muted">فایل .docx را انتخاب کنید تا محتوای آن به CKEditor اضافه شود.</small>
+                    <div id="docxConversionMessage" class="mt-2"></div>
+                </div>
+
+                <div class="row">
+                    <div class="col-md-12">
+                        {{ form.body|as_crispy_field }}
+                    </div>
+                </div>
+
+                {# Hidden fields (related_visit, related_drug_request, parent_message) - Removed if not needed for create #}
+                {# اگر این فیلدها در MessageForm برای ایجاد پیام جدید اصلا استفاده نمیشوند، بهتر است در اینجا نباشند. #}
+                {# اگر در ModelForm تعریف شده‌اند ولی صرفا برای reply لازمند، مطمئن شوید که HiddenInput هستند یا با logic بک‌اند مدیریت میشوند. #}
+                {% if form.related_visit %}{{ form.related_visit }}{% endif %}
+                {% if form.related_drug_request %}{{ form.related_drug_request }}{% endif %}
+                {% if form.parent_message %}{{ form.parent_message }}{% endif %}
+
+
+                <h3>پیوست‌ها:</h3>
+                <div id="attachments-formset" class="mb-3">
+                    {{ attachment_formset.management_form }} {# This is CRUCIAL for formset management #}
+                    {% for form in attachment_formset %}
+                        <div class="attachment-item card card-body mb-2">
+                            {% for hidden_field in form.hidden_fields %}
+                                {{ hidden_field }}
+                            {% endfor %}
+                            {% for field in form.visible_fields %}
+                                <div class="mb-2">
+                                    {{ field.label_tag }}
+                                    {{ field }}
+                                    {% if field.help_text %}
+                                        <small class="form-text text-muted">{{ field.help_text }}</small>
+                                    {% endif %}
+                                    {% for error in field.errors %}
+                                        <div class="text-danger">{{ error }}</div>
+                                    {% endfor %}
+                                </div>
+                            {% endfor %}
+                            {# In create message, existing attachments might not be applicable, but keep delete for newly added ones #}
+                            <button type="button" class="btn btn-danger btn-sm mt-2 remove-attachment-form">حذف</button>
+                        </div>
+                    {% endfor %}
+                </div>
+
+                {# Template for new empty attachment forms #}
+                <template id="empty-form-template">
+                    <div class="attachment-item card card-body mb-2">
+                        {% for hidden_field in attachment_formset.empty_form.hidden_fields %}
+                            {{ hidden_field }}
+                        {% endfor %}
+                        {% for field in attachment_formset.empty_form.visible_fields %}
+                            <div class="mb-2">
+                                {{ field.label_tag }}
+                                {{ field|attr:"name:attachments-__prefix__-file"|attr:"id:id_attachments-__prefix__-file" }}
+                                {% if field.help_text %}
+                                    <small class="form-text text-muted">{{ field.help_text }}</small>
+                                {% endif %}
+                            </div>
+                        {% endfor %}
+                        <button type="button" class="btn btn-danger btn-sm mt-2 remove-attachment-form">حذف</button>
+                    </div>
+                </template>
+                
+                <button type="button" class="btn btn-secondary mt-2" id="add-attachment-form">افزودن پیوست</button>
+
+                <button type="submit" class="btn btn-success btn-icon-split mt-3">
+                    <span class="icon text-white-50">
+                        <i class="fas fa-paper-plane"></i>
+                    </span>
+                    <span class="text">ارسال پیام</span>
+                </button>
+                
+                {# فرم برای export به ورد - منتقل شده از message_create.html اصلی #}
+                <form id="exportWordForm" method="post" action="{% url 'clinic_messages:export_composed_message_to_word' %}" style="display:inline-block; margin-left: 10px;">
+                    {% csrf_token %}
+                    <input type="hidden" name="subject" id="wordExportSubject">
+                    <input type="hidden" name="body" id="wordExportBody">
+                    <button type="button" class="btn btn-info mt-3" id="exportToWordBtn">
+                        <span class="icon text-white-50">
+                            <i class="fas fa-file-word"></i>
+                        </span>
+                        <span class="text">خروجی Word از پیام فعلی</span>
+                    </button>
+                </form>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+    <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.7.1/jquery.min.js"></script> {# Changed to 3.7.1 as in original message_create #}
+    <script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
+    
+    <script>
+        $(document).ready(function() {
+            // Initialize Select2 for recipients field
+            $('#id_recipients').select2({
+                placeholder: "گیرندگان را انتخاب کنید",
+                allowClear: true,
+                multiple: true, 
+                ajax: {
+                    url: "{% url 'clinic_messages:user_search_api' %}", // URL به API جستجوی کاربران
+                    dataType: 'json',
+                    delay: 250,
+                    data: function (params) {
+                        return {
+                            q: params.term, // search term
+                            page: params.page
+                        };
+                    },
+                    processResults: function (data, params) {
+                        params.page = params.page || 1;
+                        return {
+                            results: data.items,
+                            pagination: {
+                                more: (params.page * 20) < data.total_count // Assuming 20 items per page
+                            }
+                        };
+                    },
+                    cache: true
+                },
+                minimumInputLength: 2 // Minimum characters to type before search
+            });
+
+            // Initialize CKEditor
+            $('#id_body').ckeditor({
+                filebrowserUploadUrl: '{% url "clinic_messages:ckeditor_upload_file" %}', // Assuming this URL exists
+                filebrowserBrowseUrl: '/ckfinder/browser/', 
+                filebrowserImageBrowseUrl: '/ckfinder/browser/',
+                filebrowserFlashBrowseUrl: '/ckfinder/browser/',
+                filebrowserUploadMethod: 'form',
+                extraPlugins: 'uploadimage,image2,quicktools',
+                toolbar: [
+                    { name: 'document', items: ['Source', '-', 'Save', 'NewPage', 'Preview', 'Print', '-', 'Templates'] },
+                    { name: 'clipboard', items: ['Cut', 'Copy', 'Paste', 'PasteText', 'PasteFromWord', '-', 'Undo', 'Redo'] },
+                    { name: 'editing', items: ['Find', 'Replace', '-', 'SelectAll', '-', 'Scayt'] },
+                    '/',
+                    { name: 'basicstyles', items: ['Bold', 'Italic', 'Underline', 'Strike', 'Subscript', 'Superscript', '-', 'RemoveFormat'] },
+                    { name: 'paragraph', items: ['NumberedList', 'BulletedList', '-', 'Outdent', 'Indent', '-', 'Blockquote', 'CreateDiv', '-', 'JustifyLeft', 'JustifyCenter', 'JustifyRight', 'JustifyBlock', '-', 'BidiLtr', 'BidiRtl', 'Language'] },
+                    { name: 'links', items: ['Link', 'Unlink', 'Anchor'] },
+                    { name: 'insert', items: ['Image', 'Flash', 'Table', 'HorizontalRule', 'Smiley', 'SpecialChar', 'PageBreak', 'Iframe'] },
+                    '/',
+                    { name: 'styles', items: ['Styles', 'Format', 'Font', 'FontSize'] },
+                    { name: 'colors', items: ['TextColor', 'BGColor'] },
+                    { name: 'tools', items: ['Maximize', 'ShowBlocks'] },
+                    { name: 'others', items: ['-'] },
+                    { name: 'about', items: ['About'] }
+                ]
+            });
+
+            // Formset Management Logic (adapted from message_reply.html but with original message_create.html's add logic)
+            var emptyFormHtmlTemplate = $('#empty-form-template').html(); 
+            var totalForms = $('#id_attachments-TOTAL_FORMS'); 
+            var initialForms = $('#id_attachments-INITIAL_FORMS'); 
+
+            // Ensure initialForms and totalForms are set to 0 if not already
+            if (initialForms.length && initialForms.val() === '') { // Check if element exists
+                initialForms.val('0'); 
+            }
+            if (totalForms.length && totalForms.val() === '') { // Check if element exists
+                totalForms.val('0'); 
+            }
+            
+            // Function to re-index formset elements and update TOTAL_FORMS
+            function reindexFormsetForms() {
+                var currentFormsCount = 0;
+                $('#attachments-formset').children('.attachment-item').each(function(index) {
+                    var formRow = $(this);
+                    // Only re-index and count visible forms (not marked for deletion)
+                    if (formRow.find('input[type="checkbox"][id$="-DELETE"]').length === 0 || !formRow.find('input[type="checkbox"][id$="-DELETE"]').is(':checked')) {
+                        formRow.find(':input, label').each(function() {
+                            var name = $(this).attr('name');
+                            var id = $(this).attr('id');
+                            var forAttr = $(this).attr('for');
+
+                            if (name) {
+                                $(this).attr('name', name.replace(/attachments-(\d+)-/g, `attachments-${currentFormsCount}-`));
+                            }
+                            if (id) {
+                                $(this).attr('id', id.replace(/attachments-(\d+)-/g, `attachments-${currentFormsCount}-`));
+                            }
+                            if (forAttr) { 
+                                $(this).attr('for', forAttr.replace(/attachments-(\d+)-/g, `attachments-${currentFormsCount}-`));
+                            }
+                        });
+                        currentFormsCount++;
+                    }
+                });
+                if (totalForms.length) { // Check if element exists
+                    totalForms.val(currentFormsCount);
+                }
+            }
+
+
+            $('#add-attachment-form').on('click', function() { 
+                var currentFormCount = parseInt(totalForms.val());
+                var newFormHtml = emptyFormHtmlTemplate.replace(/__prefix__/g, currentFormCount);
+                $('#attachments-formset').append(newFormHtml);
+                totalForms.val(currentFormCount + 1); // Increment TOTAL_FORMS
+                reindexFormsetForms(); // Re-index after adding a new form
+            });
+
+            $('#attachments-formset').on('click', '.remove-attachment-form', function() {
+                var formToRemove = $(this).closest('.attachment-item');
+                var deleteInput = formToRemove.find('input[type="checkbox"][id$="-DELETE"]');
+                
+                if (deleteInput.length > 0) { 
+                    deleteInput.prop('checked', true); 
+                    formToRemove.hide(); 
+                } else { 
+                    formToRemove.remove(); 
+                }
+                
+                reindexFormsetForms(); // Re-index after removing/hiding a form
+            });
+
+            // Initial call to set totalForms correctly on page load if there are pre-existing forms
+            reindexFormsetForms();
+
+
+            // Script for Export to Word Button - Transferred from original message_create.html
+            $('#exportToWordBtn').on('click', function() {
+                var subject = $('#id_subject').val(); // Get subject from the main form
+                var body = CKEDITOR.instances['id_body'].getData(); // Get CKEditor content
+                
+                $('#wordExportSubject').val(subject);
+                $('#wordExportBody').val(body);
+                $('#exportWordForm').submit();
+            });
+
+            // Script for Convert Docx to HTML Button - Transferred from original message_create.html
+            $('#convertDocxToHtmlBtn').on('click', function() {
+                var docxFile = $('#docxFileInput')[0].files[0];
+                var messageDiv = $('#docxConversionMessage');
+                messageDiv.empty(); // Clear previous messages
+
+                if (!docxFile) {
+                    messageDiv.html('<div class="alert alert-warning">لطفاً یک فایل .docx انتخاب کنید.</div>');
+                    return;
+                }
+
+                if (!docxFile.name.toLowerCase().endsWith('.docx')) {
+                    messageDiv.html('<div class="alert alert-danger">فقط فایل‌های .docx مجاز هستند.</div>');
+                    return;
+                }
+
+                messageDiv.html('<div class="alert alert-info">در حال تبدیل فایل...</div>');
+                var formData = new FormData();
+                formData.append('docx_file', docxFile);
+
+                $.ajax({
+                    url: "{% url 'clinic_messages:convert_docx_to_html' %}", // URL به API تبدیل
+                    type: 'POST',
+                    data: formData,
+                    processData: false, 
+                    contentType: false, 
+                    headers: { 'X-CSRFToken': $('[name="csrfmiddlewaretoken"]').val() }, 
+                    success: function(response) {
+                        if (response.html_content) {
+                            var currentContent = CKEDITOR.instances['id_body'].getData();
+                            CKEDITOR.instances['id_body'].setData(currentContent + response.html_content);
+                            messageDiv.html('<div class="alert alert-success">فایل با موفقیت تبدیل و اضافه شد.</div>');
+                        } else {
+                            messageDiv.html('<div class="alert alert-danger">خطا در تبدیل فایل: ' + (response.error || 'پاسخ نامشخص') + '</div>');
+                        }
+                        if (response.messages && response.messages.length > 0) {
+                            messageDiv.append('<div class="alert alert-warning mt-2">پیام‌های تبدیل: ' + response.messages.join('<br>') + '</div>');
+                        }
+                    },
+                    error: function(xhr, status, error) {
+                        var errorMessage = 'خطا در ارتباط با سرور.';
+                        try {
+                            var errorResponse = JSON.parse(xhr.responseText);
+                            errorMessage = errorResponse.error || errorMessage;
+                        } catch (e) {
+                            // ignore
+                        }
+                        messageDiv.html('<div class="alert alert-danger">خطا در تبدیل فایل: ' + errorMessage + '</div>');
+                    }
+                });
+            });
+        });
+    </script>
+{% endblock %}

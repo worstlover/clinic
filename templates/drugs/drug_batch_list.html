@@ -1,0 +1,88 @@
+{# D:\final\core\templates\core\drug_batch_list.html #}
+{% extends 'base.html' %}
+{% load static %}
+
+{% block content %}
+    <h1 class="content-header-padding">{{ page_title }}</h1>
+
+    <div class="container-fluid mt-3">
+        <div class="card shadow-sm mb-4">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h5>{{ page_title }}</h5>
+                <a href="{% url 'drug_batch_create' %}" class="btn btn-primary btn-sm">افزودن دسته جدید</a>
+            </div>
+            <div class="card-body">
+                <form method="GET" class="mb-3">
+                    <div class="input-group">
+                        <input type="text" name="q" class="form-control" placeholder="جستجو بر اساس نام دارو یا شماره بچ..." value="{{ query|default_if_none:'' }}">
+                        <button class="btn btn-outline-secondary" type="submit">جستجو</button>
+                        {% if query %}
+                            <a href="{% url 'drug_batch_list' %}" class="btn btn-outline-danger">پاک کردن</a>
+                        {% endif %}
+                    </div>
+                </form>
+
+                <div class="table-responsive">
+                    <table class="table table-hover table-bordered">
+                        <thead>
+                            <tr>
+                                <th>#</th>
+                                <th>نام دارو</th>
+                                <th>شماره بچ</th>
+                                <th>مقدار موجود</th>
+                                <th>قیمت خرید</th>
+                                <th>تاریخ انقضا</th>
+                                <th>تاریخ ورود</th>
+                                <th>عملیات</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for batch in page_obj %}
+                            <tr>
+                                <td>{{ forloop.counter + page_obj.start_index - 1 }}</td>
+                                <td>{{ batch.drug.name }}</td>
+                                <td>{{ batch.batch_number }}</td>
+                                <td>{{ batch.quantity }}</td>
+                                <td>{{ batch.purchase_price }}</td>
+                                <td>{{ batch.expiry_date }}</td>
+                                <td>{{ batch.purchase_date|date:"Y/m/d" }}</td>
+                                <td>
+                                    <a href="{% url 'drug_batch_update' batch.pk %}" class="btn btn-sm btn-info me-1">ویرایش</a>
+                                    <a href="{% url 'drug_batch_delete' batch.pk %}" class="btn btn-sm btn-danger">حذف</a>
+                                </td>
+                            </tr>
+                            {% empty %}
+                            <tr>
+                                <td colspan="8">هیچ دسته دارویی یافت نشد.</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+
+                {# Pagination controls #}
+                <nav aria-label="Page navigation example">
+                    <ul class="pagination justify-content-center">
+                        {% if page_obj.has_previous %}
+                            <li class="page-item"><a class="page-link" href="?page=1{% if query %}&q={{ query }}{% endif %}">اول</a></li>
+                            <li class="page-item"><a class="page-link" href="?page={{ page_obj.previous_page_number }}{% if query %}&q={{ query }}{% endif %}">قبلی</a></li>
+                        {% endif %}
+
+                        {% for num in page_obj.paginator.page_range %}
+                            {% if page_obj.number == num %}
+                                <li class="page-item active"><a class="page-link" href="?page={{ num }}{% if query %}&q={{ query }}{% endif %}">{{ num }}</a></li>
+                            {% elif num > page_obj.number|add:'-3' and num < page_obj.number|add:'3' %}
+                                <li class="page-item"><a class="page-link" href="?page={{ num }}{% if query %}&q={{ query }}{% endif %}">{{ num }}</a></li>
+                            {% endif %}
+                        {% endfor %}
+
+                        {% if page_obj.has_next %}
+                            <li class="page-item"><a class="page-link" href="?page={{ page_obj.next_page_number }}{% if query %}&q={{ query }}{% endif %}">بعدی</a></li>
+                            <li class="page-item"><a class="page-link" href="?page={{ page_obj.paginator.num_pages }}{% if query %}&q={{ query }}{% endif %}">آخر</a></li>
+                        {% endif %}
+                    </ul>
+                </nav>
+            </div>
+        </div>
+    </div>
+{% endblock content %}

@@ -1,0 +1,188 @@
+{# D:\final\drugs\templates\drugs\drug_request_analysis_results.html #}
+{% extends "base.html" %}
+{% load static %}
+{% load crispy_forms_tags %}
+
+{% block extra_head %}
+    {# این قسمت برای اضافه کردن فایل‌های CSS و JS مورد نیاز AdminJalaliDateWidget و Select2 است #}
+    {# {{ initial_drug_request_form.media }} و {{ suggested_items_formset.media }} به طور خودکار فایل‌ها را اضافه می‌کنند #}
+    {{ initial_drug_request_form.media }}
+    {{ suggested_items_formset.media }}
+    
+    {# اگر Select2 را به صورت دستی اضافه می‌کنید (معمولا با django-select2 نیاز نیست) #}
+    {# <link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet" /> #}
+    {# <script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script> #}
+    
+    <style>
+        .formset-row {
+            transition: all 0.3s ease-in-out;
+        }
+    </style>
+{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="row justify-content-center">
+        <div class="col-md-10">
+            <div class="card shadow-sm">
+                <div class="card-header bg-success text-white">
+                    <h3 class="mb-0">پیش‌نویس درخواست دارو</h3>
+                    <p class="mb-0 small">بر اساس تحلیل از {{ start_date|jformat:"%Y/%m/%d" }} تا {{ end_date|jformat:"%Y/%m/%d" }}</p>
+                </div>
+                <div class="card-body">
+                    {% if messages %}
+                        <div class="messages">
+                            {% for message in messages %}
+                                <div class="alert alert-{{ message.tags }} alert-dismissible fade show" role="alert">
+                                    {{ message }}
+                                    <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                                </div>
+                            {% endfor %}
+                        </div>
+                    {% endif %}
+
+                    <form method="post" enctype="multipart/form-data">
+                        {% csrf_token %}
+
+                        {# اطلاعات کلی درخواست (مثل کد و تاریخ) #}
+                        <fieldset class="form-group border p-3 mb-4">
+                            <legend class="border-bottom pb-2 mb-3 text-success">جزئیات درخواست</legend>
+                            {# از initial_drug_request_form برای نمایش فیلدهای DrugRequest استفاده کنید #}
+                            {# این فرم اصلی فقط برای نمایش فیلدهای اصلی و management_form استفاده می‌شود #}
+                            {{ initial_drug_request_form.request_code.label_tag }}
+                            {{ initial_drug_request_form.request_code }}
+                            {{ initial_drug_request_form.request_date.label_tag }}
+                            {{ initial_drug_request_form.request_date }}
+                            {{ initial_drug_request_form.requested_by.label_tag }}
+                            {{ initial_drug_request_form.requested_by }}
+                            {{ initial_drug_request_form.assigned_approver.label_tag }}
+                            {{ initial_drug_request_form.assigned_approver }}
+                            {{ initial_drug_request_form.notes.label_tag }}
+                            {{ initial_drug_request_form.notes }}
+                        </fieldset>
+
+                        {# Formset حاوی آیتم‌های پیشنهادی #}
+                        <fieldset class="form-group border p-3 mb-4">
+                            <legend class="border-bottom pb-2 mb-3 text-success">آیتم‌های پیشنهادی</legend>
+                            {{ suggested_items_formset.management_form }}
+                            <div id="formset-container">
+                                {% for item_form in suggested_items_formset %}
+                                    <div class="formset-row mb-3 p-3 border rounded bg-light">
+                                        {% for hidden in item_form.hidden_fields %}
+                                            {{ hidden }}
+                                        {% endfor %}
+                                        {% for field in item_form.visible_fields %}
+                                            <div class="mb-3">
+                                                {{ field.label_tag }}
+                                                {{ field }}
+                                                {% if field.errors %}
+                                                    {% for error in field.errors %}
+                                                        <div class="text-danger small">{{ error }}</div>
+                                                    {% endfor %}
+                                                {% endif %}
+                                            </div>
+                                        {% endfor %}
+                                        <div class="form-check">
+                                            {{ item_form.DELETE }}
+                                            <label class="form-check-label" for="{{ item_form.DELETE.id_for_label }}">حذف این آیتم</label>
+                                        </div>
+                                    </div>
+                                {% endfor %}
+                            </div>
+                            <button type="button" class="btn btn-outline-secondary btn-sm mt-2" id="add-item">
+                                <i class="bi bi-plus-circle"></i> افزودن آیتم دستی
+                            </button>
+                        </fieldset>
+
+                        <button type="submit" class="btn btn-success mt-3">
+                            <i class="fas fa-save"></i> ذخیره پیش‌نویس و ایجاد درخواست
+                        </button>
+                        <a href="{% url 'drugs:drug_request_generate' %}" class="btn btn-secondary mt-3 ms-2">
+                            <i class="bi bi-arrow-left"></i> بازگشت به تحلیل
+                        </a>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        // Initializing Select2 for the dynamically added forms if needed
+        // The `django-select2` library usually handles this automatically for pre-rendered forms.
+        // For dynamically added forms, you might need to re-initialize Select2 manually.
+        // Make sure jQuery is loaded before Select2.
+        // $(function() {
+        //     $('.django-select2').select2();
+        // });
+
+        const addItemButton = document.getElementById('add-item');
+        const formsetContainer = document.getElementById('formset-container');
+        const totalForms = document.querySelector('input[name="{{ suggested_items_formset.management_form.prefix }}-TOTAL_FORMS"]');
+        
+        // Clone the empty form for new items
+        // You might need an "empty_form" template variable if you don't want to clone an existing one
+        const emptyFormTemplate = `
+            <div class="formset-row mb-3 p-3 border rounded bg-light">
+                {% for hidden in suggested_items_formset.empty_form.hidden_fields %}
+                    {{ hidden }}
+                {% endfor %}
+                {% for field in suggested_items_formset.empty_form.visible_fields %}
+                    <div class="mb-3">
+                        {{ field.label_tag }}
+                        {{ field }}
+                        {% if field.errors %}
+                            {% for error in field.errors %}
+                                <div class="text-danger small">{{ error }}</div>
+                            {% endfor %}
+                        {% endif %}
+                    </div>
+                {% endfor %}
+                <div class="form-check">
+                    {{ suggested_items_formset.empty_form.DELETE }}
+                    <label class="form-check-label" for="{{ suggested_items_formset.empty_form.DELETE.id_for_label }}">حذف این آیتم</label>
+                </div>
+            </div>
+        `;
+
+        addItemButton.addEventListener('click', function() {
+            let formIdx = parseInt(totalForms.value);
+            let newFormHtml = emptyFormTemplate.replace(/__prefix__/g, formIdx); // Replace __prefix__ with current index
+            
+            const newFormElement = document.createElement('div');
+            newFormElement.innerHTML = newFormHtml.trim();
+            
+            formsetContainer.appendChild(newFormElement.firstChild); // Append the actual row element
+
+            // Re-initialize Select2 for the newly added fields
+            $(newFormElement).find('.django-select2').each(function() {
+                $(this).select2();
+            });
+
+            formIdx++;
+            totalForms.value = formIdx;
+        });
+
+        // Event listener for DELETE checkbox
+        formsetContainer.addEventListener('change', function(event) {
+            if (event.target.matches('input[id$="-DELETE"]')) {
+                const row = event.target.closest('.formset-row');
+                if (event.target.checked) {
+                    row.style.opacity = '0.5';
+                } else {
+                    row.style.opacity = '1';
+                }
+            }
+        });
+
+        // Initial styling for already deleted items (if page reloads with errors)
+        formsetContainer.querySelectorAll('input[id$="-DELETE"]').forEach(checkbox => {
+            if (checkbox.checked) {
+                checkbox.closest('.formset-row').style.opacity = '0.5';
+            }
+        });
+    });
+</script>
+
+{% endblock %}

@@ -1,0 +1,68 @@
+{# core/templates/core/visit_detail.html #}
+{% extends 'base.html' %}
+{% load static %}
+{% load persian_dates %}
+
+{% block content %}
+    <h1 class="content-header-padding">{{ page_title }}</h1>
+
+    <div class="card shadow-sm border-0 mb-4 mx-3">
+        <div class="card-header bg-primary text-white text-end">
+            جزئیات ویزیت: {{ visit.patient.first_name }} {{ visit.patient.last_name }} - {{ visit.visit_date|to_jalali_datetime }}
+        </div>
+        <div class="card-body">
+            <div class="row text-end">
+                <div class="col-md-12">
+                    <ul class="list-group list-group-flush">
+                        <li class="list-group-item"><strong>بیمار:</strong> <a href="{% url 'patient_detail' visit.patient.pk %}">{{ visit.patient.first_name }} {{ visit.patient.last_name }} (کد ملی: {{ visit.patient.national_code|default:"-" }})</a></li>
+                        <li class="list-group-item"><strong>تاریخ ویزیت:</strong> {{ visit.visit_date|to_jalali_datetime }}</li>
+                        <li class="list-group-item"><strong>علت مراجعه:</strong> {{ visit.reason_for_visit.name|default:"-" }}</li>
+                        <li class="list-group-item"><strong>نوع حادثه/مراجعه:</strong> {{ visit.accident_type.name|default:"-" }}</li>
+                        <li class="list-group-item"><strong>نتیجه درمان:</strong> {{ visit.treatment_outcome.name|default:"-" }}</li>
+                        <li class="list-group-item"><strong>تشخیص:</strong> {{ visit.diagnosis|default:"-" }}</li>
+                        <li class="list-group-item"><strong>درمان/اقدامات:</strong> {{ visit.treatment|default:"-" }}</li>
+                        <li class="list-group-item"><strong>ملاحظات:</strong> {{ visit.notes|default:"-" }}</li>
+                        <li class="list-group-item"><strong>ثبت‌کننده:</strong> {{ visit.recorded_by.first_name|default:visit.recorded_by.username }}</li>
+                        <li class="list-group-item"><strong>تاریخ ثبت:</strong> {{ visit.created_at|to_jalali_datetime }}</li>
+                        <li class="list-group-item"><strong>تاریخ آخرین به‌روزرسانی:</strong> {{ visit.updated_at|to_jalali_datetime }}</li>
+                    </ul>
+
+                    <h5 class="mt-4">داروهای تجویز شده:</h5>
+                    {% if visit.visitdrug_set.all %}
+                        <div class="table-responsive">
+                            <table class="table table-striped table-hover text-end">
+                                <thead class="bg-light">
+                                    <tr>
+                                        <th scope="col">نام دارو</th>
+                                        <th scope="col">تعداد</th>
+                                        <th scope="col">دستور مصرف</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% for vd in visit.visitdrug_set.all %}
+                                        <tr>
+                                            <td>{{ vd.drug.name }}</td>
+                                            <td>{{ vd.quantity }}</td>
+                                            <td>{{ vd.dosage_instructions|default:"-" }}</td>
+                                        </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+                    {% else %}
+                        <div class="alert alert-info text-end" role="alert">
+                            هیچ دارویی برای این ویزیت تجویز نشده است.
+                        </div>
+                    {% endif %}
+
+                </div>
+            </div>
+            <hr>
+            <div class="d-flex justify-content-end mt-4">
+                <a href="{% url 'visit_update' visit.pk %}" class="btn btn-info me-2"><i class="fas fa-edit me-1"></i>ویرایش</a>
+                <a href="{% url 'visit_delete' visit.pk %}" class="btn btn-danger me-2"><i class="fas fa-trash-alt me-1"></i>حذف</a>
+                <a href="{% url 'visit_list' %}" class="btn btn-secondary">بازگشت به لیست</a>
+            </div>
+        </div>
+    </div>
+{% endblock %}

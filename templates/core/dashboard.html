@@ -1,0 +1,152 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block content %}
+    <h1 class="content-header-padding">{{ page_title }}</h1>
+    <p class="mx-3">{% if welcome_message %}{{ welcome_message }}{% endif %}</p>
+
+    <div class="row mx-3">
+        {# کارت ویزیت‌های ارجاعی جدید #}
+        <div class="col-md-4 mb-4">
+            <div class="card shadow-sm border-0">
+                <div class="card-body">
+                    <h5 class="card-title text-primary">
+                        <i class="fas fa-bell me-2"></i>ویزیت‌های ارجاعی جدید
+                        <span class="badge bg-danger ms-2" id="unreadVisitsBadge" style="display: none;">
+                            <span id="unreadVisitsCount">0</span>
+                        </span>
+                    </h5>
+                    <p class="card-text">ویزیت‌هایی که اخیراً به شما ارجاع داده شده‌اند.</p>
+                    <a href="{% url 'visits:visit_list' %}?view=referred_to_me" class="btn btn-outline-primary">مشاهده ویزیت‌ها</a>
+                </div>
+            </div>
+        </div>
+
+        {# سایر کارت‌های داشبورد شما #}
+        <div class="col-md-4 mb-4">
+            <div class="card shadow-sm border-0">
+                <div class="card-body">
+                    <h5 class="card-title text-primary"><i class="fas fa-hospital-user me-2"></i>بیماران</h5>
+                    <p class="card-text">مدیریت اطلاعات بیماران، افزودن، ویرایش و حذف.</p>
+                    <a href="{% url 'core:patient_list' %}" class="btn btn-outline-primary">مشاهده بیماران</a>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-4 mb-4">
+            <div class="card shadow-sm border-0">
+                <div class="card-body">
+                    <h5 class="card-title text-success"><i class="fas fa-pills me-2"></i>داروها</h5>
+                    <p class="card-text">مدیریت موجودی داروها، ثبت خرید و درخواست.</p>
+                    <a href="{% url 'drugs:drug_list' %}" class="btn btn-outline-success">مشاهده داروها</a>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-4 mb-4">
+            <div class="card shadow-sm border-0">
+                <div class="card-body">
+                    <h5 class="card-title text-info"><i class="fas fa-clipboard-list me-2"></i>ویزیت‌ها</h5>
+                    <p class="card-text">ثبت و مدیریت اطلاعات ویزیت‌های بیماران.</p>
+                    <a href="{% url 'visits:visit_list' %}" class="btn btn-outline-info">مشاهده ویزیت‌ها</a>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-4 mb-4">
+            <div class="card shadow-sm border-0">
+                <div class="card-body">
+                    <h5 class="card-title text-danger"><i class="fas fa-inbox me-2"></i>پیام‌ها</h5>
+                    <p class="card-text">ارسال و دریافت پیام‌های داخلی سیستم.</p>
+                    <a href="{% url 'clinic_messages:message_inbox' %}" class="btn btn-outline-danger">مشاهده پیام‌ها</a>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-4 mb-4">
+            <div class="card shadow-sm border-0">
+                <div class="card-body">
+                    <h5 class="card-title text-purple"><i class="fas fa-notes-medical me-2"></i>درخواست‌های دارو</h5>
+                    <p class="card-text">مدیریت درخواست‌های دارو از انبار.</p>
+                    <a href="{% url 'drugs:drug_request_list' %}" class="btn btn-outline-purple">مشاهده درخواست‌ها</a>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-4 mb-4">
+            <div class="card shadow-sm border-0">
+                <div class="card-body">
+                    <h5 class="card-title text-dark"><i class="fas fa-file-invoice-dollar me-2"></i>فاکتورهای خرید</h5>
+                    <p class="card-text">ثبت و پیگیری فاکتورهای خرید دارو و تجهیزات.</p>
+                    <a href="{% url 'drugs:purchase_invoice_list' %}" class="btn btn-outline-dark">مشاهده فاکتورها</a>
+                </div>
+            </div>
+        </div>
+        
+       
+        <div class="col-md-4 mb-4">
+            <div class="card shadow-sm border-0">
+                <div class="card-body">
+                    <h5 class="card-title text-info"><i class="fas fa-truck-loading me-2"></i>تامین‌کنندگان</h5>
+                    <p class="card-text">مدیریت اطلاعات تامین‌کنندگان داروها و لوازم.</p>
+                    <a href="{% url 'drugs:supplier_list' %}" class="btn btn-outline-info">مشاهده تامین‌کنندگان</a>
+                </div>
+            </div>
+        </div>
+    </div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    function getCookie(name) {
+        let cookieValue = null;
+        if (document.cookie && document.cookie !== '') {
+            const cookies = document.cookie.split(';');
+            for (let i = 0; i < cookies.length; i++) {
+                const cookie = cookies[i].trim();
+                if (cookie.substring(0, name.length + 1) === (name + '=')) {
+                    cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                    break;
+                }
+            }
+        }
+        return cookieValue;
+    }
+
+    const csrftoken = getCookie('csrftoken');
+
+    function fetchUnreadVisitsCount() {
+        fetch('{% url "clinic_messages:api_unread_count" %}', {
+            method: 'GET',
+            headers: {
+                'X-CSRFToken': csrftoken,
+                'Content-Type': 'application/json'
+            }
+        })
+        .then(response => {
+            if (!response.ok) {
+                if (response.status === 401) {
+                    console.warn("User not authenticated for unread count. Redirecting to login.");
+                    window.location.href = "{% url 'login' %}"; // یا مسیر صفحه ورود شما
+                }
+                throw new Error('Network response was not ok');
+            }
+            return response.json();
+        })
+        .then(data => {
+            const unreadCount = data.count;
+            document.getElementById('unreadVisitsCount').innerText = unreadCount;
+            const unreadVisitsBadge = document.getElementById('unreadVisitsBadge');
+
+            if (unreadCount > 0) {
+                unreadVisitsBadge.style.display = 'inline-block'; // نمایش badge
+            } else {
+                unreadVisitsBadge.style.display = 'none'; // مخفی کردن badge
+            }
+        })
+        .catch(error => {
+            console.error('Error fetching unread visits count:', error);
+        });
+    }
+
+    document.addEventListener('DOMContentLoaded', function() {
+        fetchUnreadVisitsCount();
+        setInterval(fetchUnreadVisitsCount, 10000); // هر 10 ثانیه یک بار رفرش شود
+    });
+</script>
+{% endblock %}

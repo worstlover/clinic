@@ -1,0 +1,172 @@
+{% extends 'base.html' %}
+{% load static %}
+{% load crispy_forms_tags %}
+{% load i18n %} {# For pagination ifchanged if needed #}
+
+{% block title %}{{ page_title }}{% endblock %}
+
+{% block content %}
+<div class="container-fluid mt-4">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h2 class="text-primary fw-bold">{{ page_title }}</h2>
+        {% if perms.drugs.add_supplier %}
+        <a href="{% url 'drugs:supplier_create' %}" class="btn btn-success btn-lg shadow-sm">
+            <i class="fas fa-plus me-2"></i> افزودن تامین‌کننده جدید
+        </a>
+        {% endif %}
+    </div>
+
+    {# Search Form #}
+    <div class="card mb-4 shadow-lg border-0">
+        <div class="card-header bg-gradient-info text-white d-flex align-items-center">
+            <i class="fas fa-search me-2"></i>
+            <h5 class="mb-0">جستجو تامین‌کنندگان</h5>
+        </div>
+        <div class="card-body">
+            <form method="GET" class="row g-3 align-items-end">
+                <div class="col-md-8 col-lg-9">
+                    <div class="form-group">
+                        <label for="id_query" class="form-label visually-hidden">جستجو</label>
+                        <input type="text" name="query" id="id_query" class="form-control form-control-lg" placeholder="جستجو بر اساس نام، فرد تماس، شماره تلفن یا ایمیل..." value="{{ search_query|default_if_none:'' }}">
+                    </div>
+                </div>
+                <div class="col-md-4 col-lg-3">
+                    <button type="submit" class="btn btn-info btn-lg shadow-sm w-100">
+                        <i class="fas fa-search me-2"></i> جستجو
+                    </button>
+                    {% if search_query %}
+                    <a href="{% url 'drugs:supplier_list' %}" class="btn btn-secondary btn-lg shadow-sm w-100 mt-2">
+                        <i class="fas fa-times me-2"></i> پاک کردن جستجو
+                    </a>
+                    {% endif %}
+                </div>
+            </form>
+        </div>
+    </div>
+
+    {# Display Messages #}
+    {% if messages %}
+        <div class="messages mb-4">
+            {% for message in messages %}
+                <div class="alert alert-{{ message.tags }} alert-dismissible fade show" role="alert">
+                    {{ message }}
+                    <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                </div>
+            {% endfor %}
+        </div>
+    {% endif %}
+
+    {# List of Suppliers #}
+    {% if page_obj %}
+        <div class="table-responsive shadow-lg rounded-3">
+            <table class="table table-striped table-hover table-bordered align-middle">
+                <thead class="table-dark">
+                    <tr>
+                        <th scope="col" class="text-center">نام تامین‌کننده</th>
+                        <th scope="col" class="text-center">فرد تماس</th>
+                        <th scope="col" class="text-center">شماره تلفن</th>
+                        <th scope="col" class="text-center">ایمیل</th>
+                        <th scope="col" class="text-center">عملیات</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for supplier in page_obj %}
+                    <tr>
+                        <td>
+                            <a href="{% url 'drugs:supplier_detail' pk=supplier.pk %}" class="text-decoration-none text-primary fw-bold">
+                                {{ supplier.name }}
+                            </a>
+                        </td>
+                        <td class="text-center">{{ supplier.contact_person|default:"-" }}</td>
+                        <td class="text-center">{{ supplier.phone|default:"-" }}</td>
+                        <td class="text-center">{{ supplier.email|default:"-" }}</td>
+                        <td class="text-center">
+                            <div class="btn-group" role="group" aria-label="عملیات">
+                                {% if perms.drugs.view_supplier %}
+                                <a href="{% url 'drugs:supplier_detail' pk=supplier.pk %}" class="btn btn-sm btn-info" title="جزئیات"><i class="fas fa-eye"></i></a>
+                                {% endif %}
+                                {% if perms.drugs.change_supplier %}
+                                <a href="{% url 'drugs:supplier_update' pk=supplier.pk %}" class="btn btn-sm btn-warning" title="ویرایش"><i class="fas fa-edit"></i></a>
+                                {% endif %}
+                                {% if perms.drugs.delete_supplier %}
+                                <a href="{% url 'drugs:supplier_delete' pk=supplier.pk %}" class="btn btn-sm btn-danger" title="حذف"><i class="fas fa-trash"></i></a>
+                                {% endif %}
+                            </div>
+                        </td>
+                    </tr>
+                    {% empty %}
+                    <tr>
+                        <td colspan="5" class="text-center py-4 text-muted">
+                            <i class="fas fa-truck fa-2x d-block mb-2"></i>
+                            هیچ تامین‌کننده‌ای یافت نشد.
+                            <br>
+                            {% if perms.drugs.add_supplier %}
+                            می‌توانید یک تامین‌کننده جدید اضافه کنید.
+                            <a href="{% url 'drugs:supplier_create' %}" class="btn btn-sm btn-link mt-2">افزودن تامین‌کننده</a>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+
+        {# Pagination Controls #}
+        <nav aria-label="صفحه‌بندی" class="mt-4">
+            <ul class="pagination justify-content-center flex-wrap">
+                {% if page_obj.has_previous %}
+                    <li class="page-item">
+                        <a class="page-link" href="?page={{ page_obj.previous_page_number }}&{{ request.GET.urlencode }}" aria-label="قبلی">
+                            <span aria-hidden="true">&laquo;</span>
+                            <span class="visually-hidden">قبلی</span>
+                        </a>
+                    </li>
+                {% endif %}
+
+                {% for i in paginator.page_range %}
+                    {% if paginator.num_pages > 10 %}
+                        {% if i == 1 or i == paginator.num_pages %}
+                            <li class="page-item {% if page_obj.number == i %}active{% endif %}">
+                                <a class="page-link" href="?page={{ i }}&{{ request.GET.urlencode }}">{{ i }}</a>
+                            </li>
+                        {% elif i >= page_obj.number|add:"-2" and i <= page_obj.number|add:"2" %}
+                            <li class="page-item {% if page_obj.number == i %}active{% endif %}">
+                                <a class="page-link" href="?page={{ i }}&{{ request.GET.urlencode }}">{{ i }}</a>
+                            </li>
+                        {% else %}
+                            {% ifchanged %}
+                                {% if i == page_obj.number|add:"-3" or i == page_obj.number|add:"3" %}
+                                    <li class="page-item disabled"><span class="page-link">...</span></li>
+                                {% endif %}
+                            {% endifchanged %}
+                        {% endif %}
+                    {% else %}
+                        <li class="page-item {% if page_obj.number == i %}active{% endif %}">
+                            <a class="page-link" href="?page={{ i }}&{{ request.GET.urlencode }}">{{ i }}</a>
+                        </li>
+                    {% endif %}
+                {% endfor %}
+
+                {% if page_obj.has_next %}
+                    <li class="page-item">
+                        <a class="page-link" href="?page={{ page_obj.next_page_number }}&{{ request.GET.urlencode }}" aria-label="بعدی">
+                            <span aria-hidden="true">&raquo;</span>
+                            <span class="visually-hidden">بعدی</span>
+                        </a>
+                    </li>
+                {% endif %}
+            </ul>
+        </nav>
+    {% else %}
+        <p class="text-center py-5 text-muted">
+            <i class="fas fa-truck fa-3x d-block mb-3"></i>
+            در حال حاضر هیچ تامین‌کننده‌ای برای نمایش وجود ندارد.
+            <br>
+            {% if perms.drugs.add_supplier %}
+            می‌توانید یک تامین‌کننده جدید اضافه کنید.
+            <a href="{% url 'drugs:supplier_create' %}" class="btn btn-sm btn-link mt-2">افزودن تامین‌کننده</a>
+            {% endif %}
+        </p>
+    {% endif %}
+</div>
+{% endblock %}

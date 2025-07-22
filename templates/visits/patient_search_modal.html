@@ -1,0 +1,95 @@
+<div class="modal-dialog modal-lg" role="document">
+    <div class="modal-content">
+        <div class="modal-header">
+            <h5 class="modal-title" id="patientSearchModalLabel">جستجوی بیمار</h5>
+            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+        </div>
+        <div class="modal-body">
+            <form id="patientSearchForm" method="GET" action="{% url 'visits:patient_search_modal' %}">
+                <div class="input-group mb-3">
+                    <input type="text" name="q" class="form-control" placeholder="جستجو بر اساس نام، نام خانوادگی، کد ملی یا شماره تلفن" value="{{ query }}">
+                    <button class="btn btn-outline-primary" type="submit">جستجو</button>
+                </div>
+            </form>
+            <div class="table-responsive">
+                <table class="table table-hover table-striped">
+                    <thead>
+                        <tr>
+                            <th>نام</th>
+                            <th>نام خانوادگی</th>
+                            <th>کد ملی</th>
+                            <th>شماره تلفن</th>
+                            <th></th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% if patients %}
+                            {% for patient in patients %}
+                                <tr>
+                                    <td>{{ patient.first_name }}</td>
+                                    <td>{{ patient.last_name }}</td>
+                                    <td>{{ patient.national_id }}</td>
+                                    <td>{{ patient.phone_number }}</td>
+                                    <td>
+                                        <button type="button" class="btn btn-success btn-sm select-patient-btn"
+                                                data-patient-id="{{ patient.id }}"
+                                                data-patient-full-name="{{ patient.first_name }} {{ patient.last_name }} ({{ patient.national_id }})">
+                                            انتخاب
+                                        </button>
+                                    </td>
+                                </tr>
+                            {% endfor %}
+                        {% else %}
+                            <tr>
+                                <td colspan="5" class="text-center">هیچ بیماری یافت نشد.</td>
+                            </tr>
+                        {% endif %}
+                    </tbody>
+                </table>
+            </div>
+            {# Optional: Add pagination links here if using paginator in view #}
+        </div>
+        <div class="modal-footer">
+            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">بستن</button>
+        </div>
+    </div>
+</div>
+
+<script>
+    // Script to handle selection and close modal, this will be specific to this modal's HTML
+    $(document).ready(function() {
+        // Handle the "انتخاب" button click
+        $('.select-patient-btn').on('click', function() {
+            const patientId = $(this).data('patient-id');
+            const patientFullName = $(this).data('patient-full-name');
+
+            // Find the elements in the parent/opener window (visit_form.html)
+            // that need to be updated.
+            window.opener.jQuery('#id_patient_display_name').val(patientFullName);
+            window.opener.jQuery('#id_patient_id_hidden').val(patientId);
+            
+            // Close the current modal
+            const patientSearchModalElement = document.getElementById('patientSearchModal');
+            const patientSearchModal = bootstrap.Modal.getInstance(patientSearchModalElement);
+            if (patientSearchModal) {
+                patientSearchModal.hide();
+                // Clean up modal after hiding
+                $(patientSearchModalElement).on('hidden.bs.modal', function () {
+                    $(this).remove();
+                    $('.modal-backdrop').remove(); // Remove residual backdrop
+                });
+            }
+        });
+
+        // Focus on search input when modal is shown
+        // This event listener needs to be attached to the modal element itself.
+        // Since this script runs *inside* the loaded modal content,
+        // it can directly target elements within the modal.
+        const patientSearchModalElement = document.getElementById('patientSearchModal');
+        if (patientSearchModalElement) {
+            patientSearchModalElement.addEventListener('shown.bs.modal', function () {
+                $('#patientSearchForm input[name="q"]').focus();
+            });
+        }
+    });
+</script>

@@ -1,0 +1,582 @@
+{# D:\final\core\templates\base.html - نسخه نهایی با اصلاحات کامل بصری و لینک های محلی و اضافه شدن form.media #}
+
+{% load i18n %} {# برای پشتیبانی از بین المللی سازی (به دلیل فارسی) #}
+{% load static %} {# برای لود کردن فایل های استاتیک مانند CSS و JS #}
+
+<!DOCTYPE html>
+<html lang="fa" dir="rtl"> {# تنظیم زبان فارسی و جهت راست به چپ #}
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% if page_title %}{{ page_title }} - {% endif %}کلینیک گندله سازی بهاباد</title>
+
+    {# لینک به فایل های CSS #}
+    {# بوت استرپ RTL (راست به چپ) برای زبان فارسی - ضروری برای Crispy Forms با Bootstrap 5 #}
+    <link rel="stylesheet" href="{% static 'css/bootstrap.rtl.min.css' %}">
+    {# فایل CSS سفارشی ما - شامل استایل‌های کلی و شاید استایل‌های AdminLTE/SBAdmin2 #}
+    <link rel="stylesheet" href="{% static 'css/style.css' %}">
+    {# آیکون ها (Font Awesome) - از مسیر محلی لود می‌شود #}
+    <link rel="stylesheet" href="{% static 'fontawesome/css/all.min.css' %}">
+    {# فونت‌های فارسی: Vazirmatn و Lalezar - از مسیر محلی لود می‌شود #}
+    <link rel="stylesheet" href="{% static 'css/fonts.css' %}">
+
+    {# اضافه کردن فایل‌های CSS مورد نیاز ویجت‌های فرم (مانند دیت‌پیکر شمسی) #}
+    {# این خط باید قبل از extra_head قرار گیرد تا استایل‌های آن توسط استایل‌های سفارشی شما override نشود، اگر لازم است #}
+    {% if form %}{{ form.media.css }}{% endif %} 
+
+    {% block extra_head %}
+    {# اینجا می توانید CSS یا JS اضافی برای صفحات خاص اضافه کنید #}
+    {% endblock %}
+
+    {# استایل‌های CSS داخلی برای ساختار سایدبار و محتوا #}
+    <style>
+        body {
+            font-family: 'Vazirmatn', sans-serif; /* فونت اصلی فارسی */
+            background: linear-gradient(to bottom right, #e0e0e0, #c0c0c0); /* گرادیان نقره‌ای برای پس‌زمینه کل صفحه */
+            min-height: 100vh; /* اطمینان از پوشش کامل ارتفاع صفحه */
+            margin: 0;
+            padding: 0;
+            background-attachment: fixed; /* نگه داشتن گرادیان ثابت در هنگام اسکرول */
+            overflow-x: hidden; /* جلوگیری از اسکرول افقی هنگام پنهان شدن سایدبار */
+        }
+
+        /* اندازه فونت عنوان‌های اصلی بزرگ‌تر شود (همانند قبل، با امکان بزرگتر کردن) */
+        h1, h2, h3, h4, h5, h6 {
+            font-family: 'Lalezar', cursive; /* فونت خاص برای عناوین */
+            color: #2c3e50; /* رنگ تیره برای عناوین */
+            font-weight: 700; /* اطمینان از بولد بودن */
+            {% block h_font_sizes %}
+                h1 { font-size: 3rem; } /* کمی بزرگتر */
+                h2 { font-size: 2.5rem; } /* کمی بزرگتر */
+                h3 { font-size: 2rem; }
+                h4 { font-size: 1.7rem; }
+                h5 { font-size: 1.3rem; }
+                h6 { font-size: 1.1rem; }
+            {% endblock %}
+        }
+
+        /* استایل دهی نوار کناری (Sidebar) */
+        #accordionSidebar {
+            width: 280px !important; /* افزایش عرض سایدبار */
+            min-width: 280px !important;
+            background: #212529; /* رنگ مشکی/خیلی تیره برای Sidebar */
+            color: #f8f9fa; /* رنگ متن روشن برای کنتراست بهتر با پس‌زمینه مشکی */
+            box-shadow: 2px 0 15px rgba(0, 0, 0, 0.4); /* سایه عمیق‌تر */
+            transition: all 0.3s ease-in-out; /* انیمیشن نرم برای تغییرات */
+            border-left: none;
+            position: fixed; {# <-- شناور بودن سایدبار #}
+            top: 0;
+            right: 0; /* برای RTL */
+            height: 100vh;
+            z-index: 1000;
+            overflow-y: auto;
+            padding-top: 1rem; /* پدینگ از بالا برای عنوان سایدبار */
+        }
+
+        /* حالت تگل شده سایدبار (پنهان شدن کامل) */
+        body.sidebar-toggled #accordionSidebar {
+            margin-right: -280px; /* برای پنهان کردن کامل سایدبار */
+            transition: all 0.3s ease-in-out;
+        }
+
+        /* سربرگ سایدبار "سیستم مدیریت" */
+        #sidebar-wrapper .sidebar-heading {
+            display: none !important; /* **جدید: کاملا پنهان شود** */
+            padding: 0.875rem 1.25rem;
+            font-size: 1.2rem;
+            background-color: #343a40; /* رنگ سربرگ سایدبار - کمی روشن تر از مشکی */
+            border-bottom: 1px solid #495057; /* خط جداکننده تیره */
+            white-space: nowrap;
+            color: #f8f9fa; /* رنگ متن روشن */
+            line-height: 1.5; /* افزایش line-height برای جلوگیری از چسبیدن متن */
+        }
+
+        /* فونت نوشته‌های سایدبار بزرگتر شود */
+        #accordionSidebar .list-group-item {
+            background-color: transparent !important;
+            color: #f8f9fa;
+            border: none;
+            padding: 1rem 1.5rem;
+            transition: background-color 0.3s ease, color 0.3s ease;
+            font-size: 1.1rem;
+            font-weight: 500;
+            display: flex;
+            align-items: center;
+        }
+
+        #accordionSidebar .list-group-item i {
+            margin-left: 0.75rem;
+            font-size: 1.2em; /* **تغییر یافته: سایز آیکون بزرگتر** */
+            color: #adb5bd; /* رنگ آیکون‌های اصلی */
+        }
+
+        #accordionSidebar .list-group-item:hover {
+            background-color: rgba(255, 255, 255, 0.15) !important;
+            color: #ffffff;
+        }
+
+        /* استایل دهی به div حاوی آیتم‌های زیرمنو (collapse-inner) */
+        #accordionSidebar .collapse-inner {
+            background: transparent; /* پس‌زمینه شفاف پیش‌فرض */
+            border-radius: 0.25rem;
+            padding: 0.5rem 0;
+            box-shadow: none;
+        }
+
+        /* پس‌زمینه طلایی براق برای زیرمنوهای باز شده */
+        #accordionSidebar .collapse.show .collapse-inner {
+            background: linear-gradient(to bottom, #FFD700, #FFCC00); /* گرادیان طلایی براق */
+            box-shadow: inset 0 0 8px rgba(0, 0, 0, 0.2); /* سایه داخلی ملایم برای جلوه براق */
+        }
+
+        /* استایل دهی آیتم‌های زیرمنو (collapse-item) */
+        #accordionSidebar .collapse-inner .collapse-item {
+            background-color: transparent !important;
+            color: #2c3e50; /* رنگ متن تیره برای خوانایی بهتر روی طلایی */
+            padding-right: 2.5rem;
+            font-size: 1.05rem; /* کمی درشت‌تر و مدرن‌تر */
+            font-weight: 500; /* وزن فونت برای ظاهر مدرن */
+            font-family: 'Vazirmatn', sans-serif; /* فونت مدرن */
+            transition: background-color 0.3s ease, color 0.3s ease;
+            display: flex;
+            align-items: center;
+            padding-top: 0.6rem;
+            padding-bottom: 0.6rem;
+        }
+
+        #accordionSidebar .collapse-inner .collapse-item i {
+            margin-left: 0.75rem;
+            font-size: 1.2em; /* **تغییر یافته: یک سایز بزرگتر از متن خودش** */
+            color: #6a93cb; /* **تغییر یافته: رنگ آیکون آبی کم رنگ (هنگام عدم هاور)** */
+            font-weight: normal; /* **جدید: اطمینان از عدم بولد بودن آیکون** */
+        }
+
+        /* افکت آبی هنگام هاور روی آیتم‌های زیرمنو */
+        #accordionSidebar .collapse-inner .collapse-item:hover {
+            background-color: #007bff !important; /* آبی */
+            color: #ffffff !important; /* متن سفید */
+            font-weight: 600; /* بولدتر */
+            border-radius: 0.2rem;
+        }
+
+        #accordionSidebar .collapse-inner .collapse-item:hover i {
+            color: #ffffff !important; /* آیکون سفید */
+        }
+
+        /* آیکون های فلش در منوهای تاشو */
+        .sidebar-nav-item .fas.fa-chevron-down {
+            color: #f8f9fa; /* رنگ آیکون فلش روشن */
+            transition: transform 0.3s ease;
+        }
+        .sidebar-nav-item a.collapsed .fas.fa-chevron-down {
+            transform: rotate(-90deg); /* چرخش آیکون وقتی بسته است */
+        }
+
+        /* دکمه toggle در Topbar */
+        #sidebarToggle {
+            background-color: #2c3e50;
+            color: white;
+            border-radius: 5px;
+            width: 40px;
+            height: 40px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+            transition: all 0.3s ease-in-out;
+            border: none;
+            flex-shrink: 0; /* جلوگیری از کوچک شدن در فضای محدود */
+        }
+
+        /* محتوای اصلی صفحه */
+        #page-content-wrapper {
+            margin-right: 280px; /* فضا برای سایدبار (برای RTL) */
+            transition: margin-right 0.3s ease-in-out;
+            padding-top: 60px; /* برای جای Topbar (اگر Topbar ثابت باشد) */
+            flex-grow: 1;
+            min-width: 0;
+            width: 100%;
+        }
+
+        body.sidebar-toggled #page-content-wrapper {
+            margin-right: 0; /* وقتی سایدبار بسته است */
+        }
+
+        /* استایل دهی نوار بالایی (Top Navbar) */
+        .navbar {
+            background: rgba(255, 255, 255, 0.9); /* سفید شفاف برای نوار بالایی */
+            border-bottom: 1px solid rgba(0, 0, 0, 0.05);
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            z-index: 999;
+        }
+        .navbar .nav-link {
+            color: #34495e !important;
+        }
+        .navbar .nav-link:hover {
+            color: #2c3e50 !important;
+        }
+
+        /* استایل هدر کلینیک */
+        .clinic-header {
+            font-family: 'Lalezar', cursive; /* فونت برجسته برای عنوان */
+            font-size: 1.8rem; /* اندازه بزرگ و واضح */
+            color: #2c3e50; /* رنگ تیره برای وضوح */
+            font-weight: bold; /* اطمینان از بولد بودن */
+            margin-right: 1rem; /* فاصله از دکمه تاگل در RTL */
+            margin-left: auto; /* برای هل دادن محتوای بعدی به سمت چپ (مانند لیست ناوبری کاربر) */
+            white-space: nowrap; /* جلوگیری از شکستن خط */
+            flex-grow: 1; /* اجازه رشد برای اشغال فضای موجود و کمک به وسط چین شدن */
+            text-align: center; /* برای وسط چین کردن متن داخل خود عنصر */
+        }
+
+        /* اصلاح توزیع فضای عناصر در نوار ناوبری بالا */
+        .navbar .container-fluid {
+            display: flex;
+            align-items: center;
+            justify-content: space-between; 
+        }
+
+        /* ریست کردن margin-left در بوت استرپ برای navbar-nav تا بتوانیم خودمان margin-right بدهیم */
+        .navbar-nav.ms-auto {
+            margin-left: 0 !important; 
+        }
+        .navbar-nav {
+            margin-right: 1rem; /* فاصله لیست ناوبری کاربر از هدر */
+        }
+
+        /* عرض فرم‌های اصلی بزرگتر شود تا آخر صفحه بیایند */
+        .container-fluid {
+            width: 98%;
+            padding-left: 15px;
+            padding-right: 15px;
+            margin-left: auto;
+            margin-right: auto;
+            max-width: none;
+        }
+
+        /* فونت فیلدها بولدتر شوند */
+        .form-control {
+            font-weight: 500;
+        }
+        label {
+            font-weight: 600;
+            color: #34495e;
+        }
+
+        /* مخفی کردن هرگونه فوتر یا متن مزاحم در سایدبار (اگر از قالب پایه به ارث رسیده باشد) */
+        #accordionSidebar footer, #accordionSidebar .copyright {
+            display: none !important;
+            visibility: hidden !important;
+        }
+
+        /* ریسپانسیو برای موبایل */
+        @media (max-width: 768px) {
+            #accordionSidebar {
+                width: 100% !important;
+                min-width: 100% !important;
+                margin-right: -100% !important;
+            }
+            body.sidebar-toggled #accordionSidebar {
+                margin-right: 0 !important;
+            }
+            #page-content-wrapper {
+                margin-right: 0 !important;
+            }
+            #sidebarToggle {
+                position: absolute;
+                right: 15px;
+                top: 15px;
+                z-index: 1001;
+            }
+            .clinic-header {
+                font-size: 1.2rem; /* کوچکتر در موبایل */
+                margin-right: 0.5rem; /* فاصله از دکمه */
+                margin-left: auto; /* هل دادن به سمت چپ (برای موبایل) */
+                text-align: right; /* در موبایل معمولاً مایل به راست باشد بهتر است */
+                flex-grow: 1; /* اطمینان از اشغال فضای باقی مانده */
+            }
+            .navbar .container-fluid {
+                justify-content: flex-start; /* در موبایل عناصر از راست شروع شوند */
+            }
+            .navbar-nav {
+                margin-right: 0; /* در موبایل بدون margin-right اضافی */
+            }
+        }
+    </style>
+</head>
+<body>
+    <div id="wrapper" class="d-flex">
+
+        {# Sidebar - منوی کناری #}
+        <div id="accordionSidebar" class="border-end">
+            <div class="sidebar-heading border-bottom">سیستم مدیریت</div> {# عنوان سربرگ سایدبار #}
+            <ul class="navbar-nav sidebar sidebar-dark accordion" id="accordionSidebar">
+                <li class="nav-item">
+                    <a href="{% url 'dashboard' %}" class="list-group-item list-group-item-action bg-light nav-link">
+                        <i class="fas fa-fw fa-tachometer-alt"></i> <span>داشبورد</span>
+                    </a>
+                </li>
+                
+                <li class="nav-item">
+                    <a class="list-group-item list-group-item-action bg-light collapsed nav-link" href="#collapseMessages" data-bs-toggle="collapse" aria-expanded="false" aria-controls="collapseMessages">
+                        <i class="fas fa-fw fa-envelope"></i> <span>پیام‌ها</span> <i class="fas fa-chevron-down ms-auto"></i>
+                    </a>
+                    <div id="collapseMessages" class="collapse" aria-labelledby="headingMessages" data-bs-parent="#accordionSidebar">
+                        <div class="py-2 collapse-inner rounded">
+                            <a class="collapse-item" href="{% url 'clinic_messages:message_inbox' %}"><i class="fas fa-inbox"></i>صندوق ورودی</a>
+                            <a class="collapse-item" href="{% url 'clinic_messages:message_sent' %}"><i class="fas fa-paper-plane"></i>پیام‌های ارسالی</a>
+                            <a class="collapse-item" href="{% url 'clinic_messages:message_create' %}"><i class="fas fa-plus-circle"></i>ارسال پیام جدید</a>
+                        </div>
+                    </div>
+                </li>
+
+                <li class="nav-item">
+                    <a class="list-group-item list-group-item-action bg-light collapsed nav-link" href="#collapsePatients" data-bs-toggle="collapse" aria-expanded="false" aria-controls="collapsePatients">
+                        <i class="fas fa-fw fa-hospital-user"></i> <span>بیماران</span> <i class="fas fa-chevron-down ms-auto"></i>
+                    </a>
+                    <div id="collapsePatients" class="collapse" aria-labelledby="headingPatients" data-bs-parent="#accordionSidebar">
+                        <div class="py-2 collapse-inner rounded">
+                            <a class="collapse-item" href="{% url 'core:patient_list' %}"><i class="fas fa-users"></i>لیست بیماران</a>
+                            <a class="collapse-item" href="{% url 'core:patient_create' %}"><i class="fas fa-user-plus"></i>ثبت بیمار جدید</a>
+                            <a class="collapse-item" href="{% url 'core:upload_personnel_file' %}"><i class="fas fa-file-upload"></i>آپلود فایل پرسنلی</a> {# <-- اضافه شد #}
+                        </div>
+                    </div>
+                </li>
+
+                <li class="nav-item">
+                    <a class="list-group-item list-group-item-action bg-light collapsed nav-link" href="#collapseCompanies" data-bs-toggle="collapse" aria-expanded="false" aria-controls="collapseCompanies"> {# <-- اضافه شد #}
+                        <i class="fas fa-fw fa-building"></i> <span>شرکت‌ها</span> <i class="fas fa-chevron-down ms-auto"></i>
+                    </a>
+                    <div id="collapseCompanies" class="collapse" aria-labelledby="headingCompanies" data-bs-parent="#accordionSidebar"> {# <-- اضافه شد #}
+                        <div class="py-2 collapse-inner rounded"> {# <-- اضافه شد #}
+                            <a class="collapse-item" href="{% url 'core:company_list' %}"><i class="fas fa-list-alt"></i>لیست شرکت‌ها</a> {# <-- اضافه شد #}
+                            <a class="collapse-item" href="{% url 'core:company_create' %}"><i class="fas fa-plus-circle"></i>ثبت شرکت جدید</a> {# <-- اضافه شد #}
+                        </div>
+                    </div>
+                </li>
+
+                <li class="nav-item">
+                    <a class="list-group-item list-group-item-action bg-light collapsed nav-link" href="#collapseDrugs" data-bs-toggle="collapse" aria-expanded="false" aria-controls="collapseDrugs">
+                        <i class="fas fa-fw fa-pills"></i> <span>داروها</span> <i class="fas fa-chevron-down ms-auto"></i>
+                    </a>
+                    <div id="collapseDrugs" class="collapse" aria-labelledby="headingDrugs" data-bs-parent="#accordionSidebar">
+                        <div class="py-2 collapse-inner rounded">
+                            <a class="collapse-item" href="{% url 'drugs:drug_list' %}"><i class="fas fa-list"></i>لیست داروها</a>
+                            <a class="collapse-item" href="{% url 'drugs:drug_create' %}"><i class="fas fa-plus-square"></i>ثبت داروی جدید</a>
+                            <a class="collapse-item" href="{% url 'drugs:drug_batch_list' %}"><i class="fas fa-boxes"></i>مدیریت دسته‌ها</a> {# <-- اضافه شد #}
+                            <a class="collapse-item" href="{% url 'drugs:drug_batch_create' %}"><i class="fas fa-box-open"></i>ثبت دسته جدید</a> {# <-- اضافه شد #}
+                            <a class="collapse-item" href="{% url 'drugs:purchase_invoice_list' %}"><i class="fas fa-file-invoice"></i>فاکتورهای خرید</a> {# <-- اضافه شد #}
+                            <a class="collapse-item" href="{% url 'drugs:purchase_invoice_create' %}"><i class="fas fa-cash-register"></i>ثبت فاکتور خرید</a> {# <-- اضافه شد #}
+                            <a class="collapse-item" href="{% url 'drugs:drug_request_list' %}"><i class="fas fa-paper-plane"></i>درخواست‌های دارو</a>
+                            <a class="collapse-item" href="{% url 'drugs:drug_request_create' %}"><i class="fas fa-file-medical"></i>ثبت درخواست دارو</a>
+                            <a class="collapse-item" href="{% url 'drugs:supplier_list' %}"><i class="fas fa-truck"></i>تامین‌کنندگان</a> {# <-- اضافه شد #}
+                            <a class="collapse-item" href="{% url 'drugs:supplier_create' %}"><i class="fas fa-truck-loading"></i>ثبت تامین‌کننده</a> {# <-- اضافه شد #}
+                        </div>
+                    </div>
+                </li>
+
+                <li class="nav-item">
+                    <a class="list-group-item list-group-item-action bg-light collapsed nav-link" href="#collapseVisits" data-bs-toggle="collapse" aria-expanded="false" aria-controls="collapseVisits">
+                        <i class="fas fa-fw fa-stethoscope"></i> <span>ویزیت‌ها</span> <i class="fas fa-chevron-down ms-auto"></i>
+                    </a>
+                    <div id="collapseVisits" class="collapse" aria-labelledby="headingVisits" data-bs-parent="#accordionSidebar">
+                        <div class="py-2 collapse-inner rounded">
+                            <a class="collapse-item" href="{% url 'visits:visit_list' %}"><i class="fas fa-calendar-check"></i>لیست ویزیت‌ها</a>
+                            <a class="collapse-item" href="{% url 'visits:visit_create' %}"><i class="fas fa-calendar-plus"></i>ثبت ویزیت جدید</a>
+                        </div>
+                    </div>
+                </li>
+
+                <li class="nav-item">
+                    <a class="list-group-item list-group-item-action bg-light collapsed nav-link" href="#collapseReports" data-bs-toggle="collapse" aria-expanded="false" aria-controls="collapseReports"> {# <-- اضافه شد #}
+                        <i class="fas fa-fw fa-chart-line"></i> <span>گزارشات</span> <i class="fas fa-chevron-down ms-auto"></i>
+                    </a>
+                    <div id="collapseReports" class="collapse" aria-labelledby="headingReports" data-bs-parent="#accordionSidebar"> {# <-- اضافه شد #}
+                        <div class="py-2 collapse-inner rounded"> {# <-- اضافه شد #}
+                            <a class="collapse-item" href="{% url 'reports:patient_report' %}"><i class="fas fa-file-alt"></i>گزارش بیماران</a> {# <-- اضافه شد #}
+                            <a class="collapse-item" href="{% url 'reports:generic_visit_report' %}"><i class="fas fa-file-medical-alt"></i>گزارش ویزیت‌ها</a> {# <-- اضافه شد #}
+                            <a class="collapse-item" href="{% url 'reports:drug_report' %}"><i class="fas fa-file-prescription"></i>گزارش داروها</a> {# <-- اضافه شد #}
+                            <a class="collapse-item" href="{% url 'reports:company_visit_report' %}"><i class="fas fa-building"></i>گزارش ویزیت شرکت‌ها</a> {# <-- اضافه شد #}
+                            <a class="collapse-item" href="{% url 'reports:all_examinations_report' %}"><i class="fas fa-clipboard-check"></i>گزارش کلی معاینات</a> {# <-- اضافه شد #}
+                        </div>
+                    </div>
+                </li>
+
+                {# جداکننده #}
+                <hr class="sidebar-divider my-0">
+
+                {# لینک خروج #}
+                <li class="nav-item">
+                    <a href="{% url 'logout' %}" class="list-group-item list-group-item-action bg-light text-danger nav-link">
+                        <i class="fas fa-fw fa-sign-out-alt"></i> <span>خروج</span>
+                    </a>
+                </li>
+            </ul>
+        </div>
+        {# /Sidebar #}
+
+        {# Page Content Wrapper #}
+        <div id="page-content-wrapper">
+            {# Topbar - نوبار بالا #}
+            <nav class="navbar navbar-expand-lg navbar-light bg-light border-bottom">
+                <div class="container-fluid">
+                    {# دکمه تاگل سایدبار #}
+                    <button class="btn btn-primary" id="sidebarToggle">
+                        <i class="fas fa-bars"></i>
+                    </button>
+                    
+                    {# هدر کلینیک گندله سازی بهاباد #}
+                    <a class="navbar-brand clinic-header" href="#">کلینیک گندله سازی بهاباد</a>
+
+                    {# محتویات نوبار #}
+                    <div class="collapse navbar-collapse" id="navbarSupportedContent">
+                        <ul class="navbar-nav ms-auto mt-2 mt-lg-0">
+                            {# اطلاعات کاربر و منوی پروفایل #}
+                            <li class="nav-item dropdown">
+                                <a class="nav-link dropdown-toggle" href="#" id="navbarDropdown" role="button" data-bs-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
+                                    <span class="mr-2 d-none d-lg-inline text-gray-600 small">
+                                        {{ request.user.get_full_name|default:request.user.username }}
+                                    </span>
+                                    {# نمایش عکس کاربر یا آیکون پیش‌فرض #}
+                                    <img class="img-profile rounded-circle" src="{% static 'img/undraw_profile.svg' %}" style="width: 25px; height: 25px;">
+                                </a>
+                                <div class="dropdown-menu dropdown-menu-end shadow animated--grow-in" aria-labelledby="navbarDropdown">
+                                    <a class="dropdown-item" href="{% url 'core:user_profile' %}"> {# <-- URL پروفایل به‌روزرسانی شد #}
+                                        <i class="fas fa-user fa-sm fa-fw mr-2 text-gray-400"></i>
+                                        پروفایل
+                                    </a>
+                                    <div class="dropdown-divider"></div>
+                                    <a class="dropdown-item" href="{% url 'logout' %}">
+                                        <i class="fas fa-sign-out-alt fa-sm fa-fw mr-2 text-gray-400"></i>
+                                        خروج
+                                    </a>
+                                </div>
+                            </li>
+
+                            {# آیکون پیام‌ها با شمارنده #}
+                            <li class="nav-item mx-1">
+                                <a class="nav-link" href="{% url 'clinic_messages:message_inbox' %}" role="button">
+                                    <i class="fas fa-envelope fa-fw"></i>
+                                    {# شمارنده پیام‌های خوانده نشده (فقط در صورت وجود) #}
+                                    <span id="unread-messages-count" class="badge bg-danger badge-counter" style="display: none;">
+                                        {# این مقدار با JS به روز می شود #}
+                                    </span>
+                                </a>
+                            </li>
+                        </ul>
+                    </div>
+                </div>
+            </nav>
+            {# /Topbar #}
+
+            {# Main Content Container #}
+            <div class="container-fluid p-4">
+                {# نمایش پیام‌های فریم‌ورک جنگو (مثلاً پیام‌های موفقیت، خطا و ...) #}
+                {% if messages %}
+                    <div class="container mt-3">
+                        {% for message in messages %}
+                            <div class="alert alert-{{ message.tags }} alert-dismissible fade show" role="alert">
+                                {{ message }}
+                                <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                            </div>
+                        {% endfor %}
+                    </div>
+                {% endif %}
+
+                {% block content %}
+                {# محتوای اصلی هر صفحه در اینجا قرار می گیرد #}
+                {% endblock %}
+            </div>
+        </div>
+        {# /Page Content Wrapper #}
+    </div>
+
+    {# لینک به فایل های JS (در انتهای body برای بهترین عملکرد) #}
+    {# ✅ jQuery - کتابخانه ضروری برای Bootstrap و بسیاری از اسکریپت‌ها (اینجا منتقل شد) #}
+    <script src="{% static 'js/jquery-3.6.0.min.js' %}" crossorigin="anonymous"></script>
+    {# ✅ Bootstrap JS Bundle (شامل Popper.js برای Dropdowns و Collapses) - بعد از jQuery #}
+    <script src="{% static 'js/bootstrap.bundle.min.js' %}" crossorigin="anonymous"></script>
+
+    {# ✅ فایل‌های Select2 و Django Jalali باید بعد از jQuery و Bootstrap (اگر Bootstrap بر آنها تاثیر دارد) باشند #}
+    <script src="{% static 'admin/js/vendor/select2/select2.full.min.js' %}"></script>
+    <script src="{% static 'admin/js/vendor/select2/i18n/fa.js' %}"></script>
+    <script src="{% static 'django_select2/django_select2.js' %}"></script>
+    <script src="{% static 'admin/js/django_jalali.min.js' %}"></script>
+
+
+    {# ✅ اضافه کردن فایل‌های جاوااسکریپت مورد نیاز ویجت‌های فرم (مانند دیت‌پیکر شمسی) - این خط باید بعد از لود jQuery و تمام پلاگین‌های اصلی مرتبط با فرم قرار گیرد #}
+    {% if form %}{{ form.media.js }}{% endif %} 
+
+    <script>
+        // اسکریپت برای باز و بسته کردن سایدبار (بر اساس الگوی SB Admin 2 یا مشابه)
+        $("#sidebarToggle").on('click', function(e) {
+            e.preventDefault();
+            $("body").toggleClass("sidebar-toggled");
+        });
+
+        // Close any open menu accordions when window is resized below 768px (for responsiveness)
+        $(window).resize(function() {
+            if ($(window).width() < 768) {
+                $('.sidebar-nav-item .collapse').collapse('hide');
+                if (!$("body").hasClass("sidebar-toggled")) {
+                    $("body").addClass("sidebar-toggled");
+                }
+            } else {
+                // در دسکتاپ، سایدبار به صورت پیش فرض باز باشد
+                if ($("body").hasClass("sidebar-toggled")) {
+                    $("body").removeClass("sidebar-toggled");
+                }
+            }
+        });
+
+        // مدیریت باز بودن سایدبار در بارگذاری اولیه برای دسکتاپ
+        $(document).ready(function() {
+            if ($(window).width() >= 768) {
+                // اگر در دسکتاپ هستیم و سایدبار بسته است (کلاس sidebar-toggled دارد)، آن را باز کن
+                if ($("body").hasClass("sidebar-toggled")) {
+                    $("body").removeClass("sidebar-toggled");
+                }
+            } else {
+                // اگر در موبایل هستیم، سایدبار به صورت پیش فرض بسته باشد
+                if (!$("body").hasClass("sidebar-toggled")) {
+                    $("body").addClass("sidebar-toggled");
+                }
+            }
+
+            // اسکریپت برای به‌روزرسانی تعداد پیام‌های خوانده نشده (از طریق API)
+            function updateUnreadMessagesCount() {
+                $.ajax({
+                    url: "{% url 'clinic_messages:api_unread_count' %}",
+                    method: 'GET',
+                    success: function(data) {
+                        const unreadCountSpan = $('#unread-messages-count');
+                        if (data.unread_count > 0) {
+                            unreadCountSpan.text(data.unread_count);
+                            unreadCountSpan.show();
+                        } else {
+                            unreadCountSpan.hide();
+                        }
+                    },
+                    error: function(error) {
+                        console.error('Error fetching unread messages count:', error);
+                    }
+                });
+            }
+
+            // فراخوانی هنگام لود شدن صفحه
+            updateUnreadMessagesCount();
+
+            // فراخوانی هر 30 ثانیه (مثال) - برای به‌روزرسانی زنده
+            setInterval(updateUnreadMessagesCount, 30000);
+        });
+    </script>
+
+    {% block extra_js %}
+    {# اینجا می توانید JS اضافی برای صفحات خاص اضافه کنید #}
+    {% endblock %}
+</body>
+</html>

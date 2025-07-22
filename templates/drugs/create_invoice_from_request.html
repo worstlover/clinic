@@ -1,0 +1,42 @@
+{% extends "base.html" %}
+{% load crispy_forms_tags %}
+
+{% block content %}
+<div class="container mt-5">
+    <h2 class="mb-4">{{ page_title }}</h2>
+    <p>داروهای زیر از درخواست استخراج شده‌اند. لطفاً اطلاعات تکمیلی فاکتور را وارد کنید.</p>
+
+    <form method="post">
+        {% csrf_token %}
+
+        {# بخش اطلاعات کلی فاکتور #}
+        <div class="card p-4 mb-4">
+            <h4 class="mb-3">اطلاعات کلی فاکتور</h4>
+            {{ invoice_form|crispy }}
+        </div>
+
+        {# بخش آیتم‌های فاکتور #}
+        <h4 class="mt-4 mb-3">آیتم‌ها (نیاز به تکمیل قیمت، تاریخ انقضا و...)</h4>
+        {{ formset.management_form }}
+        {% for item_form in formset %}
+            <div class="item-row card p-3 mb-3">
+                <h5>دارو: {{ item_form.instance.drug.name }}</h5>
+                {# فیلدهای مخفی مثل drug و id #}
+                {{ item_form.id }}
+                {{ item_form.drug }}
+                <div class="row">
+                    <div class="col-md-3">{{ item_form.quantity|as_crispy_field }}</div>
+                    <div class="col-md-3">{{ item_form.unit_price|as_crispy_field }}</div>
+                    <div class="col-md-3">{{ item_form.expiry_date|as_crispy_field }}</div>
+                    <div class="col-md-3">{{ item_form.batch_number|as_crispy_field }}</div>
+                </div>
+            </div>
+        {% endfor %}
+
+        <button type="submit" class="btn btn-primary btn-lg mt-4">
+            <i class="fas fa-save"></i> ذخیره فاکتور و تکمیل درخواست
+        </button>
+        <a href="{{ drug_request.get_absolute_url }}" class="btn btn-secondary mt-4">انصراف</a>
+    </form>
+</div>
+{% endblock %}
