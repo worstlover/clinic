@@ -50,6 +50,7 @@ INSTALLED_APPS = [
     'mammoth',
     'corsheaders',
     'fcm_django',
+    'jalali-data',
     'django_select2',
     'lab_results',
     'reports'
