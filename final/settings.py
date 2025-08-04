@@ -20,7 +20,7 @@ DEBUG = False
 
 # در محیط پروداکشن باید دامنه‌ها یا IP سرور شما باشد.
 # مثال: ['127.0.0.1', 'localhost', '.yourdomain.com', 'your_server_ip']
-ALLOWED_HOSTS = ['https://clinic-1-luqt.onrender.com/','www.onrender.com']
+ALLOWED_HOSTS = ['clinic-1-luqt.onrender.com']
 
 
 # Application definition
