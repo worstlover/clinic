@@ -15,4 +15,4 @@ RUN pip install -r requirements.txt
 EXPOSE 8000
 
 # اجرای پروژه (در صورت نیاز تغییر بده)
-CMD ["gunicorn", "yourproject.wsgi:application", "--bind", "0.0.0.0:8000"]
+CMD ["gunicorn", "final.wsgi:application", "--bind", "0.0.0.0:8000"]
