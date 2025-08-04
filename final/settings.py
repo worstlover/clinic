@@ -38,7 +38,7 @@ INSTALLED_APPS = [
     # اپلیکیشن‌های سفارشی شما
     'core',
     'clinic_messages',   # <<< فقط یک بار باید اینجا باشد
-    'jalali_date',
+    
     # اگر از Django REST Framework و Django Filters استفاده می‌کنید
     'rest_framework',
     'django_filters',
