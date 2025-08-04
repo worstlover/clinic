@@ -14,7 +14,7 @@ django-ckeditor==6.7.3
 django-cors-headers==4.7.0
 django-crispy-forms==2.4
 django-filter==25.1
-django-jalali==7.4.0 
+django-jalali-date
 django-js-asset==3.1.2
 django-konst==2.0.0
 django-select2==8.4.1
@@ -75,6 +75,7 @@ tzdata==2025.2
 uritemplate==4.2.0
 urllib3==2.5.0
 gunicorn
+
 
 
 
