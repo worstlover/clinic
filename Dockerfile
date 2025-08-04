@@ -1,5 +1,5 @@
 # از پایتون 3.10 استفاده می‌کنیم چون jalali-date با بالاتر کار نمی‌کنه
-FROM python:3.10-slim
+FROM python:3.11-slim-buster
 
 # ست کردن دایرکتوری کاری
 WORKDIR /app
