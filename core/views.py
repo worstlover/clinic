@@ -39,9 +39,30 @@ from core.filters import PatientFilter
 class CustomLoginView(SuccessMessageMixin, LoginView):
     template_name = 'core/login.html'
     authentication_form = AuthenticationForm
-    redirect_authenticated_user = True
-    success_url = reverse_lazy('dashboard') 
+    # redirect_authenticated_user = True # این خط حذف یا کامنت شود
+    # success_url = reverse_lazy('dashboard') # این خط حذف یا کامنت شود
     success_message = "با موفقیت وارد شدید!"
+
+    def get_success_url(self):
+        user = self.request.user
+        if user.is_authenticated:
+            # مثال: ریدایرکت بر اساس نقش (گروه)
+            if user.groups.filter(name='Doctor').exists() or user.groups.filter(name='Supervisor').exists():
+                return reverse_lazy('dashboard') # یا یک داشبورد کلی
+            elif user.groups.filter(name='Nurse').exists():
+                return reverse_lazy('visits:visit_list') # مثال برای پرستار
+            elif user.groups.filter(name='Personnel').exists():
+                return reverse_lazy('clinic_messages:message_list') # مثال برای کارگزین (پیام ها)
+            elif user.groups.filter(name='Accountant').exists():
+                # فرض بر این است که یک URL برای فاکتورها/مالی دارید
+                return reverse_lazy('financial:invoice_list') # این را با URL واقعی خود جایگزین کنید
+            elif user.groups.filter(name='Supplier').exists():
+                # فرض بر این است که یک URL برای فاکتورهای خرید/تامین دارید
+                return reverse_lazy('supply:purchase_invoice_list') # این را با URL واقعی خود جایگزین کنید
+            else:
+                return reverse_lazy('dashboard') # ریدایرکت پیش‌فرض برای نقش‌های نامشخص
+
+        return reverse_lazy('login') # در صورت عدم احراز هویت، به صفحه ورود بازگردانده شود
 
     def form_invalid(self, form):
         messages.error(self.request, "نام کاربری یا رمز عبور اشتباه است.")
@@ -54,11 +75,22 @@ class CustomLogoutView(LogoutView):
         messages.info(request, "با موفقیت خارج شدید!")
         return super().dispatch(request, *args, **kwargs)
 
-@login_required(login_url=reverse_lazy('login'))
+@login_required
+# Consider adjusting permissions if 'core.view_dashboard' is too broad or too specific
+# to the roles being checked in the template.
 def dashboard(request):
     page_title = "داشبورد"
+    welcome_message = "به پنل مدیریت درمانگاه خوش آمدید."
+
+    # Check user group membership in the view
+    is_medical_staff = request.user.groups.filter(
+        name__in=['Doctor', 'Supervisor', 'Nurse']
+    ).exists()
+
     context = {
         'page_title': page_title,
+        'welcome_message': welcome_message,
+        'is_medical_staff': is_medical_staff, # Pass this new variable to the template
     }
     return render(request, 'core/dashboard.html', context)
 
@@ -368,11 +400,13 @@ def upload_personnel_file(request):
     """
     return render(request, 'core/upload_personnel.html')
 
+
 def process_personnel_import(request):
     """
     پردازش فایل اکسل مشخصات پرسنل:
-    - اگر کد ملی وجود داشته باشد، شماره پرسنلی را به‌روزرسانی می‌کند.
+    - اگر کد ملی وجود داشته باشد، شماره پرسنلی، نام، نام خانوادگی، و شغل را به‌روزرسانی می‌کند.
     - اگر کد ملی وجود نداشته باشد، بیمار جدیدی را ثبت می‌کند.
+    - شرکت برای بیماران موجود در فایل اکسل، به شرکت مشخص شده در فرم، به‌روزرسانی می‌شود.
     """
     if request.method == 'POST':
         if 'excel_file' not in request.FILES:
@@ -388,22 +422,22 @@ def process_personnel_import(request):
         try:
             workbook = load_workbook(excel_file)
             sheet = workbook.active
-            # اصلاح: خواندن و پاک کردن فاصله‌های خالی از سربرگ‌ها
-            header = [str(cell.value).strip() if cell.value is not None else '' for cell in sheet[1]] 
+            # خواندن و پاک کردن فاصله‌های خالی از سربرگ‌ها
+            header = [str(cell.value).strip() if cell.value is not None else '' for cell in sheet[1]]
 
-            # تعریف نگاشت سربرگ‌های اکسل به فیلدهای مدل
+            # تعریف نگاشت سربرگ‌های اکسل به فیلدهای مدل Patient
             column_mapping = {
                 'نام': 'first_name',
                 'نام خانوادگی': 'last_name',
                 'کد ملی': 'national_code',
                 'شماره پرسنلی': 'personnel_number',
+                'واحد سازمانی 2': 'occupation', # نگاشت ستون اکسل 'واحد سازمانی 2' به فیلد 'occupation' در مدل Patient
             }
 
             # پیدا کردن ایندکس ستون‌ها بر اساس سربرگ
             col_indices = {}
             for excel_header, model_field in column_mapping.items():
                 try:
-                    # حالا 'header' خودش فاقد فاصله‌های اضافی است
                     col_indices[model_field] = header.index(excel_header)
                 except ValueError:
                     messages.warning(request, f'سربرگ "{excel_header}" در فایل اکسل یافت نشد. این ستون نادیده گرفته خواهد شد.')
@@ -412,8 +446,22 @@ def process_personnel_import(request):
             if col_indices.get('national_code', -1) == -1:
                 messages.error(request, 'ستون "کد ملی" در فایل اکسل ضروری است و یافت نشد.')
                 return redirect('core:upload_personnel_file')
+
+            # --- تغییرات اضافه شده برای مدیریت شرکت ---
+            company_name_from_user = request.POST.get('company_name', '').strip()
+            if not company_name_from_user:
+                messages.error(request, 'نام شرکت الزامی است.')
+                return redirect('core:upload_personnel_file')
             
-            # (ادامه کد شما...)
+            try:
+                company_obj, created_company = Company.objects.get_or_create(name=company_name_from_user)
+                if created_company:
+                    messages.info(request, f"شرکت '{company_name_from_user}' ایجاد شد.")
+            except Exception as e:
+                messages.error(request, f"خطا در پیدا کردن یا ایجاد شرکت '{company_name_from_user}': {e}")
+                return redirect('core:upload_personnel_file')
+            # --- پایان تغییرات مدیریت شرکت ---
+
             updated_count = 0
             created_count = 0
             skipped_count = 0
@@ -442,35 +490,67 @@ def process_personnel_import(request):
                     last_name = None
                     if col_indices['last_name'] != -1:
                         last_name = str(row_data[col_indices['last_name']]).strip() if row_data[col_indices['last_name']] else ''
+                    
+                    # خواندن مقدار 'occupation' از اکسل
+                    occupation = None
+                    if col_indices['occupation'] != -1:
+                        occupation = str(row_data[col_indices['occupation']]).strip() if row_data[col_indices['occupation']] else ''
 
                     try:
+                        # تلاش برای دریافت یا ایجاد بیمار بر اساس کد ملی
                         patient, created = Patient.objects.get_or_create(
                             national_code=national_code,
                             defaults={
                                 'first_name': first_name,
                                 'last_name': last_name,
                                 'personnel_number': personnel_number,
+                                'occupation': occupation, # مقدار occupation از اکسل
+                                'company': company_obj, # شرکت تنظیم شده از ورودی کاربر
                             }
                         )
                         if created:
                             created_count += 1
                             messages.success(request, f'ردیف {row_idx}: بیمار جدید با کد ملی {national_code} و شماره پرسنلی {personnel_number} ثبت شد.')
                         else:
-                            if patient.personnel_number != personnel_number:
+                            # اگر بیمار از قبل موجود بود، فیلدها را در صورت نیاز به‌روزرسانی می‌کنیم
+                            needs_update = False
+                            if personnel_number is not None and patient.personnel_number != personnel_number:
                                 patient.personnel_number = personnel_number
-                                # همچنین نام و نام خانوادگی را در صورت وجود در اکسل و عدم خالی بودن به روز رسانی کنید
-                                patient.first_name = first_name if first_name else patient.first_name
-                                patient.last_name = last_name if last_name else patient.last_name
+                                needs_update = True
+                            
+                            if first_name and patient.first_name != first_name:
+                                patient.first_name = first_name
+                                needs_update = True
+
+                            if last_name and patient.last_name != last_name:
+                                patient.last_name = last_name
+                                needs_update = True
+                            
+                            # به‌روزرسانی فیلد شغل اگر مقدار جدیدی از اکسل داریم و متفاوت است
+                            if occupation is not None and patient.occupation != occupation:
+                                patient.occupation = occupation
+                                needs_update = True
+
+                            # اطمینان از اینکه شرکت همیشه به مقدار ورودی کاربر تنظیم شود (فقط برای این بیمار)
+                            if patient.company != company_obj:
+                                patient.company = company_obj
+                                needs_update = True
+
+                            if needs_update:
                                 patient.save()
                                 updated_count += 1
-                                messages.info(request, f'ردیف {row_idx}: شماره پرسنلی برای کد ملی {national_code} به {personnel_number} به‌روزرسانی شد.')
+                                messages.info(request, f'ردیف {row_idx}: اطلاعات بیمار با کد ملی {national_code} به‌روزرسانی شد.')
                             else:
-                                messages.info(request, f'ردیف {row_idx}: بیمار با کد ملی {national_code} از قبل موجود بود و نیازی به به‌روزرسانی شماره پرسنلی نبود.')
-
+                                messages.info(request, f'ردیف {row_idx}: بیمار با کد ملی {national_code} از قبل موجود بود و نیازی به به‌روزرسانی نبود.')
 
                     except Exception as e:
                         messages.error(request, f'ردیف {row_idx}: خطایی در پردازش رخ داد: {e}')
                         skipped_count += 1
+                
+                # --- این خط کد قبلاً باعث به‌روزرسانی همه بیماران می‌شد و اکنون حذف شده است ---
+                # bulk_updated_patients_count = Patient.objects.update(company=company_obj)
+                # messages.info(request, f'تعداد {bulk_updated_patients_count} بیمار به شرکت "{company_name_from_user}" منتقل شدند.')
+                # --- پایان حذف ---
 
             messages.success(request, f'فرآیند آپلود پرسنل با موفقیت به پایان رسید. تعداد ثبت شده: {created_count}، تعداد به‌روزرسانی شده: {updated_count}، تعداد نادیده گرفته شده: {skipped_count}.')
 

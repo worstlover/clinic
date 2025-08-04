@@ -18,7 +18,7 @@ urlpatterns = [
     path('ckeditor/', include('ckeditor_uploader.urls')),
     # شامل کردن URL های اپلیکیشن های مختلف با namespace های مربوطه
     # هر اپلیکیشن باید app_name خودش را در فایل urls.py خود تعریف کرده باشد.
-
+    
     # URL های اپلیکیشن Visits
     # مطمئن شوید که visits/urls.py دارای app_name = 'visits' است.
     path('visits/', include('visits.urls')),

@@ -1,0 +1,21 @@
+{
+  "name": "کلینیک گندله سازی بهاباد",
+  "short_name": "کلینیک بهاباد",
+  "description": "سیستم مدیریت کلینیک گندله سازی بهاباد",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#c0c0c0",
+  "theme_color": "#212529",
+  "icons": [
+    {
+      "src": "/static/img/icons/icon-192x192.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "/static/img/icons/icon-512x512.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ]
+}

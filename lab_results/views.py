@@ -12,11 +12,13 @@ from django.db import transaction
 from django.conf import settings
 from django.views.decorators.http import require_POST, require_GET
 from django.utils.translation import gettext_lazy 
-import traceback 
-
-# فرض می‌کنیم مدل Patient در اپلیکیشن 'core' قرار دارد.
+import traceback
+from django.db.models.functions import Trim 
+from django.core.files.storage import FileSystemStorage
+from django.conf import settings
+import os
+from jalali_date import date2jalali
 from core.models import Patient 
-# مدل‌های مربوط به اپلیکیشن lab_results
 from .models import (
     PeriodicExamination, ClinicalMeasurement, TestType, LabParameterResult, 
     EXAMINATION_SECTION_CHOICES, ExaminationDetail, OptometryResult, AudiometryResult, SpirometryResult, 
@@ -25,30 +27,69 @@ from .models import (
 
 # --- توابع کمکی (Helper Functions) ---
 
+def format_national_id(nid):
+    """
+    کد ملی را به یک رشته ۱۰ رقمی با صفرهای پیشوندی تبدیل می‌کند.
+    """
+    if nid is None:
+        return None
+    nid_str = str(nid).strip()
+    return nid_str.zfill(10)
+
 def convert_jalali_to_gregorian(jalali_date_str):
     """
-    تبدیل تاریخ شمسی (YYYY/MM/DD یا YYYY-MM-DD) به آبجکت تاریخ میلادی.
+    تاریخ شمسی (با فرمت YYYY/MM/DD) را به تاریخ میلادی تبدیل می‌کند.
     """
-    if pd.isna(jalali_date_str) or not jalali_date_str:
+    if not jalali_date_str:
         return None
     try:
-        j_datetime_obj = jdatetime.datetime.strptime(str(jalali_date_str).strip(), '%Y/%m/%d')
-        return j_datetime_obj.togregorian().date()
+        # فرض می‌کنیم فرمت ورودی YYYY/MM/DD است
+        year, month, day = map(int, jalali_date_str.split('/'))
+        # ایجاد شیء تاریخ شمسی
+        jalali_date_obj = jdatetime.date(year, month, day)
+        # تبدیل به تاریخ میلادی
+        gregorian_date_obj = jalali_date_obj.togregorian()
+        return gregorian_date_obj
     except ValueError:
-        try:
-            j_datetime_obj = jdatetime.datetime.strptime(str(jalali_date_str).strip(), '%Y-%m-%d')
-            return j_datetime_obj.togregorian().date()
-        except ValueError:
-            try:
-                # Fallback for year-only format if applicable, assuming Jan 1st
-                year_part = str(jalali_date_str).strip().split('/')[0]
-                if year_part.isdigit():
-                    year = int(year_part)
-                    return jdatetime.date(year, 1, 1).togregorian()
-                return None
-            except Exception:
-                return None
+        # در صورتی که فرمت تاریخ ورودی اشتباه باشد
+        return None
+# --- Views ---
 
+def view_patient_lab_results(request, patient_id):
+    patient = get_object_or_404(Patient, id=patient_id)
+    
+    periodic_examinations = PeriodicExamination.objects.filter(patient=patient).order_by('-exam_date')
+    
+    final_opinions = PeriodicExamination.objects.annotate(
+        opinion_clean=Trim('final_opinion_text')
+    ).values_list('opinion_clean', flat=True).distinct().exclude(opinion_clean__exact='')
+
+    # Loop through examinations to add jalali dates
+    for exam in periodic_examinations:
+        # Convert exam_date to Jalali
+        if exam.exam_date:
+            exam.jalali_exam_date = date2jalali(exam.exam_date).strftime('%Y/%m/%d')
+        else:
+            exam.jalali_exam_date = '-'
+
+        # Convert admission_date to Jalali
+        if exam.admission_date:
+            exam.jalali_admission_date = date2jalali(exam.admission_date).strftime('%Y/%m/%d')
+        else:
+            exam.jalali_admission_date = '-'
+
+        # Convert patient's date_of_birth to Jalali
+        if exam.patient and exam.patient.date_of_birth:
+            exam.patient.jalali_date_of_birth = date2jalali(exam.patient.date_of_birth).strftime('%Y/%m/%d')
+        else:
+            exam.patient.jalali_date_of_birth = '-'
+
+    context = {
+        'patient': patient,
+        'periodic_examinations': periodic_examinations,
+        'final_opinions': final_opinions,
+    }
+    return render(request, 'lab_results/patient_lab_results.html', context)
 
 def convert_persian_to_english_nums(text):
     """
@@ -64,13 +105,16 @@ def convert_persian_to_english_nums(text):
     translated_text = ''.join(persian_to_english_map.get(char, char) for char in text)
     return translated_text.strip()
 
+def to_bool(value):
+    if isinstance(value, str):
+        return value.lower() in ('true', '1', 'yes', 'بله', 'دارد')
+    if isinstance(value, (int, float)):
+        return bool(value)
+    return False
+
 
 # --- نگاشت ستون‌های اکسل به فیلدهای مدل‌های جنگو ---
-
-# نگاشت ستون‌های اکسل به فیلدهای مدل Patient
-# فیلدهای سوابق بیماری و حساسیت ها به صورت دستی در بخش پردازش تجمیع می شوند
-# فیلدهای 'محل تولد', 'وضعیت تاهل', 'تعداد فرزندان', 'تحصیلات' در مدل Patient شما وجود ندارند.
-# اگر نیاز دارید اینها وارد شوند، باید ابتدا آنها را به مدل Patient اضافه کنید.
+# !!! بسیار مهم: نام ستون‌ها در این بخش باید دقیقا با نام ستون‌ها در فایل اکسل شما یکی باشد !!!
 patient_column_map = {
     'کد ملی': 'national_code',
     'شماره پاسپورت': 'passport_number',
@@ -79,24 +123,24 @@ patient_column_map = {
     'نام پدر': 'father_name',
     'جنسیت': 'gender', 
     'تاریخ تولد': 'date_of_birth', 
-    'موبایل': 'phone_number', # اطمینان از نگاشت صحیح
+    'موبایل': 'phone_number',
     'آدرس': 'address',
     'شغل': 'occupation', 
     'گروه خونی': 'blood_type',
 }
 
-# نگاشت ستون‌های اکسل به فیلدهای مدل PeriodicExamination
 periodic_exam_column_map = {
     'تاریخ معاینه': 'exam_date', 
-    'تاریخ پذیرش': 'admission_date', # اطمینان از نگاشت صحیح
+    'تاریخ پذیرش': 'admission_date',
     'ویزیت پزشک': 'final_opinion_doctor', 
-    'نظریه نهایی - نظریه': 'final_opinion_conditions',
-    'نظریه نهایی - شروط': 'final_opinion_description', 
+    'نظریه نهایی - نظریه': 'final_opinion_text',
+    'نظریه نهایی - شروط': 'final_opinion_conditions', # این ستون برای "دلیل نظر" استفاده خواهد شد
     'تاریخ نظر نهایی': 'final_opinion_date', 
     'معاینات - علائم و توضیحات ثبت شده': 'overall_notes', 
 }
 
-# نگاشت ستون‌های اکسل به فیلدهای مدل ClinicalMeasurement
+# (سایر mapping ها بدون تغییر باقی می‌مانند)
+# ...
 clinical_measurement_column_map = {
     'اندازه‌گیری‌های بالینی - وزن': 'weight',
     'اندازه‌گیری‌های بالینی - قد': 'height',
@@ -105,8 +149,6 @@ clinical_measurement_column_map = {
     'اندازه‌گیری‌های بالینی - فشارخون دیاستولیک': 'diastolic_bp', 
     'اندازه‌گیری‌های بالینی - نبض': 'pulse',
 }
-
-# نگاشت ستون‌های اکسل به نام‌های TestType برای LabParameterResult
 lab_parameter_columns_map = {
     'نتایج آزمایش - Lipid Panel - Chol': 'Cholesterol', 
     'نتایج آزمایش - Lipid Panel - TG': 'Triglycerides',
@@ -129,64 +171,47 @@ lab_parameter_columns_map = {
     'نتایج آزمایش - Thyroid Function - T3': 'T3',
     'نتایج آزمایش - Thyroid Function - TSH': 'TSH',
 }
-
-# نگاشت ستون‌های اکسل به فیلدهای مدل ExaminationDetail
-# استفاده از EXAMINATION_SECTION_CHOICES از مدل
 examination_detail_columns_map = {
     'معاینات - عمومی - Sign': ('general', 'sign'),
     'معاینات - عمومی - Symptom': ('general', 'symptom'),
     'معاینات - عمومی - توضیحات': ('general', 'notes'), 
-    
     'معاینات - چشم - Sign': ('eye', 'sign'), 
     'معاینات - چشم - Symptom': ('eye', 'symptom'),
     'معاینات - چشم - توضیحات': ('eye', 'notes'),
-
     'معاینات - پوست، مو و ناخن - Sign': ('skin_hair_nails', 'sign'),
-    'معاینات - پوست، مو و ناخن - Symptom': ('skin_hair_nails', 'symptom'),
+    'معاینات - پوست، مو و ناavin - Symptom': ('skin_hair_nails', 'symptom'),
     'معاینات - پوست، مو و ناخن - توضیحات': ('skin_hair_nails', 'notes'),
-
     'معاینات - گوش، حلق، بینی و دهان - Sign': ('ent', 'sign'), 
     'معاینات - گوش، حلق، بینی و دهان - Symptom': ('ent', 'symptom'),
     'معاینات - گوش، حلق، بینی و دهان - توضیحات': ('ent', 'notes'),
-
     'معاینات - سر و گردن - Sign': ('head_neck', 'sign'),
     'معاینات - سر و گردن - Symptom': ('head_neck', 'symptom'),
     'معاینات - سر و گردن - توضیحات': ('head_neck', 'notes'),
-
     'معاینات - ریه - Sign': ('lung', 'sign'),
     'معاینات - ریه - Symptom': ('lung', 'symptom'),
     'معاینات - ریه - توضیحات': ('lung', 'notes'),
-
     'معاینات - قلب و عروق - Sign': ('cardiovascular', 'sign'),
     'معاینات - قلب و عروق - Symptom': ('cardiovascular', 'symptom'),
     'معاینات - قلب و عروق - توضیحات': ('cardiovascular', 'notes'),
-
     'معاینات - شکم و لگن - Sign': ('abdomen_pelvis', 'sign'),
     'معاینات - شکم و لگن - Symptom': ('abdomen_pelvis', 'symptom'),
     'معاینات - شکم و لگن - توضیحات': ('abdomen_pelvis', 'notes'),
-
     'معاینات - کلیه و مجاری ادراری، تناسلی - Sign': ('urinary_genital', 'sign'), 
     'معاینات - کلیه و مجاری ادراری، تناسلی - Symptom': ('urinary_genital', 'symptom'),
     'معاینات - کلیه و مجاری ادراری، تناسلی - توضیحات': ('urinary_genital', 'notes'),
-
     'معاینات - اسکلتی و عضلانی - Sign': ('musculoskeletal', 'sign'), 
     'معاینات - اسکلتی و عضلانی - Symptom': ('musculoskeletal', 'symptom'),
     'معاینات - اسکلتی و عضلانی - توضیحات': ('musculoskeletal', 'notes'),
-
     'معاینات - سیستم عصبی - Sign': ('nervous_system', 'sign'),
     'معاینات - سیستم عصبی - Symptom': ('nervous_system', 'symptom'),
     'معاینات - سیستم عصبی - توضیحات': ('nervous_system', 'notes'),
-
     'معاینات - اعصاب و روان - Sign': ('psychiatric', 'sign'), 
     'معاینات - اعصاب و روان - Symptom': ('psychiatric', 'symptom'),
     'معاینات - اعصاب و روان - توضیحات': ('psychiatric', 'notes'),
-
     'معاینات - undefined - Sign': ('undefined', 'sign'), 
     'معاینات - undefined - Symptom': ('undefined', 'symptom'),
     'معاینات - undefined - توضیحات': ('undefined', 'notes'),
 }
-
-# نگاشت ستون‌های اکسل به فیلدهای مدل OptometryResult
 optometry_column_map = {
     'اپتومتری - حدت بینایی - دید دور - R - بدون اصلاح': 'va_distant_r_uncorrected',
     'اپتومتری - حدت بینایی - دید دور - L - بدون اصلاح': 'va_distant_l_uncorrected',
@@ -206,7 +231,7 @@ optometry_column_map = {
     'اپتومتری - دید رنگی - R': 'color_vision_r', 
     'اپتومتری - دید رنگی - L': 'color_vision_l', 
     'اپتومتری - دید رنگی - Field Test - R': 'color_vision_field_r', 
-    'اپتومتری - دید رنگی - Field Test - L': 'color_vision_field_l', 
+    'اپتometry - دید رنگی - Field Test - L': 'color_vision_field_l', 
     'اپتومتری - دید رنگی - Test Type': 'color_vision_test_type', 
     'اپتومتری - میدان بینایی - R': 'visual_field_r', 
     'اپتومتری - میدان بینایی - L': 'visual_field_l', 
@@ -216,8 +241,6 @@ optometry_column_map = {
     'اپتومتری - استفاده از لنز طبی': 'uses_contact_lens', 
     'اپتومتری - توضیحات': 'notes', 
 }
-
-# نگاشت ستون‌های اکسل به فیلدهای مدل AudiometryResult
 audiometry_column_map = {
     'اودیومتری - Right AC 125': 'right_ac_125',
     'اودیومتری - Right AC 250': 'right_ac_250',
@@ -233,7 +256,6 @@ audiometry_column_map = {
     'اودیومتری - Right BC 2000': 'right_bc_2000',
     'اودیومتری - Right BC 3000': 'right_bc_3000',
     'اودیومتری - Right BC 4000': 'right_bc_4000',
-    
     'اودیومتری - Left AC 500': 'left_ac_500', 
     'اودیومتری - Left AC 1000': 'left_ac_1000',
     'اودیومتری - Left AC 2000': 'left_ac_2000',
@@ -246,344 +268,316 @@ audiometry_column_map = {
     'اودیومتری - Left BC 2000': 'left_bc_2000',
     'اودیومتری - Left BC 3000': 'left_bc_3000',
     'اودیومتری - Left BC 4000': 'left_bc_4000',
-
     'اودیومتری - Right Result': 'right_result', 
     'اودیومتری - Left Result': 'left_result', 
     'اودیومتری - Right Result Other': 'right_result_other', 
     'اودیومتری - Left Result Other': 'left_result_other', 
 }
-
-# نگاشت ستون‌های اکسل به فیلدهای مدل SpirometryResult
 spirometry_column_map = {
     'اسپیرومتری - Result': 'result',
     'اسپیرومتری - Result Other': 'result_other', 
 }
-
-# نگاشت ستون‌های اکسل به فیلدهای مدل ECGResult
 ecg_column_map = {
     'ECG - Diagnoses': 'diagnoses',
 }
-
-# نگاشت ستون‌های اکسل به فیلدهای مدل SonographyResult
 sonography_column_map = {
     'سونوگرافی - نتیجه': 'result',
 }
 
 
-# --- View برای نمایش فرم آپلود اکسل ---
 @require_GET
 def upload_excel_file(request):
-    """
-    این تابع صرفاً صفحه آپلود فایل اکسل را رندر می‌کند.
-    """
     return render(request, 'lab_results/upload.html')
 
 
-# --- View برای پردازش و وارد کردن داده‌ها ---
 @require_POST
 def process_import(request):
-    """
-    این تابع مسئول خواندن فایل اکسل، پردازش ردیف‌ها و ذخیره داده‌ها در مدل‌های جنگو است.
-    """
-    if request.method == 'POST':
-        excel_file = request.FILES.get('excel_file')
-        if not excel_file:
-            messages.error(request, gettext_lazy("فایلی برای پردازش انتخاب نشده است."))
-            return redirect('upload_excel_file') 
+    excel_file = request.FILES.get('excel_file')
+    if not excel_file:
+        messages.error(request, "فایلی انتخاب نشده است.")
+        return redirect('lab_results:upload_excel_file')
+
+    errors, success_count, updated_count = [], 0, 0
+    current_user = request.user
+
+    try:
+        df = pd.read_excel(excel_file)
         
-        errors = []
-        success_count = 0
-        current_user = request.user 
-
-        try:
-            df = pd.read_excel(excel_file)
-            
-            for index, row in df.iterrows():
-                row_num = index + 2 
-                
-                try:
-                    with transaction.atomic():
-                        # --- 1. پردازش Patient (از اپ core) ---
-                        patient_data = {}
-                        
-                        # پردازش فیلدهای عمومی بیمار
-                        for excel_col, model_field in patient_column_map.items():
-                            if excel_col in row and pd.notna(row[excel_col]): 
-                                if model_field == 'date_of_birth':
-                                    patient_data[model_field] = convert_jalali_to_gregorian(str(row[excel_col]))
-                                elif model_field == 'gender':
-                                    gender_val = str(row[excel_col]).strip()
-                                    if gender_val == 'مرد': patient_data[model_field] = 'M'
-                                    elif gender_val == 'زن': patient_data[model_field] = 'F'
-                                    else: patient_data[model_field] = None
-                                # اعمال تبدیل اعداد فارسی برای فیلدهای عددی مهم مانند شماره تماس و کد ملی
-                                elif model_field in ['national_code', 'passport_number', 'phone_number']: # اضافه شده phone_number
-                                    patient_data[model_field] = convert_persian_to_english_nums(row[excel_col])
-                                else:
-                                    patient_data[model_field] = row[excel_col]
-
-                        # --- تجمیع فیلدهای سوابق بیماری و حساسیت‌ها ---
-                        # استفاده از نام فیلدهای واقعی در مدل Patient: medical_history و allergies
-                        
-                        medical_history_parts = []
-                        if 'سابقه شخصی - 1. سابقه بیماری' in row and pd.notna(row['سابقه شخصی - 1. سابقه بیماری']):
-                            medical_history_parts.append("سابقه بیماری: " + str(row['سابقه شخصی - 1. سابقه بیماری']).strip())
-                        if 'سابقه شخصی - 6. سابقه بستری' in row and pd.notna(row['سابقه شخصی - 6. سابقه بستری']):
-                            medical_history_parts.append("سابقه بستری: " + str(row['سابقه شخصی - 6. سابقه بستری']).strip())
-                        if 'سابقه شخصی - 7. سابقه عمل جراحی' in row and pd.notna(row['سابقه شخصی - 7. سابقه عمل جراحی']):
-                            medical_history_parts.append("سابقه عمل جراحی: " + str(row['سابقه شخصی - 7. سابقه عمل جراحی']).strip())
-                        
-                        if medical_history_parts:
-                            patient_data['medical_history'] = "\n".join(medical_history_parts)
-
-                        if 'سابقه شخصی - 5. حساسیت به غذا، دارو یا ماده خاص' in row and pd.notna(row['سابقه شخصی - 5. حساسیت به غذا، دارو یا ماده خاص']):
-                            patient_data['allergies'] = str(row['سابقه شخصی - 5. حساسیت به غذا، دارو یا ماده خاص']).strip()
-
-                        # اطمینان از تبدیل اعداد فارسی برای national_code و passport_number قبل از استفاده
-                        national_code = patient_data.get('national_code', '')
-                        passport_number = patient_data.get('passport_number', '')
-
-                        if not national_code and not passport_number:
-                            raise ValueError(gettext_lazy("کد ملی یا شماره پاسپورت برای بیمار یافت نشد."))
-                        
-                        patient_obj = None
-                        created_patient = False
-                        
-                        if national_code:
-                            patient_obj, created_patient = Patient.objects.get_or_create(
-                                national_code=national_code, 
-                                defaults={**patient_data, 'registered_by': current_user}
-                            )
-                            if not created_patient:
-                                for k, v in patient_data.items():
-                                    if k != 'national_code' and pd.notna(v):
-                                        setattr(patient_obj, k, v)
-                                patient_obj.save()
-                        elif passport_number:
-                            patient_obj, created_patient = Patient.objects.get_or_create(
-                                passport_number=passport_number, 
-                                defaults={**patient_data, 'registered_by': current_user}
-                            )
-                            if not created_patient:
-                                for k, v in patient_data.items():
-                                    if k != 'passport_number' and pd.notna(v):
-                                        setattr(patient_obj, k, v)
-                                patient_obj.save()
-                        
-                        if not patient_obj:
-                            raise ValueError(gettext_lazy(f"خطای ناشناخته در یافتن/ایجاد بیمار."))
-                        
-                        # --- 2. پردازش PeriodicExamination ---
-                        periodic_exam_data = {
-                            'patient': patient_obj,
-                            'recorded_by': current_user,
-                        }
-                        
-                        for excel_col, model_field in periodic_exam_column_map.items():
-                            if excel_col in row and pd.notna(row[excel_col]):
-                                if model_field in ['exam_date', 'admission_date', 'final_opinion_date']:
-                                    periodic_exam_data[model_field] = convert_jalali_to_gregorian(str(row[excel_col]))
-                                elif excel_col == 'توضیحات نهایی معاینه': 
-                                    periodic_exam_data['final_opinion_conditions'] = row[excel_col] 
-                                else:
-                                    periodic_exam_data[model_field] = row[excel_col]
-
-                        if 'exam_date' not in periodic_exam_data or periodic_exam_data['exam_date'] is None:
-                            if 'admission_date' in periodic_exam_data and periodic_exam_data['admission_date'] is not None:
-                                periodic_exam_data['exam_date'] = periodic_exam_data['admission_date']
+        for index, row in df.iterrows():
+            row_num = index + 2
+            try:
+                with transaction.atomic():
+                    # ۱. پردازش بیمار (Patient)
+                    patient_data = {'registered_by': current_user}
+                    for col, field in patient_column_map.items():
+                        if col in row and pd.notna(row[col]):
+                            val = row[col]
+                            if field == 'date_of_birth': 
+                                patient_data[field] = convert_jalali_to_gregorian(val)
+                            elif field == 'gender': 
+                                patient_data[field] = 'M' if str(val).strip() == 'مرد' else ('F' if str(val).strip() == 'زن' else None)
+                            elif field in ['national_code', 'personnel_number', 'phone_number']: 
+                                patient_data[field] = convert_persian_to_english_nums(val)
+                            else: 
+                                patient_data[field] = val
+                    
+                    # --- CHANGE START: فرمت کردن کد ملی ---
+                    national_code_raw = patient_data.get('national_code')
+                    if not national_code_raw: 
+                        raise ValueError("کد ملی الزامی است.")
+                    
+                    national_code = format_national_id(national_code_raw)
+                    # --- CHANGE END ---
+                    
+                    # به روز رسانی یا ایجاد بیمار بر اساس کد ملی فرمت شده
+                    patient_obj, created = Patient.objects.update_or_create(
+                        national_code=national_code,
+                        defaults={k: v for k, v in patient_data.items() if v is not None and k != 'national_code'}
+                    )
+                    
+                    # ۳. پردازش معاینه دوره‌ای (PeriodicExamination)
+                    exam_data = {'patient': patient_obj, 'recorded_by': current_user}
+                    for col, field in periodic_exam_column_map.items():
+                        if col in row and pd.notna(row[col]):
+                            val = row[col]
+                            if field.endswith('_date'): 
+                                exam_data[field] = convert_jalali_to_gregorian(val)
                             else:
-                                raise ValueError(gettext_lazy("تاریخ معاینه (exam_date) و تاریخ پذیرش (admission_date) هر دو یافت نشدند."))
+                                exam_data[field] = str(val).strip()
+                            
+                    if not exam_data.get('exam_date'): 
+                        raise ValueError("تاریخ معاینه الزامی است.")
+                    
+                    periodic_exam_obj, _ = PeriodicExamination.objects.update_or_create(
+                        patient=patient_obj, exam_date=exam_data['exam_date'],
+                        defaults={k: v for k, v in exam_data.items() if v is not None}
+                    )
+                    
+                    # --- پردازش سایر مدل‌ها (بدون تغییر) ---
+                    # ۴. پردازش اندازه‌گیری‌های بالینی (ClinicalMeasurement)
+                    clinical_data = {}
+                    for col, field in clinical_measurement_column_map.items():
+                        if col in row and pd.notna(row[col]):
+                            clinical_data[field] = convert_persian_to_english_nums(row[col])
+                    if clinical_data:
+                        ClinicalMeasurement.objects.update_or_create(periodic_exam=periodic_exam_obj, defaults=clinical_data)
 
-                        if periodic_exam_data['exam_date'] is None: 
-                             raise ValueError(gettext_lazy("تاریخ معاینه (exam_date) برای PeriodicExamination یافت نشد."))
-                        
-                        periodic_exam_obj, created_exam = PeriodicExamination.objects.get_or_create(
-                            patient=patient_obj,
-                            exam_date=periodic_exam_data['exam_date'], 
-                            defaults=periodic_exam_data
-                        )
-                        if not created_exam:
-                            for k, v in periodic_exam_data.items():
-                                if k not in ['patient', 'exam_date'] and pd.notna(v):
-                                    setattr(periodic_exam_obj, k, v)
-                            periodic_exam_obj.save()
+                    # ۵. پردازش نتایج آزمایشگاهی (LabParameterResult)
+                    for col, test_name in lab_parameter_columns_map.items():
+                        if col in row and pd.notna(row[col]):
+                            test_type, _ = TestType.objects.get_or_create(name=test_name)
+                            LabParameterResult.objects.update_or_create(
+                                periodic_exam=periodic_exam_obj, test_type=test_type,
+                                defaults={'result_value': convert_persian_to_english_nums(row[col])}
+                            )
 
-                        # --- بروزرسانی last_periodic_examination_date در مدل Patient ---
-                        if patient_obj.last_periodic_examination_date is None or \
-                           (periodic_exam_obj.exam_date and periodic_exam_obj.exam_date > patient_obj.last_periodic_examination_date):
-                            patient_obj.last_periodic_examination_date = periodic_exam_obj.exam_date
-                            patient_obj.save()
-                        
-                        # --- 3. پردازش ClinicalMeasurement ---
-                        clinical_measurement_data = {}
-                        for excel_col, model_field in clinical_measurement_column_map.items():
-                            if excel_col in row and pd.notna(row[excel_col]):
-                                if model_field in ['weight', 'height', 'bmi', 'systolic_bp', 'diastolic_bp', 'pulse']:
-                                    val = convert_persian_to_english_nums(row[excel_col])
-                                    try:
-                                        if model_field in ['weight', 'height', 'bmi']: 
-                                            clinical_measurement_data[model_field] = float(val)
-                                        else: 
-                                            clinical_measurement_data[model_field] = int(val)
-                                    except ValueError:
-                                        clinical_measurement_data[model_field] = None 
-                                else:
-                                    clinical_measurement_data[model_field] = row[excel_col]
-                        
-                        if clinical_measurement_data:
-                            cleaned_data = {k: v for k, v in clinical_measurement_data.items() if v is not None and v != ''}
-                            if cleaned_data: 
-                                ClinicalMeasurement.objects.update_or_create(
-                                    periodic_exam=periodic_exam_obj,
-                                    defaults=cleaned_data 
-                                )
+                    # ۶. پردازش جزئیات معاینات (ExaminationDetail)
+                    for col, (section, field) in examination_detail_columns_map.items():
+                        if col in row and pd.notna(row[col]):
+                             obj, _ = ExaminationDetail.objects.get_or_create(periodic_exam=periodic_exam_obj, section=section)
+                             setattr(obj, field, str(row[col]))
+                             obj.save()
 
-                        # --- 4. پردازش LabParameterResult (نتایج آزمایشگاهی) ---
-                        for excel_col, test_type_name in lab_parameter_columns_map.items():
-                            if excel_col in row and pd.notna(row[excel_col]):
-                                parameter_value = convert_persian_to_english_nums(str(row[excel_col]))
-                                if not parameter_value: continue
+                    # ۷. پردازش بینایی‌سنجی (OptometryResult)
+                    optometry_data = {}
+                    for col, field in optometry_column_map.items():
+                        if col in row and pd.notna(row[col]):
+                            val = row[col]
+                            if field.startswith('uses_'): optometry_data[field] = to_bool(val)
+                            else: optometry_data[field] = val
+                    if optometry_data:
+                        OptometryResult.objects.update_or_create(periodic_exam=periodic_exam_obj, defaults=optometry_data)
 
-                                test_type_obj, _ = TestType.objects.get_or_create(name=test_type_name)
-                                LabParameterResult.objects.update_or_create(
-                                    periodic_exam=periodic_exam_obj,
-                                    test_type=test_type_obj,
-                                    defaults={'result_value': parameter_value}
-                                )
+                    # ۸. پردازش شنوایی‌سنجی (AudiometryResult)
+                    audiometry_data = {}
+                    for col, field in audiometry_column_map.items():
+                        if col in row and pd.notna(row[col]):
+                            if field.startswith(('right_', 'left_')):
+                                audiometry_data[field] = convert_persian_to_english_nums(row[col])
+                            else:
+                                audiometry_data[field] = row[col]
+                    if audiometry_data:
+                        AudiometryResult.objects.update_or_create(periodic_exam=periodic_exam_obj, defaults=audiometry_data)
 
-                        # --- 5. پردازش ExaminationDetail (جزئیات معاینات) ---
-                        examination_details_by_section = {}
-                        for excel_col, (section_choice, field_name) in examination_detail_columns_map.items():
-                            if excel_col in row and pd.notna(row[excel_col]):
-                                value = str(row[excel_col]).strip()
-                                if not value: continue
-
-                                if section_choice not in examination_details_by_section:
-                                    examination_details_by_section[section_choice] = {}
-                                
-                                current_value = examination_details_by_section[section_choice].get(field_name, "")
-                                if current_value:
-                                    examination_details_by_section[section_choice][field_name] = f"{current_value}\n{value}"
-                                else:
-                                    examination_details_by_section[section_choice][field_name] = value
-
-                        for section_choice, details_data in examination_details_by_section.items():
-                            if details_data: 
-                                ExaminationDetail.objects.update_or_create(
-                                    periodic_exam=periodic_exam_obj,
-                                    section=section_choice,
-                                    defaults=details_data
-                                )
-
-                        # --- 6. پردازش مدل‌های تخصصی (Optometry, Audiometry, Spirometry, ECG, Sonography) ---
-                        
-                        # Optometry
-                        optometry_data = {}
-                        for excel_col, model_field in optometry_column_map.items():
-                            if excel_col in row and pd.notna(row[excel_col]):
-                                if model_field in ['uses_glasses', 'uses_contact_lens']:
-                                    optometry_data[model_field] = str(row[excel_col]).lower() in ['بله', 'true', '1']
-                                elif model_field == 'depth_perception': 
-                                    val = convert_persian_to_english_nums(row[excel_col])
-                                    try:
-                                        optometry_data[model_field] = float(val)
-                                    except ValueError:
-                                        optometry_data[model_field] = None
-                                else:
-                                    optometry_data[model_field] = row[excel_col]
-                        if optometry_data:
-                            cleaned_data = {k: v for k, v in optometry_data.items() if v is not None and v != ''}
-                            if cleaned_data:
-                                OptometryResult.objects.update_or_create(periodic_exam=periodic_exam_obj, defaults=cleaned_data)
-
-                        # Audiometry
-                        audiometry_data = {}
-                        for excel_col, model_field in audiometry_column_map.items():
-                            if excel_col in row and pd.notna(row[excel_col]):
-                                if model_field.startswith(('right_ac_', 'left_ac_', 'right_bc_', 'left_bc_')):
-                                    val = convert_persian_to_english_nums(row[excel_col])
-                                    try:
-                                        audiometry_data[model_field] = int(val)
-                                    except ValueError:
-                                        audiometry_data[model_field] = None
-                                else: 
-                                    audiometry_data[model_field] = row[excel_col]
-
-                        if audiometry_data:
-                            cleaned_data = {k: v for k, v in audiometry_data.items() if v is not None and v != ''}
-                            if cleaned_data:
-                                AudiometryResult.objects.update_or_create(periodic_exam=periodic_exam_obj, defaults=cleaned_data)
-
-                        # Spirometry
-                        spirometry_data = {}
-                        for excel_col, model_field in spirometry_column_map.items():
-                            if excel_col in row and pd.notna(row[excel_col]):
-                                spirometry_data[model_field] = row[excel_col] 
-                        if spirometry_data:
-                            cleaned_data = {k: v for k, v in spirometry_data.items() if v is not None and v != ''}
-                            if cleaned_data:
-                                SpirometryResult.objects.update_or_create(periodic_exam=periodic_exam_obj, defaults=cleaned_data)
-
-                        # ECG
-                        ecg_data = {}
-                        for excel_col, model_field in ecg_column_map.items():
-                            if excel_col in row and pd.notna(row[excel_col]):
-                                ecg_data[model_field] = row[excel_col]
-                        if ecg_data:
-                            cleaned_data = {k: v for k, v in ecg_data.items() if v is not None and v != ''}
-                            if cleaned_data:
-                                ECGResult.objects.update_or_create(periodic_exam=periodic_exam_obj, defaults=cleaned_data)
-
-                        # Sonography
-                        sonography_data = {}
-                        for excel_col, model_field in sonography_column_map.items():
-                            if excel_col in row and pd.notna(row[excel_col]):
-                                sonography_data[model_field] = row[excel_col]
-                        if sonography_data:
-                            cleaned_data = {k: v for k, v in sonography_data.items() if v is not None and v != ''}
-                            if cleaned_data:
-                                SonographyResult.objects.update_or_create(periodic_exam=periodic_exam_obj, defaults=cleaned_data)
-
-
+                    # ۹. پردازش اسپیرومتری, نوار قلب و سونوگرافی
+                    specialty_maps = {
+                        SpirometryResult: spirometry_column_map,
+                        ECGResult: ecg_column_map,
+                        SonographyResult: sonography_column_map
+                    }
+                    for model_class, column_map in specialty_maps.items():
+                        model_data = {}
+                        for col, field in column_map.items():
+                            if col in row and pd.notna(row[col]):
+                                model_data[field] = row[col]
+                        if model_data:
+                            model_class.objects.update_or_create(periodic_exam=periodic_exam_obj, defaults=model_data)
+                    
+                    if created:
                         success_count += 1
-                        print(f"--- ردیف {row_num} با موفقیت پردازش شد. تعداد موفقیت‌آمیز: {success_count} ---") 
-
-                except Exception as e:
-                    print(f"--- خطا در پردازش ردیف {row_num}: {e} ---") 
-                    traceback.print_exc() 
-                    errors.append(gettext_lazy(f"ردیف {row_num}: خطای پردازش: {e}"))
+                    else:
+                        updated_count += 1
             
-            print(f"--- فرآیند وارد کردن تکمیل شد. ردیف‌های موفق: {success_count}، خطاها: {len(errors)} ---")
+            except Exception as e:
+                errors.append(f"ردیف {row_num}: {e}")
+                print(f"خطا در ردیف {row_num}: {e}")
+                traceback.print_exc()
 
-            if errors:
-                messages.warning(request, gettext_lazy(f"فایل با {len(errors)} خطا پردازش شد."))
-                for err_msg in errors:
-                    messages.error(request, err_msg)
-            
-            messages.success(request, gettext_lazy(f"فرآیند وارد کردن تکمیل شد. {success_count} ردیف با موفقیت وارد/به‌روزرسانی شد."))
-
-        except pd.errors.EmptyDataError:
-            print("--- EmptyDataError: فایل اکسل خالی است یا فرمت آن صحیح نیست. ---") 
-            messages.error(request, gettext_lazy("فایل اکسل خالی است یا فرمت آن صحیح نیست."))
-        except Exception as e:
-            print(f"--- خطای کلی در خواندن یا پردازش فایل: {e} ---")
-            traceback.print_exc() 
-            messages.error(request, gettext_lazy(f"خطای کلی در خواندن یا پردازش فایل: {e}"))
+        # نمایش پیام نهایی
+        if errors:
+            messages.warning(request, f"فایل با {len(errors)} خطا پردازش شد.")
+            for err in errors[:5]: messages.error(request, err)
         
-        return redirect('upload_excel_file')
-    
-    return render(request, 'lab_results/upload.html')
-@require_GET
-def view_patient_lab_results(request, patient_id):
-    """
-    نمایش تمامی معاینات و نتایج آزمایشگاهی یک بیمار مشخص.
-    """
-    patient = get_object_or_404(Patient, id=patient_id)
-    # مرتب‌سازی معاینات از جدیدترین به قدیمی‌ترین
-    periodic_examinations = PeriodicExamination.objects.filter(patient=patient).order_by('-exam_date')
+        success_message = f"فرآیند تکمیل شد. {success_count} ردیف جدید با موفقیت وارد و {updated_count} ردیف موجود به‌روزرسانی شد."
+        messages.success(request, success_message)
 
-    context = {
-        'patient': patient,
-        'periodic_examinations': periodic_examinations,
-    }
+    except Exception as e:
+        messages.error(request, f"خطای کلی در خواندن یا پردازش فایل: {e}")
+        traceback.print_exc()
+    
+    return redirect('lab_results:upload_excel_file')
+
+def view_patient_lab_results(request, patient_id):
+    patient = get_object_or_404(Patient, id=patient_id)
+    periodic_examinations = PeriodicExamination.objects.filter(patient=patient).order_by('-exam_date')
+    # Start of CHANGE
+    final_opinions = PeriodicExamination.objects.annotate(
+        opinion_clean=Trim('final_opinion_text')
+    ).values_list('opinion_clean', flat=True).distinct().exclude(opinion_clean__exact='')
+    # End of CHANGE
+    context = {'patient': patient, 'periodic_examinations': periodic_examinations, 'final_opinions': final_opinions} # Added final_opinions to context
     return render(request, 'lab_results/patient_lab_results.html', context)
+def generate_opinion_form(request, exam_id):
+    examination = get_object_or_404(PeriodicExamination, id=exam_id)
+    patient = examination.patient
+    if request.method == 'POST':
+        health_expert_name = request.POST.get('health_expert_name', '')
+        safety_expert_name = request.POST.get('safety_expert_name', '')
+        context = {
+            'examination': examination, 'patient': patient,
+            'health_expert_name': health_expert_name, 'safety_expert_name': safety_expert_name,
+        }
+        return render(request, 'lab_results/printable_opinion_form.html', context)
+    context = {'examination': examination, 'patient': patient}
+    return render(request, 'lab_results/opinion_form_input.html', context)
+
+def handle_uploaded_file(f, directory="signatures"):
+    if not f:
+        return None
+    fs = FileSystemStorage(location=os.path.join(settings.MEDIA_ROOT, directory))
+    filename = fs.save(f.name, f)
+    return fs.url(filename)
+
+def bulk_print_page(request):
+    examinations_query = PeriodicExamination.objects.select_related('patient').order_by('patient__personnel_number', 'exam_date')
+    final_opinions = PeriodicExamination.objects.annotate(
+        opinion_clean=Trim('final_opinion_text')
+    ).values_list('opinion_clean', flat=True).distinct().exclude(opinion_clean__exact='')
+    
+    health_expert_name = ''
+    safety_expert_name = ''
+    factory_manager_name = ''
+    health_expert_signature_url = None
+    safety_expert_signature_url = None
+    factory_manager_signature_url = None
+
+    if request.method == 'POST' and 'filter' in request.POST:
+        health_expert_name = request.POST.get('health_expert_name', '')
+        safety_expert_name = request.POST.get('safety_expert_name', '')
+        factory_manager_name = request.POST.get('factory_manager_name', '')
+
+        health_expert_signature_file = request.FILES.get('health_expert_signature')
+        safety_expert_signature_file = request.FILES.get('safety_expert_signature')
+        factory_manager_signature_file = request.FILES.get('factory_manager_signature')
+        health_expert_signature_url = handle_uploaded_file(health_expert_signature_file)
+        safety_expert_signature_url = handle_uploaded_file(safety_expert_signature_file)
+        factory_manager_signature_url = handle_uploaded_file(factory_manager_signature_file)
+
+        opinion_filter = request.POST.get('final_opinion', '')
+        opinion_source_departments = request.POST.getlist('opinion_source_department') 
+        start_date_jalali = request.POST.get('start_date', '')
+        end_date_jalali = request.POST.get('end_date', '')
+        start_pid = request.POST.get('start_pid', '')
+        end_pid = request.POST.get('end_pid', '')
+        job = request.POST.get('job_title', '')
+        nid = request.POST.get('national_id', '')
+
+        start_date_gregorian = None
+        end_date_gregorian = None
+        try:
+            if start_date_jalali:
+                start_date_gregorian = convert_jalali_to_gregorian(start_date_jalali)
+            if end_date_jalali:
+                end_date_gregorian = convert_jalali_to_gregorian(end_date_jalali)
+            
+            if (start_date_jalali and not start_date_gregorian) or (end_date_jalali and not end_date_gregorian):
+                raise ValueError("Invalid date format")
+
+        except ValueError:
+            messages.error(request, "فرمت تاریخ نامعتبر است. لطفاً از فرمت YYYY/MM/DD استفاده کنید.")
+            examinations_query = PeriodicExamination.objects.none()
+        
+        if opinion_filter:
+            examinations_query = examinations_query.filter(final_opinion_text__exact=opinion_filter)
+        
+        if start_date_gregorian and end_date_gregorian:
+            examinations_query = examinations_query.filter(exam_date__range=[start_date_gregorian, end_date_gregorian])
+        elif start_date_gregorian:
+            examinations_query = examinations_query.filter(exam_date__gte=start_date_gregorian)
+        elif end_date_gregorian:
+            examinations_query = examinations_query.filter(exam_date__lte=end_date_gregorian)
+
+        if start_pid:
+            start_pid_en = convert_persian_to_english_nums(start_pid)
+            if start_pid_en:
+                examinations_query = examinations_query.filter(patient__personnel_number__gte=start_pid_en)
+        if end_pid:
+            end_pid_en = convert_persian_to_english_nums(end_pid)
+            if end_pid_en:
+                examinations_query = examinations_query.filter(patient__personnel_number__lte=end_pid_en)
+        
+        if job:
+            examinations_query = examinations_query.filter(patient__occupation__icontains=job)
+        
+        if nid:
+            nid_en = convert_persian_to_english_nums(nid)
+            if nid_en:
+                # --- CHANGE: فیلتر بر اساس کد ملی فرمت شده ---
+                examinations_query = examinations_query.filter(patient__national_code__exact=format_national_id(nid_en))
+        print(f"تعداد نتایج یافت شده: {examinations_query.count()}")
+        for exam in examinations_query:
+            if exam.exam_date:
+                exam.jalali_exam_date = date2jalali(exam.exam_date).strftime('%Y/%m/%d')
+            else:
+                exam.jalali_exam_date = '-'
+            
+            if exam.patient and exam.patient.date_of_birth:
+                exam.patient.jalali_date_of_birth = date2jalali(exam.patient.date_of_birth).strftime('%Y/%m/%d')
+            else:
+                exam.patient.jalali_date_of_birth = '-'
+           
+       
+        
+           #* **بررسی صحت `convert_jalali_to_gregorian`:** مطمئن شوید که تابع `convert_jalali_to_gregorian` به درستی تاریخ‌های شمسی را به میلادی تبدیل می‌کند. اگر این تبدیل اشتباه باشد، فیلترهای تاریخ کار نخواهند کرد. در حال حاضر، تعریف این تابع در کد شما وجود ندارد. اگر قبلاً در `views.py` یا جای دیگر تعریف شده، مطمئن شوید که درست کار می‌کند.
+           #* **بررسی تبدیل `personnel_number` و `national_code`:** اطمینان حاصل کنید که `convert_persian_to_english_nums` و `format_national_id` به درستی کار می‌کنند و مقادیر درستی را برای فیلتر کردن تولید می‌کنند. یک `print` برای دیدن مقادیر ورودی و خروجی این توابع نیز می‌تواند مفید باشد.
+        context = {
+            'examinations': examinations_query,
+            'final_opinions': final_opinions,
+            'health_expert_name': health_expert_name,
+            'safety_expert_name': safety_expert_name,
+            'factory_manager_name': factory_manager_name,
+            'health_expert_signature_url': health_expert_signature_url,
+            'safety_expert_signature_url': safety_expert_signature_url,
+            'factory_manager_signature_url': factory_manager_signature_url,
+            'opinion_source_departments': opinion_source_departments,
+            'form_values': request.POST 
+        }
+    else:
+        context = {
+            'examinations': None, 
+            'final_opinions': final_opinions,
+            'opinion_source_departments': ['physician'],
+            'form_values': {}
+        }
+        
+    return render(request, 'lab_results/bulk_print_page.html', context)

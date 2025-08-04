@@ -17,7 +17,11 @@ from .models import Visit, ReasonForVisit, TreatmentResult, VISIT_STATUS_CHOICES
 from .forms import VisitForm, VisitItemFormSet, VisitReferralForm
 from core.models import Patient, Company # Patient و Company از core ایمپورت می‌شوند
 from drugs.models import Drug, DrugBatch # Drug و DrugBatch از drugs ایمپورت می‌شوند
-
+from django.http import JsonResponse
+from django.views.decorators.csrf import csrf_exempt
+from django.contrib.auth.decorators import login_required
+import json
+from fcm_django.models import FCMDevice
 # ایمپورت فیلترها (فرض بر این است که این فایل در جای صحیح قرار دارد)
 from core.filters import VisitFilter # مسیر صحیح را تأیید کنید
 from django.views.decorators.http import require_POST
@@ -495,6 +499,59 @@ def drug_search_ajax(request):
         return JsonResponse({'results': results})
     return JsonResponse({'results': []})
 
+@login_required
+def api_unread_referred_visits_count(request):
+    """
+    این API تعداد ویزیت‌های ارجاع داده شده به کاربر فعلی را که هنوز "خوانده نشده‌اند" برمی‌گرداند.
+    """
+    # فیلتر کردن ویزیت‌هایی که:
+    # 1. به کاربر فعلی (request.user) ارجاع داده شده‌اند (assigned_to).
+    # 2. هنوز خوانده نشده‌اند (is_read=False).
+    # 3. یک فیلتر وضعیت (status) برای ویزیت‌های ارجاعی. این مقدار باید دقیقاً با چیزی که در دیتابیس ذخیره کرده‌اید، مطابقت داشته باشد.
+    #    مثلاً اگر در مدل Visit، گزینه‌ای مانند 'referred' یا 'pending_referral' دارید.
+    #    من 'referred' را به عنوان مثال قرار داده‌ام.
+    unread_count = Visit.objects.filter(
+        assigned_to=request.user,  # فیلد صحیح برای ارجاع
+        is_read=False,             # فیلد خوانده شده
+        status='referred',         # ✅ اطمینان حاصل کنید که این مقدار (مانند 'referred') دقیقاً با وضعیت
+                                   #    ویزیت‌های ارجاعی در دیتابیس شما مطابقت دارد.
+                                   #    اگر وضعیت خاصی برای ویزیت‌های ارجاعی ندارید، این خط را حذف کنید.
+    ).count()
+
+    return JsonResponse({'count': unread_count})
+
+@csrf_exempt # برای سادگی در توسعه، در پروداکشن از CSRF token استفاده کنید
+@login_required # اطمینان از اینکه فقط کاربران لاگین شده توکن ارسال می‌کنند
+def register_fcm_device(request):
+    if request.method == 'POST':
+        try:
+            data = json.loads(request.body)
+            token = data.get('token')
+
+            if not token:
+                return JsonResponse({"status": "error", "message": "No FCM token provided."}, status=400)
+
+            # هر بار که توکن جدیدی دریافت می‌شود، آن را با کاربر فعلی مرتبط می‌کند.
+            # اگر دستگاهی با همین توکن برای کاربر دیگری وجود دارد، به کاربر فعلی اختصاص داده می‌شود.
+            # این کار `fcm_django` را در مدیریت دستگاه‌های هر کاربر یاری می‌دهد.
+            device, created = FCMDevice.objects.get_or_create(
+                user=request.user, # توکن را به کاربر لاگین شده متصل می‌کند
+                registration_id=token,
+                defaults={'active': True} # اگر جدید است، فعال باشد
+            )
+            # اگر دستگاه از قبل وجود داشته، مطمئن می‌شویم که فعال است
+            if not created and not device.active:
+                device.active = True
+                device.save()
+            
+            print(f"DEBUG: FCM Device {'created' if created else 'updated'} for user {request.user.username} with token {token}")
+            return JsonResponse({"status": "success", "message": "FCM device registered successfully."})
+        except json.JSONDecodeError:
+            return JsonResponse({"status": "error", "message": "Invalid JSON."}, status=400)
+        except Exception as e:
+            print(f"ERROR: Failed to register FCM device: {e}")
+            return JsonResponse({"status": "error", "message": str(e)}, status=500)
+    return JsonResponse({"status": "error", "message": "Only POST requests are allowed."}, status=405)
 @login_required
 @permission_required('visits.view_visit_report', raise_exception=True)
 def company_visit_report_view(request):

@@ -50,6 +50,7 @@
                                 <th>کد پرسنلی</th>
                                 <th>شماره موبایل</th>
                                 <th>شرکت</th>
+                                <th>شغل</th> {# اضافه شدن ستون شغل #}
                                 <th>سن</th>
                                 <th>نیازمند پایش</th>
                                 <th>ثبت شده توسط</th>
@@ -74,6 +75,7 @@
                                 <td>{{ patient.personnel_number|default:'---' }}</td>
                                 <td>{{ patient.phone_number|default:'---' }}</td>
                                 <td>{{ patient.company.name|default:'---' }}</td>
+                                <td>{{ patient.occupation|default:'---' }}</td> {# نمایش مقدار شغل #}
                                 <td>{{ patient.age|default:'---' }}</td>
                                 <td>{{ patient.is_monitored|yesno:"بله,خیر" }}</td>
                                 <td>{{ patient.registered_by.username|default:'---' }}</td>
@@ -222,8 +224,6 @@
                             body { -webkit-print-color-adjust: exact; }
                             table { page-break-after: auto; }
                             tr { page-break-inside: avoid; page-break-after: auto; }
-                            /* Ensure background colors print by overriding !important if needed, but the line below is often sufficient for common cases */
-                            /* td, th { background-color: #f2f2f2 !important; } */
                         }
                     </style>
                 </head>
@@ -256,9 +256,10 @@
                 'national_code': 'کد ملی',
                 'phone_number': 'شماره موبایل',
                 'gender': 'جنسیت',
-                'company': 'شرکت', // اگر ID هست و نیاز به تبدیل به نام دارید، اینجا پیچیده‌تر می‌شود
+                'company': 'شرکت',
+                'occupation': 'شغل', // اضافه شدن به پارامترهای فیلتر برای عنوان چاپ
                 'is_monitored': 'نیازمند پایش',
-                'registered_by': 'ثبت شده توسط', // اگر ID هست و نیاز به تبدیل به نام دارید، اینجا پیچیده‌تر می‌شود
+                'registered_by': 'ثبت شده توسط',
                 'birth_date_0': 'تاریخ تولد از',
                 'birth_date_1': 'تاریخ تولد تا',
                 'next_periodic_examination_due_0': 'تاریخ معاینه بعدی از',
@@ -272,9 +273,9 @@
 
                     // Handle specific value translations (e.g., gender, boolean)
                     if (key === 'gender') {
-                        if (value === 'male') displayValue = 'مرد';
-                        else if (value === 'female') displayValue = 'زن';
-                        else if (value === 'other') displayValue = 'سایر';
+                        if (value === 'M') displayValue = 'مرد'; // Changed to 'M' for consistency with choices
+                        else if (value === 'F') displayValue = 'زن'; // Changed to 'F' for consistency with choices
+                        else if (value === 'O') displayValue = 'سایر';
                     } else if (key === 'is_monitored') {
                         displayValue = (value === 'on' || value === 'True' || value === '1') ? 'بله' : 'خیر';
                     }

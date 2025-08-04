@@ -96,6 +96,7 @@ class Visit(models.Model):
         related_name='completed_visits', # نامی برای دسترسی معکوس
         verbose_name="تکمیل کننده"
     )
+    is_read = models.BooleanField(default=False, verbose_name="خوانده شده")
     # --- فیلدهای وضعیت و ارجاع ---
     status = models.CharField(max_length=20, choices=VISIT_STATUS_CHOICES, default='pending', verbose_name="وضعیت ویزیت")
     # related_name به assigned_visits تغییر یافت.

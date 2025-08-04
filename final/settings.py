@@ -16,7 +16,7 @@ SECRET_KEY = 'django-insecure-#3p4$3qq@*o=+_*(!57s-jcbz4^oh4f=uuw5ell)3)7%-=m%pr
 
 # SECURITY WARNING: don't run in debug turned on in production!
 # برای محیط توسعه True باشد. برای محیط پروداکشن حتماً False شود.
-DEBUG = False
+DEBUG = True
 
 # در محیط پروداکشن باید دامنه‌ها یا IP سرور شما باشد.
 # مثال: ['127.0.0.1', 'localhost', '.yourdomain.com', 'your_server_ip']
@@ -118,7 +118,8 @@ TEMPLATES = [
                 'django.template.context_processors.request',
                 'django.contrib.auth.context_processors.auth',
                 'django.contrib.messages.context_processors.messages',
-                'core.context_processors.unread_messages_count', # اضافه شده برای شمارنده پیام‌های خوانده نشده
+                'core.context_processors.unread_messages_count',
+                'core.context_processors.user_groups_processor',  # اضافه شده برای شمارنده پیام‌های خوانده نشده
             ],
         },
     },
@@ -156,7 +157,15 @@ AUTH_PASSWORD_VALIDATORS = [
     },
 ]
 
+FCM_SERVICE_ACCOUNT_KEY_PATH = BASE_DIR / 'behdari-8f765-firebase-adminsdk-fbsvc-54b0c8c7b6.json'
 
+FCM_DJANGO_SETTINGS = {
+    "FCM_SERVER_KEY": "",  # این فیلد برای API Key legacy است و در روش جدید (Admin SDK) نیازی به آن نیست. خالی بگذارید.
+    "ONE_DEVICE_PER_USER": True,  # هر کاربر فقط یک دستگاه می‌تواند برای نوتیفیکیشن ثبت کند
+    "DELETE_INACTIVE_DEVICES": True,  # دستگاه‌های غیرفعال به صورت خودکار حذف شوند
+    "APP_VERBOSE_NAME": "بهداری", # نام نمایش داده شده برای اپلیکیشن شما در کنسول فایربیس
+    "FIREBASE_ADMIN_CERTIFICATE": FCM_SERVICE_ACCOUNT_KEY_PATH, # مسیر فایل کلید حساب سرویس
+}
 # Internationalization
 # https://docs.djangoproject.com/en/5.2/topics/i18n/
 

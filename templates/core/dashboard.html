@@ -7,6 +7,8 @@
 
     <div class="row mx-3">
         {# کارت ویزیت‌های ارجاعی جدید #}
+        {# این کارت احتمالا برای تمام کادر پزشکی و پرستاری قابل مشاهده است #}
+        {% if request.user.is_authenticated and is_medical_staff %}
         <div class="col-md-4 mb-4">
             <div class="card shadow-sm border-0">
                 <div class="card-body">
@@ -21,8 +23,10 @@
                 </div>
             </div>
         </div>
+        {% endif %}
 
-        {# سایر کارت‌های داشبورد شما #}
+        {# کارت بیماران - مثلاً فقط برای پزشکان، سرپرست‌ها (Supervisor) و پرسنل پذیرش #}
+        {% if request.user.is_superuser or is_doctor or is_supervisor or is_personnel %}
         <div class="col-md-4 mb-4">
             <div class="card shadow-sm border-0">
                 <div class="card-body">
@@ -32,6 +36,13 @@
                 </div>
             </div>
         </div>
+        {% endif %}
+
+        {# کارت داروها - مثلاً فقط برای داروسازان یا کادر انبار #}
+        {# در Context Processor شما نقش Pharmacist یا Warehouse Manager تعریف نشده است. #}
+        {# اگر این گروه‌ها را دارید، باید به user_groups_processor اضافه شوند. #}
+        {# فعلا فرض می‌کنیم فقط Supervisor یا Medical Staff دسترسی دارند. #}
+        {% if request.user.is_superuser or is_supervisor or is_medical_staff %}
         <div class="col-md-4 mb-4">
             <div class="card shadow-sm border-0">
                 <div class="card-body">
@@ -41,6 +52,10 @@
                 </div>
             </div>
         </div>
+        {% endif %}
+
+        {# کارت ویزیت‌ها - مثلاً برای پزشکان، سرپرست‌ها (Supervisor) و پرستاران #}
+        {% if request.user.is_superuser or is_doctor or is_supervisor or is_nurse %}
         <div class="col-md-4 mb-4">
             <div class="card shadow-sm border-0">
                 <div class="card-body">
@@ -50,6 +65,10 @@
                 </div>
             </div>
         </div>
+        {% endif %}
+
+        {# کارت پیام‌ها - برای همه کاربران لاگین کرده #}
+        {% if request.user.is_authenticated %}
         <div class="col-md-4 mb-4">
             <div class="card shadow-sm border-0">
                 <div class="card-body">
@@ -59,6 +78,10 @@
                 </div>
             </div>
         </div>
+        {% endif %}
+
+        {# کارت درخواست‌های دارو - مثلاً برای پزشکان و پرستاران و سرپرست‌ها #}
+        {% if request.user.is_superuser or is_doctor or is_nurse or is_supervisor %}
         <div class="col-md-4 mb-4">
             <div class="card shadow-sm border-0">
                 <div class="card-body">
@@ -68,6 +91,10 @@
                 </div>
             </div>
         </div>
+        {% endif %}
+
+        {# کارت فاکتورهای خرید - مثلاً برای حسابداران یا سرپرست‌ها #}
+        {% if request.user.is_superuser or is_accountant or is_supervisor %}
         <div class="col-md-4 mb-4">
             <div class="card shadow-sm border-0">
                 <div class="card-body">
@@ -77,8 +104,10 @@
                 </div>
             </div>
         </div>
+        {% endif %}
         
-       
+        {# کارت تامین‌کنندگان - مثلاً برای سرپرست‌ها، حسابداران یا تامین‌کنندگان (اگر تامین‌کنندگان هم لاگین می‌کنند) #}
+        {% if request.user.is_superuser or is_supervisor or is_accountant or is_supplier %}
         <div class="col-md-4 mb-4">
             <div class="card shadow-sm border-0">
                 <div class="card-body">
@@ -88,30 +117,17 @@
                 </div>
             </div>
         </div>
+        {% endif %}
     </div>
 {% endblock %}
 
 {% block extra_js %}
 <script>
-    function getCookie(name) {
-        let cookieValue = null;
-        if (document.cookie && document.cookie !== '') {
-            const cookies = document.cookie.split(';');
-            for (let i = 0; i < cookies.length; i++) {
-                const cookie = cookies[i].trim();
-                if (cookie.substring(0, name.length + 1) === (name + '=')) {
-                    cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
-                    break;
-                }
-            }
-        }
-        return cookieValue;
-    }
-
-    const csrftoken = getCookie('csrftoken');
+    const csrftoken = "{{ csrf_token }}"; 
 
     function fetchUnreadVisitsCount() {
-        fetch('{% url "clinic_messages:api_unread_count" %}', {
+        // ✅ این خط اصلاح شد: حالا به API صحیح ویزیت‌های ارجاعی اشاره می‌کند.
+        fetch('{% url "visits:api_unread_referred_visits_count" %}', { 
             method: 'GET',
             headers: {
                 'X-CSRFToken': csrftoken,
@@ -122,21 +138,33 @@
             if (!response.ok) {
                 if (response.status === 401) {
                     console.warn("User not authenticated for unread count. Redirecting to login.");
-                    window.location.href = "{% url 'login' %}"; // یا مسیر صفحه ورود شما
+                    window.location.href = "{% url 'login' %}";
                 }
+                console.error('Network response was not ok', response.statusText); // ✅ اضافه کردن لاگ
                 throw new Error('Network response was not ok');
             }
             return response.json();
         })
         .then(data => {
+            console.log('Received unread visits count:', data.count); // ✅ اضافه کردن لاگ برای دیباگ
             const unreadCount = data.count;
-            document.getElementById('unreadVisitsCount').innerText = unreadCount;
+            const unreadVisitsCountElement = document.getElementById('unreadVisitsCount');
             const unreadVisitsBadge = document.getElementById('unreadVisitsBadge');
 
-            if (unreadCount > 0) {
-                unreadVisitsBadge.style.display = 'inline-block'; // نمایش badge
+            if (unreadVisitsCountElement) {
+                unreadVisitsCountElement.innerText = unreadCount;
             } else {
-                unreadVisitsBadge.style.display = 'none'; // مخفی کردن badge
+                console.error('Element with ID "unreadVisitsCount" not found.');
+            }
+
+            if (unreadVisitsBadge) {
+                if (unreadCount > 0) {
+                    unreadVisitsBadge.style.display = 'inline-block';
+                } else {
+                    unreadVisitsBadge.style.display = 'none';
+                }
+            } else {
+                console.error('Element with ID "unreadVisitsBadge" not found.');
             }
         })
         .catch(error => {
@@ -145,8 +173,13 @@
     }
 
     document.addEventListener('DOMContentLoaded', function() {
-        fetchUnreadVisitsCount();
-        setInterval(fetchUnreadVisitsCount, 10000); // هر 10 ثانیه یک بار رفرش شود
+        // مطمئن شوید که کاربر لاگین کرده و عضو کادر پزشکی است تا درخواست فرستاده شود.
+        // این منطق قبلاً در تمپلیت جنگو وجود داشت.
+        const unreadVisitsBadge = document.getElementById('unreadVisitsBadge');
+        if (unreadVisitsBadge) { // فقط در صورتی که کارت وجود دارد، API را فراخوانی کنید
+            fetchUnreadVisitsCount();
+            setInterval(fetchUnreadVisitsCount, 10000);
+        }
     });
 </script>
 {% endblock %}

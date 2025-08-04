@@ -1,0 +1,23 @@
+{% extends "base.html" %} {% block content %}
+<div class="container mt-4">
+    <h2>تکمیل فرم نظریه برای: {{ patient.full_name }}</h2>
+    <p>تاریخ معاینه: {{ examination.exam_date }}</p>
+
+    <div class="alert alert-info">
+        لطفاً نام مسئولین مربوطه را برای درج در فرم چاپی وارد کنید.
+    </div>
+
+    <form method="post" action="{% url 'lab_results:generate_opinion_form' examination.id %}">
+        {% csrf_token %}
+        <div class="form-group mb-3">
+            <label for="health_expert_name"><b>نام نظر دهنده واحد بهداشت حرفه‌ای:</b></label>
+            <input type="text" class="form-control" id="health_expert_name" name="health_expert_name" placeholder="مثال: دکتر مهدی هوشمند" required>
+        </div>
+        <div class="form-group mb-3">
+            <label for="safety_expert_name"><b>نام نظر دهنده واحد ایمنی:</b></label>
+            <input type="text" class="form-control" id="safety_expert_name" name="safety_expert_name" placeholder="مثال: امیر لطفی" required>
+        </div>
+        <button type="submit" class="btn btn-primary">ایجاد فرم چاپی</button>
+    </form>
+</div>
+{% endblock %}

@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "1027377060017",
+    "project_id": "behdari-8f765",
+    "storage_bucket": "behdari-8f765.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:1027377060017:android:ce8b0c53b25c18e29caa90",
+        "android_client_info": {
+          "package_name": "Notif.Alert"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDZj2z7Ur_-A6IWOSsJ-cVkkEk2nhj0lbM"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

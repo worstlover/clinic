@@ -1,297 +1,453 @@
-{% extends 'base.html' %}
 {% load static %}
+{% load jalali_tags %}
+{% load crispy_forms_tags %}
 
-{% block title %}گزارش کامل معاینات {{ patient.full_name }}{% endblock %}
-
-{% block content %}
-
-<style>
-    /* توصیه حرفه‌ای: در یک پروژه واقعی، بهتر است این استایل‌ها به یک فایل CSS جداگانه
-      (مانند 'css/report_styles.css') منتقل و با تگ 'static' فراخوانی شوند.
-    */
-    body {
-        font-family: 'Vazirmatn', 'B Nazanin', sans-serif;
-        margin: 0;
-        padding: 20px;
-        background-color: #f4f4f4;
-        color: #333;
-        line-height: 1.8;
-    }
-    .container {
-        max-width: 1000px;
-        margin: 20px auto;
-        background-color: #fff;
-        padding: 30px;
-        border-radius: 8px;
-        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
-    }
-    h1 {
-        text-align: center;
-        color: #003366;
-        font-size: 1.8em;
-    }
-    h2 {
-        color: #0056b3;
-        border-bottom: 2px solid #eee;
-        padding-bottom: 10px;
-        margin-top: 40px; /* فاصله بیشتر بین هر دوره معاینه */
-        font-size: 1.6em;
-    }
-    h3 {
-        font-size: 1.2em;
-        color: #004085;
-        background-color: #e9f5ff;
-        padding: 12px 15px;
-        margin: -16px -16px 20px -16px; /* برای چسبیدن به لبه‌های section */
-        border-radius: 5px 5px 0 0;
-        border-bottom: 1px solid #cceeff;
-    }
-    .section {
-        margin-bottom: 25px;
-        padding: 15px;
-        border: 1px solid #e0e0e0;
-        border-radius: 5px;
-        background-color: #fdfdfd;
-        overflow: hidden; /* برای مدیریت margin منفی h3 */
-    }
-    .data-grid {
-        display: grid;
-        grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
-        gap: 15px;
-    }
-    .data-item {
-        background-color: #f9f9f9;
-        padding: 10px;
-        border-radius: 4px;
-        border-right: 4px solid #007bff;
-        display: flex;
-        flex-direction: column;
-    }
-    .data-label {
-        font-weight: bold;
-        color: #555;
-        font-size: 0.9em;
-        margin-bottom: 5px;
-    }
-    .data-value {
-        color: #222;
-        word-wrap: break-word;
-        font-size: 1em;
-    }
-    table {
-        width: 100%;
-        border-collapse: collapse;
-        margin-top: 15px;
-    }
-    th, td {
-        border: 1px solid #ddd;
-        padding: 12px;
-        text-align: right;
-        vertical-align: middle;
-    }
-    th {
-        background-color: #f2f2f2;
-        font-weight: bold;
-    }
-    tbody tr:nth-child(even) { background-color: #f9f9f9; }
-    .no-data {
-        color: #888;
-        font-style: italic;
-        text-align: center;
-        padding: 20px;
-        background-color: #fafafa;
-        border: 1px dashed #ddd;
-        border-radius: 5px;
-    }
-    .button-group {
-        display: flex;
-        justify-content: center;
-        gap: 15px;
-        margin-top: 30px;
-        padding-top: 20px;
-        border-top: 1px solid #eee;
-    }
-    .action-button {
-        padding: 12px 25px;
-        color: white;
-        text-decoration: none;
-        border-radius: 5px;
-        transition: background-color 0.3s ease, transform 0.2s ease;
-        border: none;
-        cursor: pointer;
-        font-size: 1em;
-    }
-    .action-button:hover { transform: translateY(-2px); }
-    .back-button { background-color: #6c757d; }
-    .print-button { background-color: #28a745; }
-
-    @media print {
-        body, .container {
-            background-color: #fff;
-            box-shadow: none;
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>نتایج آزمایشات - {{ patient.first_name }} {{ patient.last_name }}</title>
+    <link href="{% static 'css/bootstrap.rtl.min.css' %}" rel="stylesheet">
+    <link href="{% static 'css/styles.css' %}" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Tahoma', sans-serif;
+            direction: rtl;
+            text-align: right;
             margin: 0;
-            padding: 0;
-            font-size: 12px; /* سایز فونت مناسب برای چاپ */
+            padding: 20px;
+            background-color: #f8f9fa;
         }
-        .button-group, .sidebar, .navbar { display: none; }
-        .section {
+        .container-fluid {
+            max-width: 1200px;
+            margin: auto;
+            background-color: #fff;
+            padding: 30px;
+            border-radius: 8px;
+            box-shadow: 0 0 15px rgba(0, 0, 0, 0.1);
+        }
+        h1, h2, h3, h4, h5, h6 {
+            color: #343a40;
+            margin-bottom: 20px;
+        }
+        .header-section {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 30px;
+            border-bottom: 2px solid #e9ecef;
+            padding-bottom: 15px;
+        }
+        .header-section .logo {
+            max-height: 80px;
+        }
+        .header-section .title {
+            text-align: center;
+            flex-grow: 1;
+        }
+        .header-section .contact-info {
+            text-align: left;
+            font-size: 0.9em;
+            color: #6c757d;
+        }
+        .patient-info, .exam-details, .lab-results, .clinical-measurements,
+        .examination-details, .optometry-results, .audiometry-results,
+        .spirometry-results, .ecg-results, .sonography-results {
+            margin-bottom: 25px;
+            border: 1px solid #dee2e6;
+            border-radius: 5px;
+            padding: 20px;
+            background-color: #fdfdfd;
+        }
+        .patient-info .info-row, .exam-details .info-row, .section-info-row {
+            display: flex;
+            flex-wrap: wrap;
+            margin-bottom: 10px;
+        }
+        .patient-info .info-item, .exam-details .info-item, .section-info-item {
+            flex: 1 1 30%; /* Adjust as needed */
+            min-width: 200px;
+            margin-bottom: 10px;
+        }
+        .patient-info .info-item label, .exam-details .info-item label, .section-info-item label {
+            font-weight: bold;
+            color: #495057;
+            margin-left: 5px;
+        }
+        .patient-info .info-item span, .exam-details .info-item span, .section-info-item span {
+            color: #343a40;
+        }
+        .table {
+            width: 100%;
+            margin-bottom: 1rem;
+            color: #212529;
+            border-collapse: collapse;
+        }
+        .table th, .table td {
+            padding: 0.75rem;
+            vertical-align: top;
+            border-top: 1px solid #dee2e6;
+            text-align: right;
+        }
+        .table thead th {
+            vertical-align: bottom;
+            border-bottom: 2px solid #dee2e6;
+            background-color: #e9ecef;
+            color: #495057;
+        }
+        .table tbody + tbody {
+            border-top: 2px solid #dee2e6;
+        }
+        .table .table-striped tbody tr:nth-of-type(odd) {
+            background-color: rgba(0, 0, 0, 0.05);
+        }
+        .notes-section {
+            background-color: #e9f7ef;
+            border: 1px solid #c3e6cb;
+            padding: 15px;
+            border-radius: 5px;
+            margin-top: 20px;
+        }
+        .notes-section p {
+            margin-bottom: 5px;
+            color: #155724;
+        }
+        .signature-section {
+            display: flex;
+            justify-content: space-around;
+            margin-top: 50px;
+            padding-top: 20px;
+            border-top: 1px dashed #ced4da;
+        }
+        .signature-block {
+            text-align: center;
+            width: 30%;
+        }
+        .signature-block img {
+            max-width: 150px;
+            height: auto;
+            display: block;
+            margin: 0 auto 10px auto;
             border: 1px solid #ccc;
-            page-break-inside: avoid;
+            padding: 5px;
+            background-color: #fff;
         }
-        h2, h3 { color: #000 !important; }
-        h3 { background-color: #f2f2f2 !important; }
-    }
-</style>
+        .signature-block p {
+            margin: 5px 0 0 0;
+            font-size: 0.9em;
+            color: #555;
+        }
+        .print-button-container {
+            text-align: center;
+            margin-top: 30px;
+        }
 
-<div class="container" id="report-container">
-    <h1>گزارش کامل معاینات</h1>
-
-    {% if patient %}
-        {# بخش اطلاعات دموگرافیک بیمار - ثابت برای کل گزارش #}
-        <div class="section">
-            <h3>اطلاعات بیمار</h3>
-            <div class="data-grid">
-                <div class="data-item"><span class="data-label">نام کامل:</span> <span class="data-value">{{ patient.full_name }}</span></div>
-                <div class="data-item"><span class="data-label">کد ملی:</span> <span class="data-value">{{ patient.national_code|default:"-" }}</span></div>
-                <div class="data-item"><span class="data-label">شماره پاسپورت:</span> <span class="data-value">{{ patient.passport_number|default:"-" }}</span></div>
-                <div class="data-item"><span class="data-label">تاریخ تولد (شمسی):</span> <span class="data-value">{{ patient.birth_date_jalali|default:"-" }}</span></div>
-                <div class="data-item"><span class="data-label">شماره تماس:</span> <span class="data-value">{{ patient.phone_number|default:"-" }}</span></div>
-                <div class="data-item"><span class="data-label">آدرس:</span> <span class="data-value">{{ patient.address|default:"-" }}</span></div>
+        /* Print specific styles */
+        @media print {
+            body {
+                padding: 0;
+                margin: 0;
+                background-color: #fff;
+            }
+            .container-fluid {
+                box-shadow: none;
+                padding: 0;
+            }
+            .no-print {
+                display: none !important;
+            }
+            .page-break {
+                page-break-after: always;
+            }
+            .header-section, .patient-info, .exam-details, .lab-results,
+            .clinical-measurements, .examination-details, .optometry-results,
+            .audiometry-results, .spirometry-results, .ecg-results,
+            .sonography-results, .notes-section, .signature-section {
+                border: none; /* Remove borders for print */
+                padding: 0;
+                margin-bottom: 15px; /* Adjust spacing for print */
+            }
+            .table th, .table td {
+                border-color: #ccc; /* Lighter borders for tables */
+            }
+            .table thead th {
+                background-color: #f2f2f2;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container-fluid">
+        <div class="header-section no-print">
+            <img src="{% static 'img/logo.png' %}" alt="لوگو" class="logo">
+            <div class="title">
+                <h2>نتایج معاینات و آزمایشات</h2>
+                <h3>شرکت  آهن و فولاد غدیر ایرانیان</h3>
+            </div>
+            <div class="contact-info">
+                
+                <p>آدرس: یزد-بهاباد کارخانه گندله سازی بهاباد</p>
             </div>
         </div>
 
-        {# حلقه اصلی برای نمایش هر معاینه دوره‌ای ثبت شده برای بیمار #}
-        {% for exam in periodic_examinations %}
-            <hr style="border: 1px solid #0056b3; border-radius: 2px; margin: 40px 0;">
-            <h2>معاینه در تاریخ: {{ exam.exam_date_jalali|default:exam.exam_date }}</h2>
+        <div class="print-button-container no-print">
+            <button onclick="window.print()" class="btn btn-primary">چاپ صفحه</button>
+            <a href="{% url 'core:patient_list' %}" class="btn btn-secondary">بازگشت به لیست بیماران</a>
+        </div>
 
-            <div class="section">
-                <h3>اطلاعات کلی معاینه</h3>
-                <div class="data-grid">
-                    <div class="data-item"><span class="data-label">تاریخ پذیرش:</span> <span class="data-value">{{ exam.admission_date_jalali|default:"-" }}</span></div>
-                    <div class="data-item"><span class="data-label">تاریخ صدور نظریه:</span> <span class="data-value">{{ exam.final_opinion_date_jalali|default:"-" }}</span></div>
-                    <div class="data-item"><span class="data-label">نام پزشک:</span> <span class="data-value">{{ exam.final_opinion_doctor|default:"-" }}</span></div>
-                    <div class="data-item"><span class="data-label">نظریه نهایی:</span> <span class="data-value">{{ exam.get_final_opinion_conditions_display|default:exam.final_opinion_conditions|default:"-" }}</span></div>
-                    <div class="data-item" style="grid-column: 1 / -1;"><span class="data-label">توضیحات کلی:</span> <span class="data-value">{{ exam.overall_notes|default:"ندارد" }}</span></div>
-                </div>
+        <h3>مشخصات بیمار:</h3>
+        <div class="patient-info">
+            <div class="info-row">
+                <div class="info-item"><label>نام:</label> <span>{{ patient.first_name }}</span></div>
+                <div class="info-item"><label>نام خانوادگی:</label> <span>{{ patient.last_name }}</span></div>
+                <div class="info-item"><label>نام پدر:</label> <span>{{ patient.father_name }}</span></div>
+                <div class="info-item"><label>کد ملی:</label> <span>{{ patient.national_code }}</span></div>
+                <div class="info-item"><label>شماره پاسپورت:</label> <span>{{ patient.passport_number|default:"-" }}</span></div> {# اضافه شده #}
+                <div class="info-item"><label>تاریخ تولد:</label> <span>{{ patient.jalali_date_of_birth }}</span></div>
+                <div class="info-item"><label>سن:</label> <span>{{ patient.age }}</span></div>
+                <div class="info-item"><label>جنسیت:</label> <span>{% if patient.gender == 'M' %}مرد{% elif patient.gender == 'F' %}زن{% else %}-{% endif %}</span></div>
+                <div class="info-item"><label>شماره پرسنلی:</label> <span>{{ patient.personnel_number|default:"-" }}</span></div>
+                <div class="info-item"><label>شغل:</label> <span>{{ patient.occupation|default:"-" }}</span></div>
+                <div class="info-item"><label>گروه خونی:</label> <span>{{ patient.blood_type|default:"-" }}</span></div>
+                <div class="info-item"><label>موبایل:</label> <span>{{ patient.phone_number|default:"-" }}</span></div>
+                <div class="info-item"><label>آدرس:</label> <span>{{ patient.address|default:"-" }}</span></div>
             </div>
+        </div>
 
-            {# بخش اندازه‌گیری‌های بالینی #}
-            {% if exam.clinicalmeasurement %}
-            <div class="section">
-                <h3>اندازه‌گیری‌های بالینی</h3>
-                <div class="data-grid">
-                    <div class="data-item"><span class="data-label">وزن:</span> <span class="data-value">{{ exam.clinicalmeasurement.weight|default:"-" }} kg</span></div>
-                    <div class="data-item"><span class="data-label">قد:</span> <span class="data-value">{{ exam.clinicalmeasurement.height|default:"-" }} cm</span></div>
-                    <div class="data-item"><span class="data-label">BMI:</span> <span class="data-value">{{ exam.clinicalmeasurement.bmi|floatformat:2|default:"-" }}</span></div>
-                    <div class="data-item"><span class="data-label">فشارخون:</span> <span class="data-value">{{ exam.clinicalmeasurement.systolic_bp|default:"-" }}/{{ exam.clinicalmeasurement.diastolic_bp|default:"-" }} mmHg</span></div>
-                    <div class="data-item"><span class="data-label">نبض:</span> <span class="data-value">{{ exam.clinicalmeasurement.pulse|default:"-" }} bpm</span></div>
-                </div>
-            </div>
-            {% endif %}
+        {% if periodic_examinations %}
+            {% for exam in periodic_examinations %}
+                <h3>جزئیات معاینه دوره‌ای - تاریخ: {{ exam.jalali_exam_date }}</h3>
+                <div class="exam-details">
+                    <div class="info-row">
+                        <div class="info-item"><label>تاریخ پذیرش:</label> <span>{{ exam.admission_date|to_jalali:"%Y/%m/%d"|default:"-" }}</span></div>
+                        <div class="info-item"><label>پزشک نظر نهایی:</label> <span>{{ exam.final_opinion_doctor.get_full_name|default:"-" }}</span></div>
+                        <div class="info-item"><label>تاریخ نظر نهایی:</label> <span>{{ exam.final_opinion_date|to_jalali:"%Y/%m/%d"|default:"-" }}</span></div>
+                        <div class="info-item"><label>متن نظریه نهایی:</label> <span>{{ exam.final_opinion_text|default:"-" }}</span></div> {# اضافه شده #}
+                        <div class="info-item"><label>شروط نظریه نهایی:</label> <span>{{ exam.final_opinion_conditions|default:"-" }}</span></div> {# اضافه شده #}
+                    </div>
 
-            {# بخش نتایج آزمایشگاهی (جدول بهبود یافته) #}
-            {% if exam.lab_parameters.all %}
-            <div class="section">
-                <h3>نتایج آزمایشگاهی</h3>
-                <table>
-                    <thead>
-                        <tr>
-                            <th>نوع آزمایش</th>
-                            <th>مقدار</th>
-                            <th>واحد</th>
-                            <th>رنج نرمال</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {% for param in exam.lab_parameters.all %}
-                        <tr>
-                            <td>{{ param.test_type.name }}</td>
-                            <td>{{ param.result_value }}</td>
-                            <td>{{ param.test_type.unit|default:"-" }}</td>
-                            <td>{{ param.test_type.normal_range_min|default:"" }} - {{ param.test_type.normal_range_max|default:"" }}</td>
-                        </tr>
+                    {% if exam.overall_notes %}
+                    <div class="notes-section">
+                        <h5>علائم و توضیحات کلی ثبت شده:</h5>
+                        <p>{{ exam.overall_notes }}</p>
+                    </div>
+                    {% endif %}
+
+                    {% if final_opinions %}
+                    {# این بخش به صورت کلی برای همه نظریه های نهایی بود، نه برای هر معاینه خاص. اگر منظور نظریه های ثبت شده برای همین معاینه است، باید از طریق relationship به Opinion مدل دسترسی پیدا کنید #}
+                    {# در حال حاضر، 'final_opinion_text' و 'final_opinion_conditions' را مستقیماً از 'exam' نمایش می‌دهیم #}
+                    {% endif %}
+
+                    {% if exam.clinical_measurements %}
+                    <h4>اندازه‌گیری‌های بالینی:</h4>
+                    <div class="clinical-measurements">
+                        <div class="info-row">
+                            <div class="info-item"><label>وزن:</label> <span>{{ exam.clinical_measurements.weight|default:"-" }} kg</span></div>
+                            <div class="info-item"><label>قد:</label> <span>{{ exam.clinical_measurements.height|default:"-" }} cm</span></div>
+                            <div class="info-item"><label>BMI:</label> <span>{{ exam.clinical_measurements.bmi|default:"-" }}</span></div>
+                            <div class="info-item"><label>فشار خون سیستولیک:</label> <span>{{ exam.clinical_measurements.systolic_bp|default:"-" }} mmHg</span></div>
+                            <div class="info-item"><label>فشار خون دیاستولیک:</label> <span>{{ exam.clinical_measurements.diastolic_bp|default:"-" }} mmHg</span></div>
+                            <div class="info-item"><label>نبض:</label> <span>{{ exam.clinical_measurements.pulse|default:"-" }} bpm</span></div>
+                        </div>
+                    </div>
+                    {% endif %}
+
+                    {% if exam.lab_results.all %}
+                    <h4>نتایج آزمایشگاهی:</h4>
+                    <div class="lab-results">
+                        <table class="table table-striped">
+                            <thead>
+                                <tr>
+                                    <th>نام تست</th>
+                                    <th>مقدار نتیجه</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for lab_result in exam.lab_results.all %}
+                                <tr>
+                                    <td>{{ lab_result.test_type.name }}</td>
+                                    <td>{{ lab_result.result_value }}</td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                    {% endif %}
+
+                    {% if exam.details.all %}
+                    <h4>جزئیات معاینات:</h4>
+                    <div class="examination-details">
+                        {% for detail in exam.details.all %}
+                        <h5>{{ detail.get_section_display }}</h5>
+                        <div class="info-row">
+                            <div class="info-item"><label>Sign:</label> <span>{{ detail.sign|default:"-" }}</span></div>
+                            <div class="info-item"><label>Symptom:</label> <span>{{ detail.symptom|default:"-" }}</span></div>
+                        </div>
+                        {% if detail.notes %}
+                        <div class="notes-section">
+                            <p>توضیحات: {{ detail.notes }}</p>
+                        </div>
+                        {% endif %}
                         {% endfor %}
-                    </tbody>
-                </table>
+                    </div>
+                    {% endif %}
+
+                    {% if exam.optometry_result %}
+                    <h4>نتایج بینایی‌سنجی:</h4>
+                    <div class="optometry-results">
+                        <div class="section-info-row">
+                            <div class="section-info-item"><label>حدت بینایی (دید دور) R (بدون اصلاح):</label> <span>{{ exam.optometry_result.va_distant_r_uncorrected|default:"-" }}</span></div>
+                            <div class="section-info-item"><label>حدت بینایی (دید دور) L (بدون اصلاح):</label> <span>{{ exam.optometry_result.va_distant_l_uncorrected|default:"-" }}</span></div>
+                            <div class="section-info-item"><label>حدت بینایی (دید دور) دوچشمی (بدون اصلاح):</label> <span>{{ exam.optometry_result.va_distant_ou_uncorrected|default:"-" }}</span></div>
+                            <div class="section-info-item"><label>حدت بینایی (دید دور) R (با اصلاح):</label> <span>{{ exam.optometry_result.va_distant_r_corrected|default:"-" }}</span></div>
+                            <div class="section-info-item"><label>حدت بینایی (دید دور) L (با اصلاح):</label> <span>{{ exam.optometry_result.va_distant_l_corrected|default:"-" }}</span></div>
+                            <div class="section-info-item"><label>حدت بینایی (دید دور) دوچشمی (با اصلاح):</label> <span>{{ exam.optometry_result.va_distant_ou_corrected|default:"-" }}</span></div>
+
+                            {# اضافه شدن فیلدهای FC, HM, LP #}
+                            <div class="section-info-item"><label>حدت بینایی (دید دور) FC - R:</label> <span>{{ exam.optometry_result.va_distant_fc_r|default:"-" }}</span></div>
+                            <div class="section-info-item"><label>حدت بینایی (دید دور) FC - L:</label> <span>{{ exam.optometry_result.va_distant_fc_l|default:"-" }}</span></div>
+                            <div class="section-info-item"><label>حدت بینایی (دید دور) FC - دوچشمی:</label> <span>{{ exam.optometry_result.va_distant_fc_ou|default:"-" }}</span></div>
+                            <div class="section-info-item"><label>حدت بینایی (دید دور) HM - R:</label> <span>{{ exam.optometry_result.va_distant_hm_r|default:"-" }}</span></div>
+                            <div class="section-info-item"><label>حدت بینایی (دید دور) HM - L:</label> <span>{{ exam.optometry_result.va_distant_hm_l|default:"-" }}</span></div>
+                            <div class="section-info-item"><label>حدت بینایی (دید دور) HM - دوچشمی:</label> <span>{{ exam.optometry_result.va_distant_hm_ou|default:"-" }}</span></div>
+                            <div class="section-info-item"><label>حدت بینایی (دید دور) LP - R:</label> <span>{{ exam.optometry_result.va_distant_lp_r|default:"-" }}</span></div>
+                            <div class="section-info-item"><label>حدت بینایی (دید دور) LP - L:</label> <span>{{ exam.optometry_result.va_distant_lp_l|default:"-" }}</span></div>
+                            <div class="section-info-item"><label>حدت بینایی (دید دور) LP - دوچشمی:</label> <span>{{ exam.optometry_result.va_distant_lp_ou|default:"-" }}</span></div>
+
+                            <div class="section-info-item"><label>دید رنگی R:</label> <span>{{ exam.optometry_result.color_vision_r|default:"-" }}</span></div>
+                            <div class="section-info-item"><label>دید رنگی L:</label> <span>{{ exam.optometry_result.color_vision_l|default:"-" }}</span></div>
+                            <div class="section-info-item"><label>دید رنگی Field Test - R:</label> <span>{{ exam.optometry_result.color_vision_field_r|default:"-" }}</span></div> {# اضافه شده #}
+                            <div class="section-info-item"><label>دید رنگی Field Test - L:</label> <span>{{ exam.optometry_result.color_vision_field_l|default:"-" }}</span></div> {# اضافه شده #}
+                            <div class="section-info-item"><label>نوع تست دید رنگی:</label> <span>{{ exam.optometry_result.color_vision_test_type|default:"-" }}</span></div> {# اضافه شده #}
+
+                            <div class="section-info-item"><label>میدان بینایی R:</label> <span>{{ exam.optometry_result.visual_field_r|default:"-" }}</span></div> {# اضافه شده #}
+                            <div class="section-info-item"><label>میدان بینایی L:</label> <span>{{ exam.optometry_result.visual_field_l|default:"-" }}</span></div> {# اضافه شده #}
+                            <div class="section-info-item"><label>نوع تست میدان بینایی:</label> <span>{{ exam.optometry_result.visual_field_test_type|default:"-" }}</span></div> {# اضافه شده #}
+                            <div class="section-info-item"><label>عمق دید (ثانیه آرک):</label> <span>{{ exam.optometry_result.depth_perception|default:"-" }}</span></div> {# اضافه شده #}
+
+                            <div class="section-info-item"><label>استفاده از عینک:</label> <span>{% if exam.optometry_result.uses_glasses %}بله{% else %}خیر{% endif %}</span></div>
+                            <div class="section-info-item"><label>استفاده از لنز طبی:</label> <span>{% if exam.optometry_result.uses_contact_lens %}بله{% else %}خیر{% endif %}</span></div>
+                        </div>
+                        {% if exam.optometry_result.notes %}
+                        <div class="notes-section">
+                            <p>توضیحات: {{ exam.optometry_result.notes }}</p>
+                        </div>
+                        {% endif %}
+                    </div>
+                    {% endif %}
+
+                    {% if exam.audiometry_result %}
+                    <h4>نتایج شنوایی‌سنجی:</h4>
+                    <div class="audiometry-results">
+                        <div class="section-info-row">
+                            <div class="section-info-item"><label>نتیجه گوش راست:</label> <span>{{ exam.audiometry_result.right_result|default:"-" }}</span></div>
+                            <div class="section-info-item"><label>نتیجه گوش چپ:</label> <span>{{ exam.audiometry_result.left_result|default:"-" }}</span></div>
+                            <div class="section-info-item"><label>نتیجه گوش راست (سایر):</label> <span>{{ exam.audiometry_result.right_result_other|default:"-" }}</span></div> {# اضافه شده #}
+                            <div class="section-info-item"><label>نتیجه گوش چپ (سایر):</label> <span>{{ exam.audiometry_result.left_result_other|default:"-" }}</span></div> {# اضافه شده #}
+                        </div>
+                        <h5>حدود آستانه شنیداری (AC - هوا):</h5>
+                        <div class="section-info-row">
+                            <div class="section-info-item"><label>راست 125Hz:</label> <span>{{ exam.audiometry_result.right_ac_125|default:"-" }} dB</span></div> {# اضافه شده #}
+                            <div class="section-info-item"><label>راست 250Hz:</label> <span>{{ exam.audiometry_result.right_ac_250|default:"-" }} dB</span></div> {# اضافه شده #}
+                            <div class="section-info-item"><label>راست 500Hz:</label> <span>{{ exam.audiometry_result.right_ac_500|default:"-" }} dB</span></div>
+                            <div class="section-info-item"><label>راست 1000Hz:</label> <span>{{ exam.audiometry_result.right_ac_1000|default:"-" }} dB</span></div>
+                            <div class="section-info-item"><label>راست 2000Hz:</label> <span>{{ exam.audiometry_result.right_ac_2000|default:"-" }} dB</span></div>
+                            <div class="section-info-item"><label>راست 3000Hz:</label> <span>{{ exam.audiometry_result.right_ac_3000|default:"-" }} dB</span></div>
+                            <div class="section-info-item"><label>راست 4000Hz:</label> <span>{{ exam.audiometry_result.right_ac_4000|default:"-" }} dB</span></div>
+                            <div class="section-info-item"><label>راست 6000Hz:</label> <span>{{ exam.audiometry_result.right_ac_6000|default:"-" }} dB</span></div>
+                            <div class="section-info-item"><label>راست 8000Hz:</label> <span>{{ exam.audiometry_result.right_ac_8000|default:"-" }} dB</span></div>
+                            <div class="section-info-item"><label>چپ 500Hz:</label> <span>{{ exam.audiometry_result.left_ac_500|default:"-" }} dB</span></div>
+                            <div class="section-info-item"><label>چپ 1000Hz:</label> <span>{{ exam.audiometry_result.left_ac_1000|default:"-" }} dB</span></div>
+                            <div class="section-info-item"><label>چپ 2000Hz:</label> <span>{{ exam.audiometry_result.left_ac_2000|default:"-" }} dB</span></div>
+                            <div class="section-info-item"><label>چپ 3000Hz:</label> <span>{{ exam.audiometry_result.left_ac_3000|default:"-" }} dB</span></div>
+                            <div class="section-info-item"><label>چپ 4000Hz:</label> <span>{{ exam.audiometry_result.left_ac_4000|default:"-" }} dB</span></div>
+                            <div class="section-info-item"><label>چپ 6000Hz:</label> <span>{{ exam.audiometry_result.left_ac_6000|default:"-" }} dB</span></div>
+                            <div class="section-info-item"><label>چپ 8000Hz:</label> <span>{{ exam.audiometry_result.left_ac_8000|default:"-" }} dB</span></div>
+                        </div>
+                        <h5>حدود آستانه شنیداری (BC - استخوان):</h5>
+                        <div class="section-info-row">
+                            <div class="section-info-item"><label>راست 500Hz:</label> <span>{{ exam.audiometry_result.right_bc_500|default:"-" }} dB</span></div> {# اضافه شده #}
+                            <div class="section-info-item"><label>راست 1000Hz:</label> <span>{{ exam.audiometry_result.right_bc_1000|default:"-" }} dB</span></div> {# اضافه شده #}
+                            <div class="section-info-item"><label>راست 2000Hz:</label> <span>{{ exam.audiometry_result.right_bc_2000|default:"-" }} dB</span></div> {# اضافه شده #}
+                            <div class="section-info-item"><label>راست 3000Hz:</label> <span>{{ exam.audiometry_result.right_bc_3000|default:"-" }} dB</span></div> {# اضافه شده #}
+                            <div class="section-info-item"><label>راست 4000Hz:</label> <span>{{ exam.audiometry_result.right_bc_4000|default:"-" }} dB</span></div> {# اضافه شده #}
+                            <div class="section-info-item"><label>چپ 500Hz:</label> <span>{{ exam.audiometry_result.left_bc_500|default:"-" }} dB</span></div> {# اضافه شده #}
+                            <div class="section-info-item"><label>چپ 1000Hz:</label> <span>{{ exam.audiometry_result.left_bc_1000|default:"-" }} dB</span></div> {# اضافه شده #}
+                            <div class="section-info-item"><label>چپ 2000Hz:</label> <span>{{ exam.audiometry_result.left_bc_2000|default:"-" }} dB</span></div> {# اضافه شده #}
+                            <div class="section-info-item"><label>چپ 3000Hz:</label> <span>{{ exam.audiometry_result.left_bc_3000|default:"-" }} dB</span></div> {# اضافه شده #}
+                            <div class="section-info-item"><label>چپ 4000Hz:</label> <span>{{ exam.audiometry_result.left_bc_4000|default:"-" }} dB</span></div> {# اضافه شده #}
+                        </div>
+                    </div>
+                    {% endif %}
+
+                    {% if exam.spirometry_result %}
+                    <h4>نتایج اسپیرومتری:</h4>
+                    <div class="spirometry-results">
+                        <div class="info-row">
+                            <div class="info-item"><label>نتیجه:</label> <span>{{ exam.spirometry_result.result|default:"-" }}</span></div>
+                            <div class="info-item"><label>نتیجه (سایر):</label> <span>{{ exam.spirometry_result.result_other|default:"-" }}</span></div> {# اضافه شده #}
+                        </div>
+                    </div>
+                    {% endif %}
+
+                    {% if exam.ecg_result %}
+                    <h4>نتایج نوار قلب (ECG):</h4>
+                    <div class="ecg-results">
+                        <div class="info-row">
+                            <div class="info-item"><label>تشخیص‌ها:</label> <span>{{ exam.ecg_result.diagnoses|default:"-" }}</span></div>
+                        </div>
+                    </div>
+                    {% endif %}
+
+                    {% if exam.sonography_result %}
+                    <h4>نتایج سونوگرافی:</h4>
+                    <div class="sonography-results">
+                        <div class="info-row">
+                            <div class="info-item"><label>نتیجه:</label> <span>{{ exam.sonography_result.result|default:"-" }}</span></div>
+                        </div>
+                    </div>
+                    {% endif %}
+
+                    {% if health_expert_name or safety_expert_name or factory_manager_name %}
+                    <div class="signature-section no-print">
+                        <div class="signature-block">
+                            {% if health_expert_signature_url %}
+                                <img src="{{ health_expert_signature_url }}" alt="امضا مسئول بهداری">
+                            {% endif %}
+                            <p>مسئول بهداری</p>
+                            <p>{{ health_expert_name }}</p>
+                        </div>
+                        <div class="signature-block">
+                            {% if safety_expert_signature_url %}
+                                <img src="{{ safety_expert_signature_url }}" alt="امضا مسئول ایمنی">
+                            {% endif %}
+                            <p>مسئول ایمنی</p>
+                            <p>{{ safety_expert_name }}</p>
+                        </div>
+                        <div class="signature-block">
+                            {% if factory_manager_signature_url %}
+                                <img src="{{ factory_manager_signature_url }}" alt="امضا مدیر عامل">
+                            {% endif %}
+                            <p>مدیر عامل</p>
+                            <p>{{ factory_manager_name }}</p>
+                        </div>
+                    </div>
+                    {% endif %}
+                </div> {# Closes the exam-details div #}
+                <div class="page-break"></div> {# Add page break for print if multiple exams #}
+            {% empty %}
+                <div class="alert alert-info" role="alert">
+                    <p>هیچ معاینه‌ای برای این کد ملی یافت نشد.</p>
+                </div>
+            {% endfor %}
+        {% else %}
+            <div class="alert alert-info" role="alert">
+                <p>لطفاً کد ملی بیمار را برای مشاهده نتایج وارد و جستجو کنید.</p>
             </div>
-            {% endif %}
-
-            {# نمایش کامل نتایج اپتومتری #}
-            {% if exam.optometryresult %}
-            <div class="section">
-                <h3>نتایج اپتومتری</h3>
-                <div class="data-grid" style="gap: 20px 10px;">
-                    <div class="data-item"><span class="data-label">استفاده از عینک:</span> <span class="data-value">{% if exam.optometryresult.uses_glasses %}بله{% else %}خیر{% endif %}</span></div>
-                    <div class="data-item"><span class="data-label">استفاده از لنز:</span> <span class="data-value">{% if exam.optometryresult.uses_contact_lens %}بله{% else %}خیر{% endif %}</span></div>
-                    <div class="data-item"><span class="data-label">عمق دید:</span> <span class="data-value">{{ exam.optometryresult.depth_perception|default:"-" }}</span></div>
-                </div>
-                <h4 style="margin-top:20px;">حدت بینایی - دید دور (بدون اصلاح)</h4>
-                <div class="data-grid">
-                    <div class="data-item"><span class="data-label">چشم راست (R):</span> <span class="data-value">{{ exam.optometryresult.va_distant_r_uncorrected|default:"-" }}</span></div>
-                    <div class="data-item"><span class="data-label">چشم چپ (L):</span> <span class="data-value">{{ exam.optometryresult.va_distant_l_uncorrected|default:"-" }}</span></div>
-                    <div class="data-item"><span class="data-label">هر دو چشم (OU):</span> <span class="data-value">{{ exam.optometryresult.va_distant_ou_uncorrected|default:"-" }}</span></div>
-                </div>
-                <h4 style="margin-top:20px;">حدت بینایی - دید دور (با اصلاح)</h4>
-                 <div class="data-grid">
-                    <div class="data-item"><span class="data-label">چشم راست (R):</span> <span class="data-value">{{ exam.optometryresult.va_distant_r_corrected|default:"-" }}</span></div>
-                    <div class="data-item"><span class="data-label">چشم چپ (L):</span> <span class="data-value">{{ exam.optometryresult.va_distant_l_corrected|default:"-" }}</span></div>
-                    <div class="data-item"><span class="data-label">هر دو چشم (OU):</span> <span class="data-value">{{ exam.optometryresult.va_distant_ou_corrected|default:"-" }}</span></div>
-                </div>
-                {% if exam.optometryresult.notes %}
-                    <div class="data-item" style="margin-top: 20px; grid-column: 1 / -1;"><span class="data-label">توضیحات اپتومتری:</span> <span class="data-value">{{ exam.optometryresult.notes }}</span></div>
-                {% endif %}
-            </div>
-            {% endif %}
-
-            {# نمایش کامل نتایج اودیومتری در جدول #}
-            {% if exam.audiometryresult %}
-            <div class="section">
-                <h3>نتایج اودیومتری</h3>
-                <table>
-                    <thead>
-                        <tr>
-                            <th>فرکانس (Hz)</th>
-                            <th>گوش راست (AC)</th>
-                            <th>گوش چپ (AC)</th>
-                            <th>گوش راست (BC)</th>
-                            <th>گوش چپ (BC)</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        <tr><td>500</td><td>{{ exam.audiometryresult.right_ac_500|default:"-" }}</td><td>{{ exam.audiometryresult.left_ac_500|default:"-" }}</td><td>{{ exam.audiometryresult.right_bc_500|default:"-" }}</td><td>{{ exam.audiometryresult.left_bc_500|default:"-" }}</td></tr>
-                        <tr><td>1000</td><td>{{ exam.audiometryresult.right_ac_1000|default:"-" }}</td><td>{{ exam.audiometryresult.left_ac_1000|default:"-" }}</td><td>{{ exam.audiometryresult.right_bc_1000|default:"-" }}</td><td>{{ exam.audiometryresult.left_bc_1000|default:"-" }}</td></tr>
-                        <tr><td>2000</td><td>{{ exam.audiometryresult.right_ac_2000|default:"-" }}</td><td>{{ exam.audiometryresult.left_ac_2000|default:"-" }}</td><td>{{ exam.audiometryresult.right_bc_2000|default:"-" }}</td><td>{{ exam.audiometryresult.left_bc_2000|default:"-" }}</td></tr>
-                        <tr><td>3000</td><td>{{ exam.audiometryresult.right_ac_3000|default:"-" }}</td><td>{{ exam.audiometryresult.left_ac_3000|default:"-" }}</td><td>{{ exam.audiometryresult.right_bc_3000|default:"-" }}</td><td>{{ exam.audiometryresult.left_bc_3000|default:"-" }}</td></tr>
-                        <tr><td>4000</td><td>{{ exam.audiometryresult.right_ac_4000|default:"-" }}</td><td>{{ exam.audiometryresult.left_ac_4000|default:"-" }}</td><td>{{ exam.audiometryresult.right_bc_4000|default:"-" }}</td><td>{{ exam.audiometryresult.left_bc_4000|default:"-" }}</td></tr>
-                        <tr><td>6000</td><td>{{ exam.audiometryresult.right_ac_6000|default:"-" }}</td><td>{{ exam.audiometryresult.left_ac_6000|default:"-" }}</td><td>-</td><td>-</td></tr>
-                        <tr><td>8000</td><td>{{ exam.audiometryresult.right_ac_8000|default:"-" }}</td><td>{{ exam.audiometryresult.left_ac_8000|default:"-" }}</td><td>-</td><td>-</td></tr>
-                    </tbody>
-                </table>
-                <div class="data-grid" style="margin-top: 20px;">
-                    <div class="data-item"><span class="data-label">نتیجه گوش راست:</span> <span class="data-value">{{ exam.audiometryresult.right_result|default:"-" }}</span></div>
-                    <div class="data-item"><span class="data-label">نتیجه گوش چپ:</span> <span class="data-value">{{ exam.audiometryresult.left_result|default:"-" }}</span></div>
-                </div>
-            </div>
-            {% endif %}
-
-            {# سایر نتایج تخصصی #}
-            {% if exam.spirometryresult %}<div class="section"><h3>نتایج اسپیرومتری</h3><div class="data-item"><span class="data-label">نتیجه:</span> <span class="data-value">{{ exam.spirometryresult.result|default:"-" }}</span></div></div>{% endif %}
-            {% if exam.ecgresult %}<div class="section"><h3>نتایج ECG</h3><div class="data-item"><span class="data-label">تشخیص‌ها:</span> <span class="data-value">{{ exam.ecgresult.diagnoses|default:"-" }}</span></div></div>{% endif %}
-            {% if exam.sonographyresult %}<div class="section"><h3>نتایج سونوگرافی</h3><div class="data-item"><span class="data-label">نتیجه:</span> <span class="data-value">{{ exam.sonographyresult.result|default:"-" }}</span></div></div>{% endif %}
-
-        {% empty %}
-            <div class="no-data">هیچ معاینه دوره‌ای برای این بیمار یافت نشد.</div>
-        {% endfor %}
-
-    {% else %}
-        <div class="no-data">بیماری با مشخصات وارد شده یافت نشد.</div>
-    {% endif %}
-
-    <div class="button-group">
-        <a href="{% url 'core:patient_list' %}" class="action-button back-button">بازگشت به لیست بیماران</a>
-        <button onclick="window.print()" class="action-button print-button">چاپ گزارش</button>
+        {% endif %}
     </div>
-</div>
 
-{% endblock %}
+    <script src="{% static 'js/bootstrap.bundle.min.js' %}"></script>
+</body>
+</html>

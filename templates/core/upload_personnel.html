@@ -23,16 +23,19 @@
             <p class="card-text">
                 لطفاً فایل اکسل حاوی کد ملی، شماره پرسنلی، نام و نام خانوادگی پرسنل را آپلود کنید.
                 <br>
-                **سربرگ‌های ضروری در اکسل:** `کد ملی`, `شماره پرسنلی`, `نام`, `نام خانوادگی`
+                **سربرگ‌های ضروری در اکسل:** `کد ملی`, `شماره پرسنلی`, `نام`, `نام خانوادگی`, `واحد سازمانی 2` (برای شغل)
             </p>
             <form method="post" enctype="multipart/form-data" action="{% url 'core:process_personnel_import' %}">
                 {% csrf_token %}
+                <div class="mb-3">
+                    <label for="company_name" class="form-label">نام شرکت:</label>
+                    <input type="text" class="form-control" id="company_name" name="company_name" placeholder="مثال: شرکت تالی سازان آتیه بهاباد" required>
+                </div>
                 <div class="mb-3">
                     <label for="excel_file_personnel" class="form-label">انتخاب فایل مشخصات پرسنل:</label>
                     <input type="file" class="form-control" id="excel_file_personnel" name="excel_file" accept=".xlsx, .xls" required>
                 </div>
                 <button type="submit" class="btn btn-primary">شروع وارد کردن مشخصات</button>
-                <a href="{% url 'lab_results:upload_excel_file' %}" class="btn btn-secondary ms-2">بازگشت به آپلود نتایج معاینات</a>
             </form>
         </div>
     </div>
