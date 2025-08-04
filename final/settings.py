@@ -1,8 +1,8 @@
 # D:\final\final\settings.py
 import os
 from pathlib import Path
-import locale
-locale.setlocale(locale.LC_ALL, "fa_IR.UTF-8")
+
+#locale.setlocale(locale.LC_ALL, "fa_IR.UTF-8")
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
 
@@ -20,7 +20,7 @@ DEBUG = True
 
 # در محیط پروداکشن باید دامنه‌ها یا IP سرور شما باشد.
 # مثال: ['127.0.0.1', 'localhost', '.yourdomain.com', 'your_server_ip']
-ALLOWED_HOSTS = []
+ALLOWED_HOSTS = ['clinic-1-luqt.onrender.com']
 
 
 # Application definition
@@ -38,7 +38,7 @@ INSTALLED_APPS = [
     # اپلیکیشن‌های سفارشی شما
     'core',
     'clinic_messages',   # <<< فقط یک بار باید اینجا باشد
-    'jalali_date',
+    
     # اگر از Django REST Framework و Django Filters استفاده می‌کنید
     'rest_framework',
     'django_filters',
@@ -50,6 +50,7 @@ INSTALLED_APPS = [
     'mammoth',
     'corsheaders',
     'fcm_django',
+    'django_jalali',
     'django_select2',
     'lab_results',
     'reports'
