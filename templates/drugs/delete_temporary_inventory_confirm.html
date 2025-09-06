@@ -1,0 +1,18 @@
+{% extends 'base.html' %}
+{% block content %}
+<div class="card shadow-sm p-4">
+    <h2 class="mb-4 text-danger">حذف موجودی موقت</h2>
+    <p class="text-danger">
+        <strong>هشدار:</strong> شما در حال حذف تمام موجودی‌های موقت (کاذب) ایجاد شده برای انبارگردانی هستید.
+    </p>
+    <p class="text-muted">
+        این عمل قابل بازگشت نیست. لطفاً مطمئن شوید که انبارگردانی به اتمام رسیده و موجودی واقعی وارد سیستم شده است.
+    </p>
+
+    <form method="post">
+        {% csrf_token %}
+        <button type="submit" class="btn btn-danger">تایید و حذف موجودی موقت</button>
+        <a href="{% url 'drugs:drug_list' %}" class="btn btn-secondary">انصراف</a>
+    </form>
+</div>
+{% endblock %}

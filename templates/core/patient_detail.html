@@ -1,7 +1,7 @@
 {# D:\final\core\templates\core\patient_detail.html #}
 {% extends 'base.html' %}
 {% load static %}
-{% load persian_dates %} {# بارگذاری فیلترهای تاریخ شمسی #}
+{% load persian_dates %}
 
 {% block content %}
     <h1 class="content-header-padding text-end">{{ page_title }}</h1>
@@ -12,8 +12,8 @@
             <h5 class="mb-0">جزئیات بیمار: {{ patient.first_name }} {{ patient.last_name }}</h5>
         </div>
         <div class="card-body">
-            <div class="row align-items-center"> {# align-items-center برای تراز عمودی #}
-                <div class="col-md-3 text-center mb-3 mb-md-0"> {# ستون کوچکتر برای عکس و دکمه‌های اصلی #}
+            <div class="row align-items-center">
+                <div class="col-md-3 text-center mb-3 mb-md-0">
                     {% if patient.profile_picture %}
                         <img src="{{ patient.profile_picture.url }}" alt="عکس پروفایل" class="img-fluid rounded-circle border border-2 border-light shadow-sm mb-3" style="width: 150px; height: 150px; object-fit: cover;">
                     {% else %}
@@ -23,12 +23,12 @@
                     {% if patient.age is not None %}
                         <p class="text-muted small">سن: {{ patient.age }} سال</p>
                     {% endif %}
-                    <div class="d-flex justify-content-center mt-3 flex-wrap"> {# دکمه‌ها را به مرکز می‌برد و در صورت نیاز می‌شکند #}
+                    <div class="d-flex justify-content-center mt-3 flex-wrap">
                         <a href="{% url 'core:patient_update' patient.pk %}" class="btn btn-info btn-sm me-2 mb-2"><i class="fas fa-edit me-1"></i>ویرایش</a>
                         <a href="{% url 'core:patient_delete' patient.pk %}" class="btn btn-danger btn-sm mb-2"><i class="fas fa-trash-alt me-1"></i>حذف</a>
                     </div>
                 </div>
-                <div class="col-md-9 text-end"> {# ستون بزرگتر برای اطلاعات دقیق‌تر #}
+                <div class="col-md-9 text-end">
                     <ul class="list-group list-group-flush border-0">
                         <li class="list-group-item d-flex justify-content-between align-items-center">
                             <strong>کد ملی:</strong> <span>{{ patient.national_code|default:"-" }}</span>
@@ -88,7 +88,7 @@
                                 {% if patient.registered_by %}
                                     {{ patient.registered_by.first_name|default:patient.registered_by.username }}
                                 {% else %}
-                                    - {# یا می‌توانید بنویسید "نامشخص" یا "سیستم" #}
+                                    -
                                 {% endif %}
                             </span>
                         </li>
@@ -117,36 +117,35 @@
             <a href="{% url 'visits:visit_create_for_patient' patient.pk %}" class="btn btn-success btn-sm"><i class="fas fa-plus me-1"></i>افزودن ویزیت جدید</a>
         </div>
         <div class="card-body">
-            {% if patient.visits.all %} {# 'visits' is the related_name from Visit model back to Patient #}
+            {% if patient.visits.all %}
                 <div class="table-responsive">
                     <table class="table table-hover table-striped text-end">
                         <thead>
                             <tr>
-                                <th scope="col">ردیف</th> {# ستون جدید برای شماره ردیف #}
+                                <th scope="col">ردیف</th>
                                 <th scope="col">تاریخ ویزیت</th>
                                 <th scope="col">علت مراجعه</th>
-                                <th scope="col">نتیجه درمان</th> {# تغییر نام ستون #}
+                                <th scope="col">نتیجه درمان</th>
                                 <th scope="col">داروهای تجویز شده</th>
                                 <th scope="col">ملاحظات</th>
-                                <th scope="col">پزشک معالج</th> {# تغییر نام ستون #}
+                                <th scope="col">کاربر ثبت کننده</th>
                             </tr>
                         </thead>
                         <tbody>
                             {% for visit in patient.visits.all %}
                             <tr>
-                                <td class="text-center">{{ forloop.counter }}</td> {# شماره ردیف #}
+                                <td class="text-center">{{ forloop.counter }}</td>
                                 <td class="text-nowrap">
-                                    {# لینک به صفحه جزئیات ویزیت #}
                                     <a href="{% url 'visits:visit_detail' visit.pk %}" class="text-decoration-none text-primary fw-bold">
                                         {{ visit.visit_date|to_jalali_datetime:"%Y/%m/%d %H:%M" }}
                                     </a>
                                 </td>
-                                <td>{{ visit.get_reason_for_visit_display|default:"-" }}</td> {# اصلاح نمایش #}
-                                <td>{{ visit.get_treatment_result_display|default:"-"|truncatechars:100 }}</td> {# اصلاح نمایش #}
+                                <td>{{ visit.reason_for_visit|default:"-" }}</td>
+                                <td>{{ visit.treatment_result|default:"-"|truncatechars:100 }}</td>
                                 <td>
-                                    {% if visit.items.all %} {# اصلاح related_name #}
+                                    {% if visit.items.all %}
                                         <ul class="list-unstyled mb-0 small">
-                                            {% for visit_item in visit.items.all %} {# اصلاح related_name #}
+                                            {% for visit_item in visit.items.all %}
                                                 <li>{{ visit_item.drug.name }} (تعداد: {{ visit_item.quantity }})</li>
                                             {% endfor %}
                                         </ul>
@@ -154,15 +153,18 @@
                                         -
                                     {% endif %}
                                 </td>
-                                <td>{{ visit.notes|default:"-"|truncatechars:150 }}</td> {# ملاحظات #}
+                                <td>{{ visit.notes|default:"-"|truncatechars:150 }}</td>
                                 <td>
-                                    {% if visit.doctor %} {# اصلاح فیلد #}
-                                        {{ visit.doctor.first_name|default:visit.doctor.username }}
+                                    {% if visit.doctor.first_name and visit.doctor.last_name %}
+                                        {{ visit.doctor.first_name }} {{ visit.doctor.last_name }}
+                                    {% elif visit.doctor.first_name %}
+                                        {{ visit.doctor.first_name }}
+                                    {% elif visit.doctor.last_name %}
+                                        {{ visit.doctor.last_name }}
                                     {% else %}
-                                        -
+                                        {{ visit.doctor.username|default:"-" }}
                                     {% endif %}
                                 </td>
-                                {# ستون "عملیات" حذف شد طبق درخواست شما #}
                             </tr>
                             {% endfor %}
                         </tbody>

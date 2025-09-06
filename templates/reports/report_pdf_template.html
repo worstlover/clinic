@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <title>گزارش {{ report_title }}</title>
+    <style>
+        body {
+            font-family: 'Vazirmatn', sans-serif; /* فونت مناسب فارسی */
+            font-size: 10pt;
+            margin: 2cm;
+            line-height: 1.5;
+        }
+        h1, h2 {
+            text-align: center;
+            color: #0056b3;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 20px;
+        }
+        th, td {
+            border: 1px solid #ddd;
+            padding: 8px;
+            text-align: right;
+        }
+        th {
+            background-color: #f2f2f2;
+        }
+        .report-section-header {
+            background-color: #e9f5ff;
+            padding: 10px;
+            font-weight: bold;
+            margin-top: 30px;
+        }
+        /* استایل‌های مورد نیاز برای نمایش تاریخ شمسی و غیره */
+    </style>
+</head>
+<body>
+    <h1>{{ report_title }}</h1>
+    
+    {% if patients_without_exams %}
+    <div class="report-section">
+        <table>
+            <thead>
+                <tr>
+                    <th>ردیف</th>
+                    <th>نام کامل</th>
+                    <th>کد ملی</th>
+                    <th>شماره پاسپورت</th>
+                    <th>کد پرسنلی</th>
+                    <th>شماره تماس</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for patient in patients_without_exams %}
+                <tr>
+                    <td>{{ forloop.counter }}</td>
+                    <td>{{ patient.full_name }}</td>
+                    <td>{{ patient.national_code|default:"-" }}</td>
+                    <td>{{ patient.passport_number|default:"-" }}</td>
+                    <td>{{ patient.personnel_number|default:"-" }}</td>
+                    <td>{{ patient.phone_number|default:"-" }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% elif patients_without_personnel_id %}
+    {% elif patients_due_for_re_exam %}
+    {% elif conditional_final_opinion_exams %}
+    {% else %}
+    <p style="text-align: center;">داده‌ای برای این گزارش یافت نشد.</p>
+    {% endif %}
+</body>
+</html>

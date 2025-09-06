@@ -1,7 +1,7 @@
 {% extends 'base.html' %}
 {% load crispy_forms_tags %}
 {% load static %}
-{% load jalali_tags %}
+{% load jformat %}
 
 {% block extra_head %}
     {{ form.media.css }}
@@ -35,7 +35,12 @@
             font-weight: bold;
         }
         /* Style for readonly patient info fields */
-        #patient-age, #patient-allergies, #patient-medical-history {
+        #patient-age, 
+        #patient-allergies, 
+        #patient-medical-history,
+        #patient-visit-count,
+        #patient-last-visit-date,
+        #patient-last-visit-reason {
             color: #495057; /* Darker text for readability */
             font-weight: 500;
         }
@@ -51,7 +56,7 @@
 <div class="container-fluid">
     <h1 class="mb-4">{{ page_title }}</h1>
 
-    {% include 'snippets/messages.html' %} {# مسیر فایل پیام‌ها را بررسی کنید #}
+    {% include 'snippets/messages.html' %}
 
     <div class="card shadow border-0">
         <div class="card-body p-4">
@@ -59,57 +64,59 @@
                 {% csrf_token %}
                 {{ formset.management_form }}
 
-                {# بخش اطلاعات اصلی ویزیت #}
                 <h5 class="mb-3 border-bottom pb-2">اطلاعات اصلی ویزیت</h5>
                 <div class="row">
-                    <div class="col-md-6 mb-3">{{ form.patient|as_crispy_field }}</div>
-                    <div class="col-md-6 mb-3">{{ form.visit_date_jalali|as_crispy_field }}</div>
-                    
-                    {# فیلدهای نمایش اطلاعات بیمار - اضافه شده #}
-                    <div class="col-md-4 mb-3">
+                    <div class="col-12 col-sm-6 col-lg-3 col-xl-2 mb-3">{{ form.patient|as_crispy_field }}</div>
+                    <div class="col-12 col-sm-6 col-lg-3 col-xl-2 mb-3">{{ form.visit_date_jalali|as_crispy_field }}</div>
+                    <div class="col-12 col-sm-6 col-lg-3 col-xl-2 mb-3">
                         <label for="patient-age" class="form-label">سن</label>
                         <input type="text" id="patient-age" class="form-control" readonly style="background-color: #e9ecef;">
                     </div>
-                    <div class="col-md-4 mb-3">
+                    <div class="col-12 col-sm-6 col-lg-3 col-xl-2 mb-3">
                         <label for="patient-allergies" class="form-label">حساسیت‌ها</label>
                         <input type="text" id="patient-allergies" class="form-control" readonly style="background-color: #e9ecef;">
                     </div>
-                    <div class="col-md-4 mb-3">
+                    <div class="col-12 col-sm-6 col-lg-3 col-xl-2 mb-3">
+                        <label for="patient-visit-count" class="form-label">تعداد ویزیت</label>
+                        <input type="text" id="patient-visit-count" class="form-control" readonly style="background-color: #e9ecef;">
+                    </div>
+                    <div class="col-12 col-sm-6 col-lg-3 col-xl-2 mb-3">
+                        <label for="patient-last-visit-date" class="form-label">تاریخ آخرین مراجعه</label>
+                        <input type="text" id="patient-last-visit-date" class="form-control" readonly style="background-color: #e9ecef;">
+                    </div>
+                    <div class="col-12 col-sm-6 col-lg-3 col-xl-2 mb-3">
+                        <label for="patient-last-visit-reason" class="form-label">علت آخرین مراجعه</label>
+                        <input type="text" id="patient-last-visit-reason" class="form-control" readonly style="background-color: #e9ecef;">
+                    </div>
+                    <div class="col-12 col-sm-6 col-lg-3 col-xl-2 mb-3">{{ form.reason_for_visit|as_crispy_field }}</div>
+                    <div class="col-12 col-sm-6 col-lg-3 col-xl-2 mb-3">{{ form.incident_type|as_crispy_field }}</div>
+                    <div class="col-12 col-sm-6 col-lg-3 col-xl-2 mb-3">{{ form.height_cm|as_crispy_field }}</div>
+                    <div class="col-12 col-sm-6 col-lg-3 col-xl-2 mb-3">{{ form.weight_kg|as_crispy_field }}</div>
+                    <div class="col-12 col-sm-6 col-lg-3 col-xl-2 mb-3">{{ form.blood_pressure|as_crispy_field }}</div>
+                    <div class="col-12 col-sm-6 col-lg-3 col-xl-2 mb-3">{{ form.heart_rate|as_crispy_field }}</div>
+                    <div class="col-12 col-sm-6 col-lg-3 col-xl-2 mb-3">{{ form.temperature|as_crispy_field }}</div>
+                    <div class="col-12 col-sm-6 col-lg-3 col-xl-2 mb-3">{{ form.blood_sugar|as_crispy_field }}</div>
+                </div>
+
+                <div class="row">
+                    <h5 class="mb-3 border-bottom pb-2">سوابق و تفسیر</h5>
+                    <div class="col-md-6 mb-3">
                         <label for="patient-medical-history" class="form-label">سوابق پزشکی</label>
                         <textarea id="patient-medical-history" class="form-control" rows="3" readonly style="background-color: #e9ecef;"></textarea>
                     </div>
-                    {# پایان فیلدهای نمایش اطلاعات بیمار #}
-
-                    <div class="col-md-6 mb-3">{{ form.reason_for_visit|as_crispy_field }}</div>
-                    <div class="col-md-6 mb-3">{{ form.incident_type|as_crispy_field }}</div>
-                </div>
-
-                <hr>
-                <h5 class="mb-3 border-bottom pb-2">علائم حیاتی و اندازه‌گیری‌ها</h5>
-                <div class="row align-items-center">
-                    <div class="col-md-3 mb-3">{{ form.height_cm|as_crispy_field }}</div>
-                    <div class="col-md-3 mb-3">{{ form.weight_kg|as_crispy_field }}</div>
                     <div class="col-md-6 mb-3">
                         <label for="bmi-result" class="form-label">شاخص توده بدنی (BMI)</label>
                         <div id="bmi-result" class="form-control" style="background-color: #e9ecef;">---</div>
                         <small id="bmi-status" class="form-text"></small>
                     </div>
-                    <div class="col-md-4 mb-3">{{ form.blood_pressure|as_crispy_field }}</div>
-                    <div class="col-md-4 mb-3">{{ form.heart_rate|as_crispy_field }}</div>
-                    <div class="col-md-4 mb-3">{{ form.temperature|as_crispy_field }}</div>
-                </div>
-                
-                <hr>
-                <h5 class="mb-3 border-bottom pb-2">نتیجه و ملاحظات</h5>
-                <div class="row">
+                    <div class="col-md-12 mb-3">{{ form.ecg_interpretation|as_crispy_field }}</div>
                     <div class="col-md-12 mb-3">{{ form.treatment_result|as_crispy_field }}</div>
                     <div class="col-12 mb-3">{{ form.notes|as_crispy_field }}</div>
                 </div>
-
+                
                 <hr><h4 class="mb-3">داروهای تجویز شده</h4>
 
                 <div id="formset-container" class="mb-3">
-                    {# این حلقه برای نمایش فرم‌های موجود (در حالت ویرایش) یا یک فرم خالی (در حالت ایجاد) است #}
                     {% for item_form in formset %}
                         <div class="item-row" id="item-row-{{ forloop.counter0 }}">
                             {{ item_form.id }}
@@ -119,7 +126,6 @@
                                 <div class="col-md-4">{{ item_form.notes|as_crispy_field }}</div>
                                 <div class="col-md-1 text-center">
                                     {% if item_form.instance.pk %}
-                                        {# اگر آیتم موجود است، چک‌باکس حذف را مخفی کن #}
                                         <div class="d-none">{{ item_form.DELETE }}</div>
                                     {% endif %}
                                     <button type="button" class="btn btn-sm btn-outline-danger delete-row-btn" title="حذف آیتم"><i class="fas fa-trash"></i></button>
@@ -129,7 +135,6 @@
                     {% endfor %}
                 </div>
 
-                {# این بخش به عنوان یک الگو برای فرم‌های جدید استفاده می‌شود #}
                 <div id="empty-form" class="d-none">
                     <div class="item-row" id="item-row-__prefix__">
                         <div class="row align-items-end g-3">
@@ -155,25 +160,11 @@
 </div>
 {% endblock %}
 
----
-
-## ۲. فایل `visits/templates/visits/visit_form.html` (جاوااسکریپت)
-
-این بخش جاوااسکریپت، درون بلاک `extra_js` در همان فایل قالب قرار می‌گیرد و منطق فرانت‌اند را مدیریت می‌کند.
-
-```javascript
 {% block extra_js %}
-    {{ form.media.js }} {# اگر از ابزار datetime picker مثل django-jalali-date استفاده می‌کنید #}
-
-    <script src="{% static 'js/select2.min.js' %}"></script> {# مطمئن شوید مسیر static شما درست است #}
-    <script src="{% static 'js/i18n/fa.js' %}"></script> {# فایل ترجمه فارسی برای Select2 #}
+    {{ form.media.js }}
+    <script src="{% static 'js/select2.min.js' %}"></script>
+    <script src="{% static 'js/i18n/fa.js' %}"></script>
     
-    {# اگر از تاریخ‌شمسی استفاده می‌کنید و ابزار آن را دارید #}
-    {# <script src="{% static 'jalali_date/js/jalaali.js' %}"></script> #}
-    {# <script src="{% static 'jalali_date/js/jquery.md.bootstrap.datetimepicker.js' %}"></script> #}
-    {# <script src="{% static 'jalali_date/js/init.js' %}"></script> #}
-
-
     <script>
     $(document).ready(function() {
         // =========================================================
@@ -186,54 +177,73 @@
                 allowClear: true,
                 language: "fa",
                 ajax: {
-                    url: "{% url 'visits:patient_search_api' %}", // این URL به PatientSearchAPIView شما اشاره می‌کند
+                    url: "{% url 'visits:patient_search_api' %}",
                     dataType: 'json',
                     delay: 250,
                     data: function (params) {
-                        return { q: params.term, page: params.page }; // پارامتر 'q' برای GenericListAPIView
+                        return { q: params.term, page: params.page };
                     },
-                    processResults: function (data, params) {
-                        params.page = params.page || 1;
-                        const results = data || []; // در DRF معمولا داده به صورت مستقیم در data است
-                        return {
-                            results: $.map(results, function (item) {
-                                // اصلی‌ترین تغییر: اطلاعات کامل آیتم را در original_data ذخیره می‌کنیم
-                                return { id: item.id, text: item.text, original_data: item }; 
-                            }),
-                            pagination: { more: false } // در صورت نیاز، pagination را فعال کنید
-                        };
+                    processResults: function (data) {
+                        return { results: data };
                     },
                     cache: true
+                },
+                templateResult: function(data) {
+                    if (data.loading) {
+                        return data.text;
+                    }
+                    return $(
+                        '<div>' + data.text +
+                        '<br><small class="text-muted">' +
+                        (data.national_code ? 'کد ملی: ' + data.national_code : '') +
+                        (data.phone_number ? ' | موبایل: ' + data.phone_number : '') +
+                        '</small></div>'
+                    );
+                },
+                templateSelection: function(data) {
+                    if (!data.id) { return data.text; }
+                    if (data.text) {
+                        return data.text;
+                    }
+                    var option = element.find('option[value="' + data.id + '"]');
+                    return option.text();
                 }
             });
 
-            // =========================================================
-            // اضافه کردن Listener برای رویداد انتخاب بیمار (select2:select)
-            // =========================================================
             element.on('select2:select', function (e) {
-                const data = e.params.data.original_data; // دریافت اطلاعات کامل بیمار از original_data
-                if (data) {
-                    $('#patient-age').val(data.age || 'نامشخص');
-                    $('#patient-allergies').val(data.allergies || 'ندارد');
-                    $('#patient-medical-history').val(data.medical_history || 'ندارد');
-                } else {
-                    // اگر چیزی انتخاب نشده یا پاک شد، فیلدها را خالی کن
-                    $('#patient-age').val('');
-                    $('#patient-allergies').val('');
-                    $('#patient-medical-history').val('');
+                const data = e.params.data;
+                if (data && data.id) {
+                    $.ajax({
+                        url: "{% url 'visits:patient_detail_api' %}",
+                        data: { patient_id: data.id },
+                        dataType: 'json',
+                        success: function(patientData) {
+                            if (patientData) {
+                                $('#patient-age').val(patientData.age || 'نامشخص');
+                                $('#patient-allergies').val(patientData.allergies || 'ندارد');
+                                $('#patient-medical-history').val(patientData.medical_history || 'ندارد');
+                                $('#patient-visit-count').val(patientData.visit_count || '0');
+                                $('#patient-last-visit-date').val(patientData.last_visit_date || 'ندارد');
+                                $('#patient-last-visit-reason').val(patientData.last_visit_reason || 'ندارد');
+                            }
+                        },
+                        error: function(xhr, status, error) {
+                            console.error("Error fetching patient details:", status, error);
+                        }
+                    });
                 }
             });
 
-            // =========================================================
-            // اضافه کردن Listener برای رویداد پاک کردن انتخاب (select2:clear)
-            // =========================================================
-            element.on('select2:clear', function (e) {
+            element.on('select2:unselect', function (e) {
                 $('#patient-age').val('');
                 $('#patient-allergies').val('');
                 $('#patient-medical-history').val('');
+                $('#patient-visit-count').val('');
+                $('#patient-last-visit-date').val('');
+                $('#patient-last-visit-reason').val('');
             });
         }
-
+        
         // =========================================================
         // تابع مقداردهی اولیه Select2 برای فیلد دارو
         // =========================================================
@@ -244,7 +254,7 @@
                 allowClear: true,
                 language: "fa",
                 ajax: {
-                    url: "{% url 'visits:api_drug_search' %}", // این URL به DrugSearchAPIView شما اشاره می‌کند
+                    url: "{% url 'visits:api_drug_search' %}",
                     dataType: 'json',
                     delay: 250,
                     data: function (params) {
@@ -264,7 +274,7 @@
                 }
             });
         }
-        
+
         // =========================================================
         // تابع محاسبه‌گر BMI
         // =========================================================
@@ -287,13 +297,13 @@
                 let borderColor = '';
 
                 if (bmi < 18.5) {
-                    statusText = 'کمبود وزن'; statusColor = '#0dcaf0'; borderColor = '#0dcaf0'; // Light Blue (Info)
+                    statusText = 'کمبود وزن'; statusColor = '#0dcaf0'; borderColor = '#0dcaf0';
                 } else if (bmi >= 18.5 && bmi < 25) {
-                    statusText = 'نرمال'; statusColor = '#198754'; borderColor = '#198754'; // Green (Success)
+                    statusText = 'نرمال'; statusColor = '#198754'; borderColor = '#198754';
                 } else if (bmi >= 25 && bmi < 30) {
-                    statusText = 'اضافه‌وزن'; statusColor = '#ffc107'; borderColor = '#ffc107'; // Yellow (Warning)
+                    statusText = 'اضافه‌وزن'; statusColor = '#ffc107'; borderColor = '#ffc107';
                 } else {
-                    statusText = 'چاقی'; statusColor = '#dc3545'; borderColor = '#dc3545'; // Red (Danger)
+                    statusText = 'چاقی'; statusColor = '#dc3545'; borderColor = '#dc3545';
                 }
                 bmiStatusEl.text(statusText).css('color', statusColor);
                 bmiResultEl.css('border', `2px solid ${borderColor}`);
@@ -307,16 +317,12 @@
         // =========================================================
         // اجرای توابع در زمان بارگذاری صفحه
         // =========================================================
-
-        // مقداردهی اولیه Select2 برای فیلد بیمار اصلی
         initializeSelect2Patient($('#id_patient'));
 
-        // ** اضافه شده: بارگذاری اطلاعات بیمار در حالت ویرایش فرم **
-        // اگر فرم در حال ویرایش است و patient از قبل انتخاب شده، اطلاعات آن را لود کن
         const initialPatientId = $('#id_patient').val();
         if (initialPatientId) {
             $.ajax({
-                url: "{% url 'visits:patient_detail_api' %}", // این URL به ویوی API جزئیات بیمار شما اشاره می‌کند
+                url: "{% url 'visits:patient_detail_api' %}",
                 data: { patient_id: initialPatientId },
                 dataType: 'json',
                 success: function(data) {
@@ -324,27 +330,28 @@
                         $('#patient-age').val(data.age || 'نامشخص');
                         $('#patient-allergies').val(data.allergies || 'ندارد');
                         $('#patient-medical-history').val(data.medical_history || 'ندارد');
+                        $('#patient-visit-count').val(data.visit_count || '0');
+                        $('#patient-last-visit-date').val(data.last_visit_date || 'ندارد');
+                        $('#patient-last-visit-reason').val(data.last_visit_reason || 'ندارد');
                     }
                 },
                 error: function(xhr, status, error) {
                     console.error("Error fetching patient details:", status, error);
-                    // در صورت خطا، فیلدهای نمایش اطلاعات بیمار را خالی کن
                     $('#patient-age').val('');
                     $('#patient-allergies').val('');
                     $('#patient-medical-history').val('');
+                    $('#patient-visit-count').val('');
+                    $('#patient-last-visit-date').val('');
+                    $('#patient-last-visit-reason').val('');
                 }
             });
         }
 
-        // مقداردهی اولیه Select2 برای تمام فیلدهای داروی موجود
         $('.select2-drug').each(function() {
             initializeSelect2Drug($(this));
         });
 
-        // محاسبه BMI در لحظه بارگذاری صفحه
         calculateBmi(); 
-
-        // افزودن Listener برای محاسبه مجدد BMI هنگام تغییر ورودی‌های قد و وزن
         heightInput.on('input', calculateBmi);
         weightInput.on('input', calculateBmi);
 
@@ -360,10 +367,8 @@
             $('#formset-container').append(newFormRow);
             totalForms.val(index + 1);
 
-            // مقداردهی اولیه Select2 برای فیلد داروی جدیدی که اضافه شد
             initializeSelect2Drug(newFormRow.find('.select2-drug'));
 
-            // اسکرول به ردیف جدید برای تجربه کاربری بهتر
             $('html, body').animate({ scrollTop: newFormRow.offset().top - 100 }, 500);
         });
 
@@ -375,12 +380,10 @@
             const deleteCheckbox = row.find('input[id$="-DELETE"]');
 
             if (deleteCheckbox.length) {
-                // اگر چک‌باکس DELETE وجود دارد (برای فرم‌های موجود که باید در دیتابیس حذف شوند)
                 deleteCheckbox.prop('checked', true);
-                row.hide(); // ردیف را مخفی کن
+                row.hide();
             } else {
-                // اگر چک‌باکس DELETE وجود ندارد (برای فرم‌های جدید که هنوز ذخیره نشده‌اند)
-                row.remove(); // ردیف را مستقیماً حذف کن
+                row.remove();
             }
         });
     });

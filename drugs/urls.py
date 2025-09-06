@@ -57,5 +57,8 @@ urlpatterns = [
 
     # API URLs
     path('api/drugs/search/', DrugSearchAPIView.as_view(), name='api_drug_search'),
+    path('purchase-invoices/upload/', views.purchase_invoice_upload, name='purchase_invoice_upload'),
     path('select2/users/', UserSelect2View.as_view(), name='select2_users'),
+    path('batches/upload/temporary/', views.upload_temporary_inventory, name='upload_temporary_inventory'),
+    path('batches/delete/temporary/', views.delete_temporary_inventory, name='delete_temporary_inventory'),
 ]

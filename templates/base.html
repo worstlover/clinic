@@ -303,7 +303,6 @@
 </head>
 <body>
     <div id="wrapper" class="d-flex">
-
         <div id="accordionSidebar" class="border-end">
             <div class="sidebar-heading border-bottom">سیستم مدیریت</div>
             <ul class="navbar-nav sidebar sidebar-dark accordion" id="accordionSidebar">
@@ -539,8 +538,11 @@
     <script src="{% static 'django_select2/django_select2.js' %}"></script>
     <script src="{% static 'admin/js/django_jalali.min.js' %}"></script>
 
-
     {% if form %}{{ form.media.js }}{% endif %}
+
+    {% block extra_js %}
+    {% endblock %}
+
 
     <script>
         $(document).ready(function() {
@@ -609,5 +611,5 @@
             setInterval(updateUnreadReferredVisitsCount, 10000); // به‌روزرسانی ویزیت‌های ارجاعی هر 10 ثانیه
         });
     </script>
-
-    
+</body>
+</html>

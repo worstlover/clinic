@@ -12,11 +12,17 @@ import collections # برای هیستوگرام فشار خون
 from drugs.models import Drug, DrugRequest, DrugRequestItem, PurchaseInvoice, PurchaseInvoiceItem, Supplier # 👈 ایمپورت‌های جدید
 from core.models import GENDER_CHOICES, Patient, Company, BLOOD_TYPE_CHOICES
 from visits.models import Visit, ReasonForVisit, TreatmentResult, VISIT_STATUS_CHOICES, INCIDENT_TYPE_CHOICES, VisitItem # VisitItem اضافه شد
-from drugs.models import Drug
+import re
 from reports.filters import PatientFilter, VisitFilter, DrugFilter
 from drugs.models import DrugBatch 
 import jdatetime
-from lab_results.models import PeriodicExamination, LabParameterResult # سایر مدل‌های نتایج معاینه اگر نیاز باشد
+from lab_results.models import PeriodicExamination, LabParameterResult 
+from django.http import HttpResponse
+from openpyxl import Workbook
+from openpyxl.styles import Font, Alignment, PatternFill, Border, Side
+import jdatetime
+from datetime import timedelta
+import io# سایر مدل‌های نتایج معاینه اگر نیاز باشد
 @login_required
 def base_report_context(request, report_title, filter_form=None):
     """
@@ -403,9 +409,7 @@ def generic_visit_report_view(request):
         })
 
     return render(request, 'reports/generic_visit_report.html', context)
-@login_required
-@login_required
-@login_required
+
 @login_required
 def drug_report_view(request):
     report_title = "گزارش داروها"
@@ -513,89 +517,391 @@ def company_visit_report_view(request):
 
 
 
-def reports_view(request):
-    # متغیرهایی برای نگهداری نتایج گزارشات
+# D:\final\lab_results\views.py
+
+# ... (کدهای موجود در ابتدای فایل بدون تغییر) ...
+from django.db.models import Max
+from datetime import timedelta
+# ... (کدهای موجود) ...
+
+def get_report_data(report_type, company_id, final_opinion_filters, re_exam_date_jalali_str):
     patients_without_exams = None
     patients_without_personnel_id = None
     patients_due_for_re_exam = None
-    conditional_final_opinion_exams = None
-    re_exam_target_date_gregorian = None # تاریخ میلادی برای فیلتر
-    re_exam_target_date_jalali = None    # تاریخ شمسی برای نمایش در قالب
+    final_opinion_exams = None
+    personnel_with_code = None
+    exams_without_personnel_id = None
+    personnel_without_exams = None
+    
+    report_title = ""
+    re_exam_target_date_jalali = None
+    
+    base_query = Patient.objects.all()
+    if company_id:
+        base_query = base_query.filter(company_id=company_id)
+        
+    patients_with_last_exam = {
+        item['patient_id']: item['last_exam_date']
+        for item in PeriodicExamination.objects.values('patient_id')
+                                                 .annotate(last_exam_date=Max('exam_date'))
+    }
 
-    # نوع گزارشی که کاربر انتخاب کرده است
-    report_type = request.GET.get('report_type')
-    # تاریخ فیلتر برای گزارش نیاز به معاینه مجدد (ورودی شمسی از کاربر)
-    re_exam_date_jalali_str = request.GET.get('re_exam_date_jalali')
-
-    # تبدیل تاریخ شمسی ورودی کاربر به میلادی
-    if re_exam_date_jalali_str:
-        try:
-            # ابتدا رشته را به jdatetime.datetime تبدیل می‌کنیم، سپس جزء date را استخراج می‌کنیم
-            j_datetime_obj = jdatetime.datetime.strptime(re_exam_date_jalali_str, '%Y/%m/%d')
-            j_date = j_datetime_obj.date() # <--- خط اصلاح شده
-            re_exam_target_date_gregorian = j_date.togregorian()
-            re_exam_target_date_jalali = j_date # نگهداری تاریخ شمسی برای نمایش
-        except ValueError:
-            # هندل کردن خطای فرمت تاریخ نامعتبر
-            re_exam_target_date_gregorian = None
-            re_exam_target_date_jalali = None
-
-
-    # اعمال گزارش بر اساس انتخاب کاربر
     if report_type == 'no_exams':
-        patients_without_exams = Patient.objects.filter(periodicexamination__isnull=True)
+        patients_without_exams = base_query.filter(periodic_examinations__isnull=True).order_by('first_name', 'last_name')
+        for patient in patients_without_exams:
+            last_exam_date = patients_with_last_exam.get(patient.id)
+            if last_exam_date:
+                patient.last_exam_date_jalali = jdatetime.date.fromgregorian(date=last_exam_date)
+            else:
+                patient.last_exam_date_jalali = None
+        report_title = "بیمارانی که معاینه دوره‌ای ندارند"
     
     elif report_type == 'no_personnel_id':
-        patients_without_personnel_id = Patient.objects.filter(
+        patients_without_personnel_id = base_query.filter(
             Q(personnel_number__isnull=True) | Q(personnel_number__exact='')
-        )
-    
+        ).order_by('first_name', 'last_name')
+        for patient in patients_without_personnel_id:
+            last_exam_date = patients_with_last_exam.get(patient.id)
+            if last_exam_date:
+                patient.last_exam_date_jalali = jdatetime.date.fromgregorian(date=last_exam_date)
+            else:
+                patient.last_exam_date_jalali = None
+        report_title = "بیمارانی که کد پرسنلی ندارند"
+
     elif report_type == 'due_for_re_exam':
-        if re_exam_target_date_gregorian:
-            latest_exams = PeriodicExamination.objects.values('patient').annotate(
-                last_exam_date=Max('exam_date')
-            ).order_by('patient')
+        if re_exam_date_jalali_str:
+            try:
+                j_date = jdatetime.datetime.strptime(re_exam_date_jalali_str, '%Y/%m/%d').date()
+                re_exam_target_date_gregorian = j_date.togregorian()
+                re_exam_target_date_jalali = j_date
+            except (ValueError, ImportError):
+                re_exam_target_date_gregorian = None
+                re_exam_target_date_jalali = None
 
-            patients_due_for_re_exam = []
-            for le in latest_exams:
-                patient_id = le['patient']
-                last_exam_date = le['last_exam_date']
+            if re_exam_target_date_gregorian:
+                latest_exams = PeriodicExamination.objects.filter(patient__in=base_query).values('patient').annotate(
+                    last_exam_date=Max('exam_date')
+                ).order_by('patient')
+                
+                patients_due_for_re_exam = []
+                for le in latest_exams:
+                    patient_id = le['patient']
+                    last_exam_date = le['last_exam_date']
 
-                if last_exam_date:
-                    # تاریخ اعتبار: یک سال پس از آخرین معاینه
-                    expiry_date_gregorian = last_exam_date + timedelta(days=365)
-                    if expiry_date_gregorian <= re_exam_target_date_gregorian:
-                        patient_obj = Patient.objects.get(id=patient_id)
-                        
-                        # تبدیل تاریخ‌های میلادی به شمسی برای نمایش
-                        last_exam_date_jalali = jdatetime.date.fromgregorian(date=last_exam_date)
-                        expiry_date_jalali = jdatetime.date.fromgregorian(date=expiry_date_gregorian)
+                    if last_exam_date:
+                        expiry_date_gregorian = last_exam_date + timedelta(days=365)
+                        if expiry_date_gregorian <= re_exam_target_date_gregorian:
+                            patient_obj = Patient.objects.get(id=patient_id)
+                            last_exam_date_jalali = jdatetime.date.fromgregorian(date=last_exam_date)
+                            expiry_date_jalali = jdatetime.date.fromgregorian(date=expiry_date_gregorian)
+                            patients_due_for_re_exam.append({
+                                'patient': patient_obj,
+                                'last_exam_date_jalali': last_exam_date_jalali,
+                                'expiry_date_jalali': expiry_date_jalali
+                            })
+                report_title = f"بیمارانی که نیاز به معاینه مجدد دارند (تا تاریخ: {re_exam_target_date_jalali})"
 
-                        patients_due_for_re_exam.append({
-                            'patient': patient_obj,
-                            'last_exam_date_jalali': last_exam_date_jalali,
-                            'expiry_date_jalali': expiry_date_jalali
-                        })
-    
-    elif report_type == 'conditional_final_opinion':
-        conditional_final_opinion_exams = PeriodicExamination.objects.filter(
-            Q(final_opinion_conditions__icontains='مشروط') | Q(final_opinion_conditions__icontains='نهایی')
-        ).select_related('patient').order_by('-exam_date')
-        
-        # تبدیل تاریخ‌های میلادی به شمسی برای نمایش در این گزارش
-        for exam in conditional_final_opinion_exams:
+    elif report_type == 'final_opinion':
+        opinion_query = Q()
+        if 'conditional' in final_opinion_filters:
+            opinion_query |= Q(final_opinion_text__icontains='مشروط')
+        if 'unconditional' in final_opinion_filters:
+            opinion_query |= Q(final_opinion_text__icontains='بلامانع')
+        if 'not_declared' in final_opinion_filters:
+            opinion_query |= Q(final_opinion_text__isnull=True) | Q(final_opinion_text__exact='') | Q(final_opinion_text__in=['-', '.'])
+        # اضافه کردن فیلتر جدید
+        if 'waiting_for_result' in final_opinion_filters:
+            opinion_query |= Q(final_opinion_text__icontains='در انتظار نتیجه')
+            
+        filtered_exams = PeriodicExamination.objects.filter(opinion_query, patient__in=base_query).select_related('patient').order_by('-exam_date')
+
+        for exam in filtered_exams:
             if exam.exam_date:
                 exam.exam_date_jalali = jdatetime.date.fromgregorian(date=exam.exam_date)
             else:
                 exam.exam_date_jalali = None
+        final_opinion_exams = filtered_exams
+        
+        filter_names = {
+            'conditional': 'مشروط', 
+            'unconditional': 'بلامانع', 
+            'not_declared': 'عدم اعلام نظر',
+            'waiting_for_result': 'در انتظار نتیجه',
+        }
+        selected_names = [filter_names[f] for f in final_opinion_filters if f in filter_names]
+        report_title = f"معاینات با نظریه نهایی: {', '.join(selected_names)}" if selected_names else "معاینات با نظریه نهایی"
 
+    # گزارش جدید: بیمارانی که کد پرسنلی دارند
+    elif report_type == 'personnel_with_code':
+        personnel_with_code = base_query.filter(
+            Q(personnel_number__isnull=False) & ~Q(personnel_number__exact='')
+        ).order_by('personnel_number')
+        
+        report_title = "بیمارانی که کد پرسنلی دارند (با نظریه نهایی)"
+        
+        for patient in personnel_with_code:
+            try:
+                last_exam = PeriodicExamination.objects.filter(patient=patient).latest('exam_date')
+                
+                # اضافه کردن تاریخ معاینه
+                patient.last_exam_date_jalali = jdatetime.date.fromgregorian(date=last_exam.exam_date)
 
-    context = {
+                # بررسی و جایگزینی نظریه نهایی
+                if last_exam.final_opinion_text == '-' or last_exam.final_opinion_text == '.' or last_exam.final_opinion_text is None:
+                    patient.final_opinion_text = "منتظر اعلام نتیجه"
+                    patient.final_opinion_conditions = "بیمار جهت بررسی بیشتر به متخصص ارجاع شده است اما تاکنون نتیجه را ارائه نکرده است"
+                else:
+                    patient.final_opinion_text = last_exam.final_opinion_text
+                    patient.final_opinion_conditions = last_exam.final_opinion_conditions
+
+            except PeriodicExamination.DoesNotExist:
+                # اگر معاینه‌ای وجود نداشت
+                patient.last_exam_date_jalali = "-"
+                patient.final_opinion_text = "طب کار ندارد"
+                patient.final_opinion_conditions = "-"
+
+    # گزارش جدید: بیمارانی که معاینه دوره‌ای دارند ولی کد پرسنلی ندارند
+    elif report_type == 'exams_without_personnel_id':
+        exams_without_personnel_id = base_query.filter(
+            (Q(personnel_number__isnull=True) | Q(personnel_number__exact='')),
+            periodic_examinations__isnull=False
+        ).distinct().order_by('first_name', 'last_name')
+        report_title = "بیمارانی که معاینه دارند ولی کد پرسنلی ندارند"
+        for patient in exams_without_personnel_id:
+            last_exam_date = patients_with_last_exam.get(patient.id)
+            if last_exam_date:
+                patient.last_exam_date_jalali = jdatetime.date.fromgregorian(date=last_exam_date)
+            else:
+                patient.last_exam_date_jalali = None
+                
+    # گزارش جدید: بیمارانی که کد پرسنلی دارند ولی معاینه دوره‌ای ندارند
+    elif report_type == 'personnel_without_exams':
+        personnel_without_exams = base_query.filter(
+            Q(personnel_number__isnull=False) & ~Q(personnel_number__exact=''),
+            periodic_examinations__isnull=True
+        ).order_by('personnel_number')
+        report_title = "بیمارانی که کد پرسنلی دارند معاینه ندارند"
+        for patient in personnel_without_exams:
+            last_exam_date = patients_with_last_exam.get(patient.id)
+            if last_exam_date:
+                patient.last_exam_date_jalali = jdatetime.date.fromgregorian(date=last_exam_date)
+            else:
+                patient.last_exam_date_jalali = None
+
+    return {
         'patients_without_exams': patients_without_exams,
         'patients_without_personnel_id': patients_without_personnel_id,
         'patients_due_for_re_exam': patients_due_for_re_exam,
-        'conditional_final_opinion_exams': conditional_final_opinion_exams,
+        'final_opinion_exams': final_opinion_exams,
+        'personnel_with_code': personnel_with_code,
+        'exams_without_personnel_id': exams_without_personnel_id,
+        'personnel_without_exams': personnel_without_exams,
         're_exam_target_date_jalali': re_exam_target_date_jalali,
-        'selected_report_type': report_type, # برای حفظ انتخاب کاربر پس از رفرش
+        'report_title': report_title,
     }
+
+def reports_view(request):
+    report_type = request.GET.get('report_type')
+    company_id = request.GET.get('company')
+    final_opinion_filters = request.GET.getlist('final_opinion_filter')
+    re_exam_date_jalali_str = request.GET.get('re_exam_date_jalali')
+    
+    context = get_report_data(report_type, company_id, final_opinion_filters, re_exam_date_jalali_str)
+    context['selected_report_type'] = report_type
+    context['companies'] = Company.objects.all()
+    context['selected_company'] = company_id
+    context['selected_final_opinion_filters'] = final_opinion_filters
+    
+    return render(request, 'lab_results/reports.html', context)
+
+def export_excel(request):
+    report_type = request.GET.get('report_type')
+    company_id = request.GET.get('company')
+    final_opinion_filters = request.GET.getlist('final_opinion_filter')
+    re_exam_date_jalali_str = request.GET.get('re_exam_date_jalali')
+    
+    report_data = get_report_data(report_type, company_id, final_opinion_filters, re_exam_date_jalali_str)
+    
+    response = HttpResponse(content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+    response['Content-Disposition'] = f'attachment; filename="{report_data["report_title"]}.xlsx"'
+    
+    workbook = Workbook()
+    worksheet = workbook.active
+    worksheet.title = "گزارش"
+    
+    header_font = Font(bold=True)
+    header_fill = PatternFill(start_color="D3D3D3", end_color="D3D3D3", fill_type="solid")
+    thin_border = Border(left=Side(style='thin'), 
+                         right=Side(style='thin'), 
+                         top=Side(style='thin'), 
+                         bottom=Side(style='thin'))
+
+    def format_header(row):
+        for cell in row:
+            cell.font = header_font
+            cell.fill = header_fill
+            cell.border = thin_border
+            cell.alignment = Alignment(horizontal='center', vertical='center')
+    
+    if report_type == 'personnel_with_code':
+        headers = ["ردیف", "کد پرسنلی", "نام کامل", "کد ملی", "شغل درخواستی", "تاریخ آزمایش", "نظریه نهایی", "شروط نظریه نهایی"]
+        worksheet.append(headers)
+        format_header(worksheet[1])
+        
+        data_list = report_data['personnel_with_code']
+        for index, patient in enumerate(data_list, 1):
+            last_exam_date_str = patient.last_exam_date_jalali
+            if isinstance(patient.last_exam_date_jalali, jdatetime.date):
+                last_exam_date_str = patient.last_exam_date_jalali.strftime('%Y/%m/%d')
+            
+            worksheet.append([
+                index,
+                patient.personnel_number or "-",
+                f"{patient.first_name} {patient.last_name}",
+                patient.national_code or "-",
+                patient.occupation or "-",
+                last_exam_date_str,
+                patient.final_opinion_text or "-",
+                patient.final_opinion_conditions or "-",
+            ])
+            
+    # افزودن منطق برای سایر انواع گزارشات
+    elif report_type == 'no_exams':
+        headers = ["ردیف", "نام کامل", "کد ملی", "کد پرسنلی", "شماره تماس", "شغل درخواستی", "آخرین تاریخ معاینه"]
+        worksheet.append(headers)
+        format_header(worksheet[1])
+        
+        data_list = report_data['patients_without_exams']
+        for index, patient in enumerate(data_list, 1):
+            last_exam_date_str = patient.last_exam_date_jalali
+            if isinstance(patient.last_exam_date_jalali, jdatetime.date):
+                last_exam_date_str = patient.last_exam_date_jalali.strftime('%Y/%m/%d')
+                
+            worksheet.append([
+                index,
+                f"{patient.first_name} {patient.last_name}",
+                patient.national_code or "-",
+                patient.personnel_number or "-",
+                patient.phone_number or "-",
+                patient.occupation or "-",
+                last_exam_date_str,
+            ])
+
+    elif report_type == 'final_opinion':
+        headers = ["ردیف", "نام بیمار", "کد پرسنلی", "تاریخ معاینه", "نظریه نهایی", "شروط نظریه نهایی", "شغل درخواستی"]
+        worksheet.append(headers)
+        format_header(worksheet[1])
+        
+        data_list = report_data['final_opinion_exams']
+        for index, exam in enumerate(data_list, 1):
+            exam_date_str = exam.exam_date_jalali
+            if isinstance(exam.exam_date_jalali, jdatetime.date):
+                exam_date_str = exam.exam_date_jalali.strftime('%Y/%m/%d')
+            
+            worksheet.append([
+                index,
+                f"{exam.patient.first_name} {exam.patient.last_name}",
+                exam.patient.personnel_number or "-",
+                exam_date_str,
+                exam.final_opinion_text or "-",
+                exam.final_opinion_conditions or "-",
+                exam.patient.occupation or "-",
+            ])
+
+    elif report_type == 'no_personnel_id':
+        headers = ["ردیف", "نام کامل", "کد ملی", "کد پرسنلی", "شماره تماس", "شغل درخواستی", "آخرین تاریخ معاینه"]
+        worksheet.append(headers)
+        format_header(worksheet[1])
+        
+        data_list = report_data['patients_without_personnel_id']
+        for index, patient in enumerate(data_list, 1):
+            last_exam_date_str = patient.last_exam_date_jalali
+            if isinstance(patient.last_exam_date_jalali, jdatetime.date):
+                last_exam_date_str = patient.last_exam_date_jalali.strftime('%Y/%m/%d')
+            
+            worksheet.append([
+                index,
+                f"{patient.first_name} {patient.last_name}",
+                patient.national_code or "-",
+                patient.personnel_number or "-",
+                patient.phone_number or "-",
+                patient.occupation or "-",
+                last_exam_date_str,
+            ])
+
+    elif report_type == 'exams_without_personnel_id':
+        headers = ["ردیف", "نام کامل", "کد ملی", "شغل درخواستی", "شماره تماس", "آخرین تاریخ معاینه"]
+        worksheet.append(headers)
+        format_header(worksheet[1])
+        
+        data_list = report_data['exams_without_personnel_id']
+        for index, patient in enumerate(data_list, 1):
+            last_exam_date_str = patient.last_exam_date_jalali
+            if isinstance(patient.last_exam_date_jalali, jdatetime.date):
+                last_exam_date_str = patient.last_exam_date_jalali.strftime('%Y/%m/%d')
+            
+            worksheet.append([
+                index,
+                f"{patient.first_name} {patient.last_name}",
+                patient.national_code or "-",
+                patient.occupation or "-",
+                patient.phone_number or "-",
+                last_exam_date_str,
+            ])
+
+    elif report_type == 'personnel_without_exams':
+        headers = ["ردیف", "کد پرسنلی", "نام کامل", "کد ملی", "شغل درخواستی", "شماره تماس"]
+        worksheet.append(headers)
+        format_header(worksheet[1])
+        
+        data_list = report_data['personnel_without_exams']
+        for index, patient in enumerate(data_list, 1):
+            worksheet.append([
+                index,
+                patient.personnel_number or "-",
+                f"{patient.first_name} {patient.last_name}",
+                patient.national_code or "-",
+                patient.occupation or "-",
+                patient.phone_number or "-",
+            ])
+
+    elif report_type == 'due_for_re_exam':
+        headers = ["ردیف", "نام کامل", "کد پرسنلی", "شغل درخواستی", "آخرین تاریخ معاینه", "تاریخ اعتبار آزمایش", "شماره تماس"]
+        worksheet.append(headers)
+        format_header(worksheet[1])
+        
+        data_list = report_data['patients_due_for_re_exam']
+        for index, item in enumerate(data_list, 1):
+            last_exam_date_str = item['last_exam_date_jalali']
+            if isinstance(item['last_exam_date_jalali'], jdatetime.date):
+                last_exam_date_str = item['last_exam_date_jalali'].strftime('%Y/%m/%d')
+            
+            expiry_date_str = item['expiry_date_jalali']
+            if isinstance(item['expiry_date_jalali'], jdatetime.date):
+                expiry_date_str = item['expiry_date_jalali'].strftime('%Y/%m/%d')
+            
+            worksheet.append([
+                index,
+                f"{item['patient'].first_name} {item['patient'].last_name}",
+                item['patient'].personnel_number or "-",
+                item['patient'].occupation or "-",
+                last_exam_date_str,
+                expiry_date_str,
+                item['patient'].phone_number or "-",
+            ])
+
+    workbook.save(response)
+    return response
+def reports_view(request):
+    report_type = request.GET.get('report_type')
+    company_id = request.GET.get('company')
+    final_opinion_filters = request.GET.getlist('final_opinion_filter')
+    re_exam_date_jalali_str = request.GET.get('re_exam_date_jalali')
+    
+    context = get_report_data(report_type, company_id, final_opinion_filters, re_exam_date_jalali_str)
+    context['selected_report_type'] = report_type
+    context['companies'] = Company.objects.all()
+    context['selected_company'] = company_id
+    context['selected_final_opinion_filters'] = final_opinion_filters
+    
     return render(request, 'lab_results/reports.html', context)

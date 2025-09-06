@@ -12,53 +12,82 @@ from .models import Patient, Company # مطمئن شوید Company هم ایمپ
 from datetime import date # برای محاسبه سن در صورت نیاز
 from django.contrib.auth import get_user_model # 👈 این خط رو اضافه کن
 
-class PatientSerializer(serializers.ModelSerializer):
-    # فیلد 'text' برای نمایش در Select2 (ترکیبی از نام و شناساگرها)
-    text = serializers.SerializerMethodField() 
-    
-    # فیلد 'age' که از پراپرتی age در مدل Patient گرفته می‌شود
-    age = serializers.SerializerMethodField()
-    
-    # فیلدهای 'allergies' و 'medical_history' مستقیماً از مدل خوانده می‌شوند
-    # نیازی به source='allergies' و source='medical_history' نیست چون نام فیلد و نام فیلد مدل یکی است.
-    allergies = serializers.CharField(read_only=True) # <-- تغییر اینجا
-    medical_history = serializers.CharField(read_only=True) # <-- تغییر اینجا
+from rest_framework import serializers
+from .models import Patient# مدل Visit را هم import کنید
+from visits.models import Visit , ReasonForVisit
+# visits/serializers.py
+from rest_framework import serializers
+
+from jalali_date import datetime2jalali
+
+class PatientSearchSerializer(serializers.ModelSerializer):
+    """
+    این سریالایزر به صورت اختصاصی برای API جستجوی بیمار (Select2) طراحی شده.
+    خروجی آن شامل فیلدهای id و text است که برای Select2 الزامی است.
+    """
+    # فیلد text از پراپرتی full_name_and_identifiers در مدل Patient خوانده می‌شود
+    text = serializers.CharField(source='full_name_and_identifiers', read_only=True)
 
     class Meta:
         model = Patient
-        fields = [
-            'id', 
-            'text', 
-            'age', 
-            'allergies', 
-            'medical_history',
-            # اگر فیلدهای دیگری در مدل Patient دارید که می‌خواهید در serializer باشند، اینجا اضافه کنید.
-            # مثلاً 'national_code', 'phone_number' و ...
-            'national_code', # اضافه شده برای نمایش در PatientSerializer
-            'phone_number', # اضافه شده برای نمایش در PatientSerializer
-        ]
+        # فقط فیلدهای مورد نیاز برای نمایش در لیست جستجو را برمی‌گردانیم
+        fields = ['id', 'text', 'national_code', 'phone_number']
 
-    def get_text(self, obj):
-        """
-        این متد، متناظر با فیلد 'text'، نام کامل و شناساگرهای بیمار را برای نمایش در Select2 برمی‌گرداند.
-        """
-        return obj.full_name_and_identifiers 
+
+# --- سریالایزر کامل بیمار (برای نمایش جزئیات پس از انتخاب) ---
+class PatientSerializer(serializers.ModelSerializer):
+    """
+    سریالایزر برای مدل Patient جهت استفاده در API
+    """
+    full_name_and_identifiers = serializers.SerializerMethodField()
+    age = serializers.SerializerMethodField()
+    visit_count = serializers.SerializerMethodField()
+    last_visit_date = serializers.SerializerMethodField()
+    last_visit_reason = serializers.SerializerMethodField()
+
+    class Meta:
+        model = Patient
+        fields = (
+            'id',
+            'first_name',
+            'last_name',
+            'national_code',
+            'personnel_number',
+            'medical_history',
+            'allergies',
+            'phone_number', # phone_number را برای نمایش در جزئیات اضافه می‌کنیم
+            'full_name_and_identifiers',
+            'age',
+            'visit_count',
+            'last_visit_date',
+            'last_visit_reason'
+        )
+
+    def get_full_name_and_identifiers(self, obj):
+        return f"{obj.first_name} {obj.last_name}"
 
     def get_age(self, obj):
-        """
-        این متد سن بیمار را از پراپرتی 'age' مدل Patient دریافت کرده و در صورت عدم وجود، 'نامشخص' برمی‌گرداند.
-        """
-        return obj.age if obj.age is not None else 'نامشخص'
+        if obj.date_of_birth: # از date_of_birth به جای birth_date استفاده شد
+            today = date.today()
+            age = today.year - obj.date_of_birth.year - ((today.month, today.day) < (obj.date_of_birth.month, obj.date_of_birth.day))
+            return age
+        return '---'
 
+    def get_visit_count(self, obj):
+        return Visit.objects.filter(patient=obj).count()
 
+    def get_last_visit_date(self, obj):
+        last_visit = Visit.objects.filter(patient=obj).order_by('-visit_date').first()
+        if last_visit and last_visit.visit_date:
+            return datetime2jalali(last_visit.visit_date).strftime('%Y/%m/%d')
+        return '---'
 
+    def get_last_visit_reason(self, obj):
+        last_visit = Visit.objects.filter(patient=obj).order_by('-visit_date').first()
+        if last_visit and last_visit.reason_for_visit:
+            return last_visit.reason_for_visit.name
+        return '---'
 
-# D:\final\core\serializers.py (یا هر جایی که Serializer شما هست)
-
-from django.contrib.auth import get_user_model # 👈 این خط رو اضافه کن
-
-
-User = get_user_model() # حالا این خط دیگه خطا نمیده
 
 class PatientAuthSerializer(serializers.ModelSerializer):
     company_name = serializers.CharField(source='company.name', read_only=True, required=False)

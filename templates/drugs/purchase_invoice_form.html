@@ -1,7 +1,6 @@
-
 {% load crispy_forms_tags %}
 {% load static %}
-{% load jalali_tags %} 
+{% load jformat %} 
 
 <!DOCTYPE html>
 <html lang="fa" dir="rtl">
@@ -26,7 +25,7 @@
     <style>
         body {
             background-color: #f8f9fa;
-            font-family: 'Vazirmatn', sans-serif; /* اعمال فونت Vazirmatn */
+            font-family: 'Vazirmatn', sans-serif;
         }
         .container {
             max-width: 1200px;
@@ -82,7 +81,7 @@
             align-items: center;
             border: 1px solid #ced4da;
             border-radius: 0.25rem;
-            font-family: 'Vazirmatn', sans-serif; /* اعمال فونت به Select2 */
+            font-family: 'Vazirmatn', sans-serif;
         }
         .select2-container--default .select2-selection--single .select2-selection__arrow {
             height: calc(2.25rem + 2px); 
@@ -104,7 +103,7 @@
         }
         .select2-search__field {
             width: 100% !important; 
-            font-family: 'Vazirmatn', sans-serif; /* اعمال فونت به فیلد جستجوی Select2 */
+            font-family: 'Vazirmatn', sans-serif;
         }
 
         /* برای فیلدهای number که فلش نمی‌خواهند */
@@ -125,6 +124,14 @@
             color: #555; 
             font-weight: bold;
         }
+        /* استایل برای دکمه‌های فرم‌ها */
+        .form-action-buttons {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-top: 2rem;
+            gap: 1rem;
+        }
     </style>
 </head>
 <body>
@@ -140,9 +147,9 @@
             {% endfor %}
         {% endif %}
 
-        <form method="post" id="purchase-invoice-form">
+        <form method="post" id="purchase-invoice-form" enctype="multipart/form-data">
             {% csrf_token %}
-            <div class="card p-4 shadow-sm">
+            <div class="card p-4 shadow-sm mb-4">
                 <div class="row">
                     <div class="col-md-4">
                         {{ form.invoice_number|as_crispy_field }}
@@ -151,7 +158,7 @@
                         {{ form.invoice_date|as_crispy_field }} 
                     </div>
                     <div class="col-md-4">
-                        {{ form.status|as_crispy_field }} {# 'status' بازگردانده شد #}
+                        {{ form.status|as_crispy_field }}
                     </div>
                 </div>
                 <div class="row">
@@ -164,7 +171,20 @@
                 </div>
             </div>
 
-            <h4 class="mt-4 mb-3">آیتم‌های فاکتور</h4>
+            {# بخش جدید برای آپلود فایل اکسل #}
+            <div class="card p-4 shadow-sm mb-4">
+                <h4 class="mb-3">ایجاد فاکتور از طریق فایل اکسل</h4>
+                <p class="text-muted">
+                    برای وارد کردن آیتم‌های فاکتور از طریق یک فایل اکسل، ابتدا فایل را در این قسمت آپلود کنید.
+                </p>
+                <div class="row">
+                    <div class="col-md-12">
+                        {% crispy excel_form %}
+                    </div>
+                </div>
+            </div>
+
+            <h4 class="mt-4 mb-3">آیتم‌های فاکتور (روش دستی)</h4>
             <div id="formset-container">
                 {{ formset.management_form }}
                 {% for item_form in formset %}

@@ -1,5 +1,5 @@
 {% load static %}
-{% load jalali_tags %}
+{% load jformat %}
 {% load crispy_forms_tags %}
 
 <!DOCTYPE html>
@@ -183,7 +183,7 @@
             <img src="{% static 'img/logo.png' %}" alt="لوگو" class="logo">
             <div class="title">
                 <h2>نتایج معاینات و آزمایشات</h2>
-                <h3>شرکت  آهن و فولاد غدیر ایرانیان</h3>
+                <h3>شرکت  آهن و فولاد غدیر ایرانیان</h3>
             </div>
             <div class="contact-info">
                 
@@ -220,9 +220,9 @@
                 <h3>جزئیات معاینه دوره‌ای - تاریخ: {{ exam.jalali_exam_date }}</h3>
                 <div class="exam-details">
                     <div class="info-row">
-                        <div class="info-item"><label>تاریخ پذیرش:</label> <span>{{ exam.admission_date|to_jalali:"%Y/%m/%d"|default:"-" }}</span></div>
+                        <div class="info-item"><label>تاریخ پذیرش:</label> <span>{{ exam.admission_date|jformat:"%Y/%m/%d"|default:"-" }}</span></div>
                         <div class="info-item"><label>پزشک نظر نهایی:</label> <span>{{ exam.final_opinion_doctor.get_full_name|default:"-" }}</span></div>
-                        <div class="info-item"><label>تاریخ نظر نهایی:</label> <span>{{ exam.final_opinion_date|to_jalali:"%Y/%m/%d"|default:"-" }}</span></div>
+                        <div class="info-item"><label>تاریخ نظر نهایی:</label> <span>{{ exam.final_opinion_date|jformat:"%Y/%m/%d"|default:"-" }}</span></div>
                         <div class="info-item"><label>متن نظریه نهایی:</label> <span>{{ exam.final_opinion_text|default:"-" }}</span></div> {# اضافه شده #}
                         <div class="info-item"><label>شروط نظریه نهایی:</label> <span>{{ exam.final_opinion_conditions|default:"-" }}</span></div> {# اضافه شده #}
                     </div>

@@ -42,7 +42,7 @@
                     <h5><i class="fas fa-file-medical text-primary me-2"></i>اطلاعات ویزیت</h5>
                     <div class="row">
                         <div class="col-md-3 mb-2">
-                            <p class="mb-0"><strong>پزشک ثبت کننده:</strong> {{ visit.doctor.get_full_name|default:'--' }}</p> {# عنوان فیلد از "کاربر ثبت کننده" به "پزشک ثبت کننده" تغییر یافت #}
+                            <p class="mb-0"><strong>ثبت کننده:</strong> {{ visit.doctor.get_full_name|default:'--' }}</p> {# عنوان فیلد از "کاربر ثبت کننده" به "پزشک ثبت کننده" تغییر یافت #}
                         </div>
                         <div class="col-md-3 mb-2">
                             <p class="mb-0"><strong>کاربر مسئول فعلی:</strong> {{ visit.assigned_to.get_full_name|default:'--' }}</p>

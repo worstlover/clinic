@@ -16,7 +16,7 @@ SECRET_KEY = 'django-insecure-#3p4$3qq@*o=+_*(!57s-jcbz4^oh4f=uuw5ell)3)7%-=m%pr
 
 # SECURITY WARNING: don't run in debug turned on in production!
 # برای محیط توسعه True باشد. برای محیط پروداکشن حتماً False شود.
-DEBUG = False
+DEBUG = True
 
 # در محیط پروداکشن باید دامنه‌ها یا IP سرور شما باشد.
 # مثال: ['127.0.0.1', 'localhost', '.yourdomain.com', 'your_server_ip']

@@ -1,24 +1,27 @@
-# visits/forms.py
-
 from django import forms
 from django.forms import inlineformset_factory
 from django.contrib.auth.models import User
-from .models import Visit, VisitItem
+from .models import Visit, VisitItem, ReasonForVisit, TreatmentResult
 from core.models import Patient
 from persiantools.jdatetime import JalaliDateTime
 from jalali_date import datetime2jalali
 from datetime import datetime
 from django.contrib.auth import get_user_model
-from .models import Visit, VisitItem, ReasonForVisit, TreatmentResult
 
+# -----------------------------------------------------------------------------
+# Visit Form
+# -----------------------------------------------------------------------------
 class VisitForm(forms.ModelForm):
+    """
+    فرم اصلی برای ثبت اطلاعات ویزیت بیمار.
+    """
     visit_date_jalali = forms.CharField(
         label="تاریخ ویزیت (شمسی)",
         required=True,
         widget=forms.TextInput(attrs={'class': 'form-control jalali-date-picker', 'placeholder': 'YYYY/MM/DD HH:MM'})
     )
     patient = forms.ModelChoiceField(
-        queryset=Patient.objects.all(), # Queryset اولیه می‌تواند کامل باشد
+        queryset=Patient.objects.all().order_by('last_name', 'first_name'),
         label="بیمار",
         widget=forms.Select(attrs={'class': 'form-control select2-patient', 'data-placeholder': 'جستجوی بیمار بر اساس نام، کد ملی یا پرسنلی...'})
     )
@@ -31,16 +34,33 @@ class VisitForm(forms.ModelForm):
     treatment_result = forms.ModelChoiceField(
         queryset=TreatmentResult.objects.filter(is_active=True),
         label="نتیجه درمان",
-        required=False, # این فیلد می‌تواند خالی باشد
+        required=False,
         widget=forms.Select(attrs={'class': 'form-control'})
     )
 
     class Meta:
         model = Visit
+        # فیلدها را برای نمایش در قالب به صورت منطقی مرتب می‌کنیم.
+        # ترتیب نهایی نمایش فیلدها (مثلا ۴ در ۴) به طراحی قالب HTML شما بستگی دارد.
         fields = [
-            'patient', 'visit_date_jalali', 'reason_for_visit', 'incident_type',
-            'height_cm', 'weight_kg', 'blood_pressure', 'heart_rate', 'temperature',
-            'treatment_result', 'notes'
+            # اطلاعات اولیه
+            'patient',
+            'visit_date_jalali',
+            'reason_for_visit',
+            'incident_type',
+            
+            # اطلاعات حیاتی و فیزیکی
+            'height_cm',
+            'weight_kg',
+            'blood_pressure',
+            'heart_rate',
+            'temperature',
+            'blood_sugar',
+            
+            # نتایج و یادداشت‌ها
+            'treatment_result',
+            'ecg_interpretation',
+            'notes',
         ]
         widgets = {
             'incident_type': forms.Select(attrs={'class': 'form-control'}),
@@ -51,17 +71,16 @@ class VisitForm(forms.ModelForm):
             'temperature': forms.NumberInput(attrs={'class': 'form-control'}),
             'notes': forms.Textarea(attrs={'class': 'form-control', 'rows': 3}),
         }
+
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        # اگر در حالت ویرایش هستیم، فقط بیمار فعلی را در queryset قرار می‌دهیم تا انتخاب شود
+        # در حالت ویرایش، تاریخ شمسی را مقداردهی اولیه می‌کنیم
         if self.instance and self.instance.pk:
             self.fields['patient'].queryset = Patient.objects.filter(pk=self.instance.patient.pk)
-            self.fields['visit_date_jalali'].initial = datetime2jalali(self.instance.visit_date).strftime('%Y/%m/%d %H:%M')
+            if self.instance.visit_date:
+                self.fields['visit_date_jalali'].initial = datetime2jalali(self.instance.visit_date).strftime('%Y/%m/%d %H:%M')
         else:
-            # در حالت ایجاد:
-            # نیازی به تنظیم queryset به Patient.objects.none() نیست.
-            # queryset پیش‌فرض (Patient.objects.all()) که در تعریف فیلد 'patient' تنظیم شده، کافی است.
-            # این کار باعث می‌شود Select2 بتواند به درستی کار کند و فرم نیز اعتبار سنجی را انجام دهد.
+            # در حالت ایجاد، تاریخ فعلی را به عنوان مقدار اولیه قرار می‌دهیم
             self.fields['visit_date_jalali'].initial = datetime2jalali(datetime.now()).strftime('%Y/%m/%d %H:%M')
 
     def clean(self):
@@ -82,13 +101,15 @@ class VisitForm(forms.ModelForm):
             instance.save()
         return instance
 
-# فرم ارجاع و فرم آیتم ویزیت بدون تغییر
-# ... (VisitReferralForm و VisitItemForm و VisitItemFormSet)
-
-# فرم ارجاع (بدون تغییر)
-User = get_user_model() # این خط را اضافه کنید
+# -----------------------------------------------------------------------------
+# VisitReferralForm
+# -----------------------------------------------------------------------------
+User = get_user_model()
 
 class VisitReferralForm(forms.ModelForm):
+    """
+    فرم برای ارجاع ویزیت به کاربر دیگر.
+    """
     class Meta:
         model = Visit
         fields = ['assigned_to']
@@ -99,33 +120,19 @@ class VisitReferralForm(forms.ModelForm):
         current_user = kwargs.pop('user', None)
         super().__init__(*args, **kwargs)
 
-        # ⭐ تغییر مهم اینجا است ⭐
-        # اگر کاربرانی که میخواهید ارجاع دهید لزوما is_staff نیستند،
-        # باید کوئری ست را بر اساس نقش واقعی آنها تنظیم کنید.
-        # فرض کنید همه کاربران فعال (is_active=True) میتوانند انتخاب شوند:
         queryset = User.objects.filter(is_active=True).order_by('first_name', 'last_name')
-
-        # مثال: اگر کاربران باید در یک گروه خاص (مثلا 'Doctors') باشند:
-        # from django.contrib.auth.models import Group
-        # try:
-        #     doctors_group = Group.objects.get(name='Doctors')
-        #     queryset = User.objects.filter(groups=doctors_group, is_active=True).order_by('first_name', 'last_name')
-        # except Group.DoesNotExist:
-        #     queryset = User.objects.none() # اگر گروه وجود ندارد، لیستی نشان داده نشود
-
-        # مثال: اگر کاربران یک فیلد سفارشی مثل 'is_doctor' دارند:
-        # queryset = User.objects.filter(is_active=True, is_doctor=True).order_by('first_name', 'last_name')
-
-
         if current_user:
-            # کاربر فعلی را از لیست حذف کنید تا نتواند ویزیت را به خودش ارجاع دهد
             self.fields['assigned_to'].queryset = queryset.exclude(pk=current_user.pk)
         else:
             self.fields['assigned_to'].queryset = queryset
 
-
-# فرم آیتم ویزیت (بدون تغییر)
+# -----------------------------------------------------------------------------
+# VisitItemForm & FormSet
+# -----------------------------------------------------------------------------
 class VisitItemForm(forms.ModelForm):
+    """
+    فرم برای اضافه کردن آیتم‌های ویزیت (مانند داروها).
+    """
     class Meta:
         model = VisitItem
         fields = ['drug', 'quantity', 'notes']

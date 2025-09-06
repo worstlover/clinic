@@ -1,14 +1,10 @@
-{# D:\final\templates\lab_results\reports.html #}
-
 {% extends 'base.html' %}
 
 {% block title %}گزارشات بیماران{% endblock %}
 
-{% block content %}
-{% load static %}
-
+{% block extra_head %}
 <style>
-    /* استایل‌های پایه */
+    /* همان کدهای CSS قبلی شما */
     body {
         font-family: 'B Nazanin', 'Vazirmatn', sans-serif;
         margin: 20px;
@@ -32,7 +28,7 @@
         margin-top: 25px;
     }
     .report-section {
-        margin-bottom: 25px; /* کاهش فاصله برای نمای بهتر */
+        margin-bottom: 25px;
         padding: 20px;
         border: 1px solid #e0e0e0;
         border-radius: 5px;
@@ -46,11 +42,11 @@
         font-weight: bold;
         color: #004085;
         font-size: 1.2em;
-        display: flex; /* برای تراز کردن عنوان و تعداد */
-        justify-content: space-between; /* برای تراز کردن عنوان و تعداد */
-        align-items: center; /* برای تراز کردن عنوان و تعداد */
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
     }
-    .report-count { /* استایل برای نمایش تعداد */
+    .report-count {
         font-size: 0.9em;
         color: #007bff;
         background-color: #cceeff;
@@ -138,11 +134,10 @@
         cursor: pointer;
     }
     .back-button { background-color: #6c757d; }
-    .back-button:hover { background-color: #5a6268; }
+    .excel-button { background-color: #1a7a40; }
+    .pdf-button { background-color: #b70000; }
     .print-button { background-color: #28a745; }
-    .print-button:hover { background-color: #218838; }
 
-    /* Print Specific Styles */
     @media print {
         body * {
             visibility: hidden;
@@ -156,7 +151,7 @@
             top: 0;
             width: 100%;
             margin: 0;
-            padding: 10px; /* کاهش padding برای چاپ بهتر */
+            padding: 10px;
             box-shadow: none;
             border: none;
         }
@@ -171,9 +166,7 @@
         }
         table { page-break-inside: auto; }
         tr { page-break-inside: avoid; page-break-after: auto; }
-        th, td {
-            color: #000;
-        }
+        th, td { color: #000; }
         th { background-color: #f2f2f2; }
         .report-section-header, .report-count {
             background-color: #eee !important;
@@ -184,7 +177,9 @@
         }
     }
 </style>
+{% endblock %}
 
+{% block content %}
 <div class="container">
     <h1>گزارشات سیستم</h1>
 
@@ -196,24 +191,52 @@
                     <option value="">یکی را انتخاب کنید...</option>
                     <option value="no_exams" {% if selected_report_type == 'no_exams' %}selected{% endif %}>بیمارانی که معاینه دوره‌ای ندارند</option>
                     <option value="no_personnel_id" {% if selected_report_type == 'no_personnel_id' %}selected{% endif %}>بیمارانی که کد پرسنلی ندارند</option>
+                    <option value="personnel_with_code" {% if selected_report_type == 'personnel_with_code' %}selected{% endif %}>بیمارانی که کد پرسنلی دارند</option>
+                    <option value="exams_without_personnel_id" {% if selected_report_type == 'exams_without_personnel_id' %}selected{% endif %}>بیمارانی که معاینه دارند ولی کد پرسنلی ندارند</option>
+                    <option value="personnel_without_exams" {% if selected_report_type == 'personnel_without_exams' %}selected{% endif %}>بیمارانی که کد پرسنلی دارند معاینه ندارند</option>
                     <option value="due_for_re_exam" {% if selected_report_type == 'due_for_re_exam' %}selected{% endif %}>بیمارانی که نیاز به معاینه مجدد دارند</option>
-                    <option value="conditional_final_opinion" {% if selected_report_type == 'conditional_final_opinion' %}selected{% endif %}>معاینات با نظریه نهایی (نهایی/مشروط)</option>
+                    <option value="final_opinion" {% if selected_report_type == 'final_opinion' %}selected{% endif %}>معاینات با نظریه نهایی</option>
                 </select>
             </div>
             
+            <div>
+                <label for="company_filter">شرکت:</label>
+                <select id="company_filter" name="company">
+                    <option value="">همه شرکت‌ها</option>
+                    {% for company in companies %}
+                        <option value="{{ company.id }}" {% if selected_company|stringformat:"s" == company.id|stringformat:"s" %}selected{% endif %}>
+                            {{ company.name }}
+                        </option>
+                    {% endfor %}
+                </select>
+            </div>
+            
+            <div style="flex-basis: 100%;">
+                <label>نظریه نهایی:</label>
+                <div style="display: flex; gap: 10px; align-items: center;">
+                    <input type="checkbox" id="conditional" name="final_opinion_filter" value="conditional" {% if 'conditional' in selected_final_opinion_filters %}checked{% endif %}>
+                    <label for="conditional" style="display:inline;">مشروط</label>
+                    <input type="checkbox" id="unconditional" name="final_opinion_filter" value="unconditional" {% if 'unconditional' in selected_final_opinion_filters %}checked{% endif %}>
+                    <label for="unconditional" style="display:inline;">بلامانع</label>
+                    <input type="checkbox" id="waiting_for_result" name="final_opinion_filter" value="waiting_for_result" {% if 'waiting_for_result' in selected_final_opinion_filters %}checked{% endif %}>
+                    <label for="waiting_for_result" style="display:inline;">در انتظار نتیجه</label>
+                    <input type="checkbox" id="not_declared" name="final_opinion_filter" value="not_declared" {% if 'not_declared' in selected_final_opinion_filters %}checked{% endif %}>
+                    <label for="not_declared" style="display:inline;">عدم اعلام نظر</label>
+                </div>
+            </div>
+
             <div>
                 <label for="re_exam_date_jalali">تاریخ هدف (برای معاینه مجدد):</label>
                 <input type="text" id="re_exam_date_jalali" name="re_exam_date_jalali" 
                        placeholder="مثال: 1403/05/25" 
                        value="{{ re_exam_target_date_jalali|default:'' }}">
             </div>
-
+            
             <button type="submit">اعمال گزارش</button>
         </form>
     </div>
 
     <div id="printableArea">
-        
         {# گزارش ۱: بیمارانی که هیچ معاینه دوره‌ای ثبت شده ندارند #}
         {% if selected_report_type == 'no_exams' %}
         <div class="report-section">
@@ -230,20 +253,22 @@
                             <th>ردیف</th>
                             <th>نام کامل</th>
                             <th>کد ملی</th>
-                            <th>شماره پاسپورت</th>
                             <th>کد پرسنلی</th>
                             <th>شماره تماس</th>
+                            <th>شغل درخواستی</th>
+                            <th>آخرین تاریخ معاینه</th>
                         </tr>
                     </thead>
                     <tbody>
                         {% for patient in patients_without_exams %}
                             <tr>
                                 <td>{{ forloop.counter }}</td>
-                                <td>{{ patient.full_name }}</td>
+                                <td>{{ patient.first_name }} {{ patient.last_name }}</td>
                                 <td>{{ patient.national_code|default:"-" }}</td>
-                                <td>{{ patient.passport_number|default:"-" }}</td>
                                 <td>{{ patient.personnel_number|default:"-" }}</td>
                                 <td>{{ patient.phone_number|default:"-" }}</td>
+                                <td>{{ patient.occupation|default:"-" }}</td>
+                                <td>{{ patient.last_exam_date_jalali|default:"-" }}</td>
                             </tr>
                         {% endfor %}
                     </tbody>
@@ -270,24 +295,152 @@
                             <th>ردیف</th>
                             <th>نام کامل</th>
                             <th>کد ملی</th>
-                            <th>شماره پاسپورت</th>
+                            <th>کد پرسنلی</th>
                             <th>شماره تماس</th>
+                            <th>شغل درخواستی</th>
+                            <th>آخرین تاریخ معاینه</th>
                         </tr>
                     </thead>
                     <tbody>
                         {% for patient in patients_without_personnel_id %}
                             <tr>
                                 <td>{{ forloop.counter }}</td>
-                                <td>{{ patient.full_name }}</td>
+                                <td>{{ patient.first_name }} {{ patient.last_name }}</td>
                                 <td>{{ patient.national_code|default:"-" }}</td>
-                                <td>{{ patient.passport_number|default:"-" }}</td>
+                                <td>{{ patient.personnel_number|default:"-" }}</td>
                                 <td>{{ patient.phone_number|default:"-" }}</td>
+                                <td>{{ patient.occupation|default:"-" }}</td>
+                                <td>{{ patient.last_exam_date_jalali|default:"-" }}</td>
                             </tr>
                         {% endfor %}
                     </tbody>
                 </table>
             {% else %}
                 <div class="no-data">کد پرسنلی برای همه بیماران کامل است.</div>
+            {% endif %}
+        </div>
+        {% endif %}
+        
+        {# گزارش جدید: بیمارانی که کد پرسنلی دارند #}
+        {% if selected_report_type == 'personnel_with_code' %}
+        <div class="report-section">
+            <div class="report-section-header">
+                </span>وضعیت کلی طب کار پرسنل مشغول به کار</span>
+                {% if personnel_with_code %}
+                    <span class="report-count">تعداد یافت شده: {{ personnel_with_code|length }}</span>
+                {% endif %}
+            </div>
+            {% if personnel_with_code %}
+                <table>
+                    <thead>
+                        <tr>
+                            <th>ردیف</th>
+                            <th>کد پرسنلی</th>
+                            <th>نام کامل</th>
+                            <th>کد ملی</th>
+                            <th>شغل درخواستی</th>
+                            <th>تاریخ آزمایش</th>
+                            <th>نظریه نهایی</th>
+                            <th>شروط نظریه نهایی</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for patient in personnel_with_code %}
+                            <tr>
+                                <td>{{ forloop.counter }}</td>
+                                <td>{{ patient.personnel_number|default:"-" }}</td>
+                                <td>{{ patient.first_name }} {{ patient.last_name }}</td>
+                                <td>{{ patient.national_code|default:"-" }}</td>
+                                <td>{{ patient.occupation|default:"-" }}</td>
+                                <td>{{ patient.last_exam_date_jalali|default:"-" }}</td>
+                                <td>{{ patient.final_opinion_text|default:"-" }}</td>
+                                <td>{{ patient.final_opinion_conditions|default:"-" }}</td>
+                            </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            {% else %}
+                <div class="no-data">هیچ بیماری با کد پرسنلی یافت نشد.</div>
+            {% endif %}
+        </div>
+        {% endif %}
+
+        {# گزارش جدید: بیمارانی که معاینه دارند ولی کد پرسنلی ندارند #}
+        {% if selected_report_type == 'exams_without_personnel_id' %}
+        <div class="report-section">
+            <div class="report-section-header">
+                <span>بیمارانی که معاینه دارند ولی کد پرسنلی ندارند</span>
+                {% if exams_without_personnel_id %}
+                    <span class="report-count">تعداد یافت شده: {{ exams_without_personnel_id|length }}</span>
+                {% endif %}
+            </div>
+            {% if exams_without_personnel_id %}
+                <table>
+                    <thead>
+                        <tr>
+                            <th>ردیف</th>
+                            <th>نام کامل</th>
+                            <th>کد ملی</th>
+                            <th>شغل درخواستی</th>
+                            <th>شماره تماس</th>
+                            <th>آخرین تاریخ معاینه</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for patient in exams_without_personnel_id %}
+                            <tr>
+                                <td>{{ forloop.counter }}</td>
+                                <td>{{ patient.first_name }} {{ patient.last_name }}</td>
+                                <td>{{ patient.national_code|default:"-" }}</td>
+                                <td>{{ patient.occupation|default:"-" }}</td>
+                                <td>{{ patient.phone_number|default:"-" }}</td>
+                                <td>{{ patient.last_exam_date_jalali|default:"-" }}</td>
+                            </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            {% else %}
+                <div class="no-data">هیچ بیماری که معاینه دارد ولی کد پرسنلی ندارد، یافت نشد.</div>
+            {% endif %}
+        </div>
+        {% endif %}
+
+        {# گزارش جدید: بیمارانی که کد پرسنلی دارند ولی معاینه دوره‌ای ندارند #}
+        {% if selected_report_type == 'personnel_without_exams' %}
+        <div class="report-section">
+            <div class="report-section-header">
+                <span>بیمارانی که کد پرسنلی دارند معاینه ندارند</span>
+                {% if personnel_without_exams %}
+                    <span class="report-count">تعداد یافت شده: {{ personnel_without_exams|length }}</span>
+                {% endif %}
+            </div>
+            {% if personnel_without_exams %}
+                <table>
+                    <thead>
+                        <tr>
+                            <th>ردیف</th>
+                            <th>کد پرسنلی</th>
+                            <th>نام کامل</th>
+                            <th>کد ملی</th>
+                            <th>شغل درخواستی</th>
+                            <th>شماره تماس</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for patient in personnel_without_exams %}
+                            <tr>
+                                <td>{{ forloop.counter }}</td>
+                                <td>{{ patient.personnel_number|default:"-" }}</td>
+                                <td>{{ patient.first_name }} {{ patient.last_name }}</td>
+                                <td>{{ patient.national_code|default:"-" }}</td>
+                                <td>{{ patient.occupation|default:"-" }}</td>
+                                <td>{{ patient.phone_number|default:"-" }}</td>
+                            </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            {% else %}
+                <div class="no-data">هیچ بیماری که کد پرسنلی دارد و معاینه ندارد، یافت نشد.</div>
             {% endif %}
         </div>
         {% endif %}
@@ -308,6 +461,7 @@
                             <th>ردیف</th>
                             <th>نام کامل</th>
                             <th>کد پرسنلی</th>
+                            <th>شغل درخواستی</th>
                             <th>آخرین تاریخ معاینه</th>
                             <th>تاریخ اعتبار آزمایش</th>
                             <th>شماره تماس</th>
@@ -317,8 +471,9 @@
                         {% for item in patients_due_for_re_exam %}
                             <tr>
                                 <td>{{ forloop.counter }}</td>
-                                <td>{{ item.patient.full_name }}</td>
+                                <td>{{ item.patient.first_name }} {{ item.patient.last_name }}</td>
                                 <td>{{ item.patient.personnel_number|default:"-" }}</td>
+                                <td>{{ item.patient.occupation|default:"-" }}</td>
                                 <td>{{ item.last_exam_date_jalali|default:"-" }}</td>
                                 <td>{{ item.expiry_date_jalali|default:"-" }}</td>
                                 <td>{{ item.patient.phone_number|default:"-" }}</td>
@@ -332,16 +487,16 @@
         </div>
         {% endif %}
 
-        {# گزارش ۴: معاینات با نظریه نهایی (نهایی/مشروط) #}
-        {% if selected_report_type == 'conditional_final_opinion' %}
+        {# گزارش ۴: معاینات با نظریه نهایی #}
+        {% if selected_report_type == 'final_opinion' %}
         <div class="report-section">
             <div class="report-section-header">
-                <span>معایناتی با نظریه نهایی (نهایی/مشروط)</span>
-                {% if conditional_final_opinion_exams %}
-                    <span class="report-count">تعداد یافت شده: {{ conditional_final_opinion_exams|length }}</span>
+                <span>{{ report_title }}</span>
+                {% if final_opinion_exams %}
+                    <span class="report-count">تعداد یافت شده: {{ final_opinion_exams|length }}</span>
                 {% endif %}
             </div>
-            {% if conditional_final_opinion_exams %}
+            {% if final_opinion_exams %}
                 <table>
                     <thead>
                         <tr>
@@ -350,33 +505,40 @@
                             <th>کد پرسنلی</th>
                             <th>تاریخ معاینه</th>
                             <th>نظریه نهایی</th>
-                            <th>توضیحات کلی (علت مشروطی/شرط)</th>
+                            <th>شروط نظریه نهایی</th>
+                            <th>شغل درخواستی</th>
                         </tr>
                     </thead>
                     <tbody>
-                        {% for exam in conditional_final_opinion_exams %}
+                        {% for exam in final_opinion_exams %}
                             <tr>
                                 <td>{{ forloop.counter }}</td>
-                                <td>{{ exam.patient.full_name }}</td>
+                                <td>{{ exam.patient.first_name }} {{ exam.patient.last_name }}</td>
                                 <td>{{ exam.patient.personnel_number|default:"-" }}</td>
                                 <td>{{ exam.exam_date_jalali|default:"-" }}</td>
+                                <td>{{ exam.final_opinion_text|default:"-" }}</td>
                                 <td>{{ exam.final_opinion_conditions|default:"-" }}</td>
-                                <td>{{ exam.overall_notes|default:"-" }}</td>
+                                <td>{{ exam.patient.occupation|default:"-" }}</td>
                             </tr>
                         {% endfor %}
                     </tbody>
                 </table>
             {% else %}
-                <div class="no-data">هیچ معاینه‌ای با نظریه نهایی "نهایی" یا "مشروط" یافت نشد.</div>
+                <div class="no-data">هیچ معاینه‌ای با نظریه نهایی مورد نظر یافت نشد.</div>
             {% endif %}
         </div>
         {% endif %}
+    </div>
 
-    </div> <div class="button-group">
+    <div class="button-group">
         <a href="{% url 'core:patient_list' %}" class="back-button">بازگشت به لیست بیماران</a>
         <a href="{% url 'dashboard' %}" class="back-button">بازگشت به داشبورد</a>
         <button onclick="window.print()" class="print-button">چاپ گزارش</button>
+        
+        {% if selected_report_type %}
+        <a href="{% url 'reports:export_excel' %}?report_type={{ selected_report_type }}&company={{ selected_company|default:'' }}&re_exam_date_jalali={{ re_exam_target_date_jalali|default:'' }}{% for opinion in selected_final_opinion_filters %}&final_opinion_filter={{ opinion }}{% endfor %}"
+           class="excel-button" style="background-color: #1a7a40;">دانلود اکسل</a>
+        {% endif %}
     </div>
 </div>
-
-{% endblock content %}
+{% endblock %}

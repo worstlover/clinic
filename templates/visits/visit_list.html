@@ -1,11 +1,11 @@
 {% extends 'base.html' %}
 {% load static %}
-{% load jalali_tags %} {# مطمئن شوید که این تگ را نصب و اضافه کرده‌اید #}
+{% load jformat %}
 
 {% block title %}{{ page_title }}{% endblock %}
 
 {% block extra_head %}
-    {% endblock %}
+{% endblock %}
 
 {% block content %}
     <div class="container-fluid">
@@ -29,16 +29,11 @@
         <div class="card shadow mb-4">
             <div class="card-header py-3 d-flex justify-content-between align-items-center">
                 <h6 class="m-0 font-weight-bold text-primary">لیست ویزیت‌ها</h6>
-                <div class="dropdown no-arrow">
-                    <a class="dropdown-toggle" href="#" role="button" id="dropdownMenuLink" data-bs-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
-                        <i class="fas fa-ellipsis-v fa-sm fa-fw text-gray-400"></i>
-                    </a>
-                    <div class="dropdown-menu dropdown-menu-right shadow animated--fade-in" aria-labelledby="dropdownMenuLink">
-                        <div class="dropdown-header">نمایش بر اساس وضعیت:</div>
-                        <a class="dropdown-item {% if view_filter == 'pending' %}active{% endif %}" href="{% url 'visits:visit_list' %}?view=pending">در حال بررسی من</a>
-                        <a class="dropdown-item {% if view_filter == 'referred_to_me' %}active{% endif %}" href="{% url 'visits:visit_list' %}?view=referred_to_me">ارجاع شده به من</a>
-                        <a class="dropdown-item {% if view_filter == 'completed' %}active{% endif %}" href="{% url 'visits:visit_list' %}?view=completed">تکمیل شده</a>
-                    </div>
+                {# فیلترهای وضعیت به صورت دکمه‌های قابل مشاهده #}
+                <div class="btn-group" role="group" aria-label="Status filters">
+                    <a href="{% url 'visits:visit_list' %}?view=pending" class="btn btn-sm {% if view_filter == 'pending' %}btn-primary{% else %}btn-outline-primary{% endif %}">در حال بررسی من</a>
+                    <a href="{% url 'visits:visit_list' %}?view=referred_to_me" class="btn btn-sm {% if view_filter == 'referred_to_me' %}btn-info{% else %}btn-outline-info{% endif %}">ارجاع شده به من</a>
+                    <a href="{% url 'visits:visit_list' %}?view=completed" class="btn btn-sm {% if view_filter == 'completed' %}btn-success{% else %}btn-outline-success{% endif %}">تکمیل شده</a>
                 </div>
             </div>
             <div class="card-body">
@@ -49,7 +44,7 @@
                                 <th>#</th>
                                 <th>بیمار</th>
                                 <th>تاریخ ویزیت</th>
-                                <th>پزشک ثبت‌کننده</th>
+                                <th> ثبت‌ کننده</th>
                                 <th>علت مراجعه</th>
                                 <th>نتیجه درمان</th>
                                 <th>تعداد دارو</th>
@@ -63,8 +58,7 @@
                                 <tr>
                                     <td>{{ forloop.counter0|add:page_obj.start_index }}</td>
                                     <td><a href="{% url 'core:patient_detail' visit.patient.pk %}">{{ visit.patient.full_name }}</a></td>
-                                    {# استفاده از فیلتر jalali_tags برای نمایش تاریخ شمسی #}
-                                    <td>{{ visit.visit_date|to_jalali:'%Y/%m/%d - %H:%M' }}</td>
+                                    <td>{{ visit.visit_date|jformat:'%Y/%m/%d - %H:%M' }}</td>
                                     <td>{{ visit.doctor.get_full_name|default:visit.doctor.username }}</td>
                                     <td>{{ visit.reason_for_visit.name|default:'---' }}</td>
                                     <td>{{ visit.treatment_result.name|default:'---' }}</td>
@@ -78,7 +72,6 @@
                                     <td>
                                         <a href="{% url 'visits:visit_detail' visit.pk %}" class="btn btn-sm btn-outline-info" title="جزئیات"><i class="fas fa-eye"></i></a>
                                         
-                                        {# منطق تصحیح شده برای نمایش دکمه‌های ویرایش و حذف #}
                                         {% if visit.status != 'completed' %}
                                             {% if visit.assigned_to == user or user.is_superuser %}
                                                 <a href="{% url 'visits:visit_update' visit.pk %}" class="btn btn-sm btn-outline-warning" title="ویرایش"><i class="fas fa-edit"></i></a>
@@ -101,8 +94,8 @@
                                                 <form action="{% url 'visits:visit_delete' visit.pk %}" method="post">
                                                     {% csrf_token %}
                                                     <button type="submit" class="btn btn-danger">بله، حذف کن</button>
+                                                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">انصراف</button>
                                                 </form>
-                                                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">انصراف</button>
                                             </div>
                                         </div>
                                     </div>

@@ -519,6 +519,11 @@ def bulk_print_page(request):
         
         if opinion_filter:
             examinations_query = examinations_query.filter(final_opinion_text__exact=opinion_filter)
+
+        # ------------------- START OF NEW CODE -------------------
+        if opinion_source_departments:
+            examinations_query = examinations_query.filter(opinion_source_department__in=opinion_source_departments)
+        # ------------------- END OF NEW CODE -------------------
         
         if start_date_gregorian and end_date_gregorian:
             examinations_query = examinations_query.filter(exam_date__range=[start_date_gregorian, end_date_gregorian])
@@ -542,7 +547,6 @@ def bulk_print_page(request):
         if nid:
             nid_en = convert_persian_to_english_nums(nid)
             if nid_en:
-                # --- CHANGE: فیلتر بر اساس کد ملی فرمت شده ---
                 examinations_query = examinations_query.filter(patient__national_code__exact=format_national_id(nid_en))
         print(f"تعداد نتایج یافت شده: {examinations_query.count()}")
         for exam in examinations_query:
@@ -555,11 +559,7 @@ def bulk_print_page(request):
                 exam.patient.jalali_date_of_birth = date2jalali(exam.patient.date_of_birth).strftime('%Y/%m/%d')
             else:
                 exam.patient.jalali_date_of_birth = '-'
-           
-       
-        
-           #* **بررسی صحت `convert_jalali_to_gregorian`:** مطمئن شوید که تابع `convert_jalali_to_gregorian` به درستی تاریخ‌های شمسی را به میلادی تبدیل می‌کند. اگر این تبدیل اشتباه باشد، فیلترهای تاریخ کار نخواهند کرد. در حال حاضر، تعریف این تابع در کد شما وجود ندارد. اگر قبلاً در `views.py` یا جای دیگر تعریف شده، مطمئن شوید که درست کار می‌کند.
-           #* **بررسی تبدیل `personnel_number` و `national_code`:** اطمینان حاصل کنید که `convert_persian_to_english_nums` و `format_national_id` به درستی کار می‌کنند و مقادیر درستی را برای فیلتر کردن تولید می‌کنند. یک `print` برای دیدن مقادیر ورودی و خروجی این توابع نیز می‌تواند مفید باشد.
+            
         context = {
             'examinations': examinations_query,
             'final_opinions': final_opinions,

@@ -78,7 +78,13 @@ class Visit(models.Model):
     blood_pressure = models.CharField(max_length=15, blank=True, null=True, verbose_name="فشار خون (مثال: 120/80)")
     heart_rate = models.PositiveSmallIntegerField(null=True, blank=True, verbose_name="ضربان قلب (در دقیقه)")
     temperature = models.DecimalField(max_digits=4, decimal_places=1, null=True, blank=True, verbose_name="دما (سانتی‌گراد)")
-    
+    blood_sugar = models.DecimalField(
+        max_digits=5, decimal_places=2, null=True, blank=True,
+        verbose_name="قند خون (mg/dL)"
+    )
+    ecg_interpretation = models.TextField(
+        null=True, blank=True, verbose_name="تفسیر نوار قلب"
+    )
     # --- سایر فیلدها ---
     notes = models.TextField(blank=True, null=True, verbose_name="ملاحظات/شرح حال")
     created_at = models.DateTimeField(auto_now_add=True, verbose_name="زمان ایجاد") # verbose_name اضافه شد

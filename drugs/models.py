@@ -68,7 +68,8 @@ INVOICE_STATUS_CHOICES = [
 
 #     def __str__(self):
 #         return f"{self.action} برای درخواست {self.drug_request.pk} توسط {self.user.username if self.user else 'سیستم'} در {self.timestamp.strftime('%Y-%m-%d %H:%M')}"
-    
+
+
 class Drug(models.Model):
     name = models.CharField(max_length=255,unique=True, verbose_name="نام دارو")
     drug_code = models.CharField(max_length=50, unique=True, blank=True, null=True, verbose_name="کد دارو")
@@ -146,6 +147,11 @@ class DrugBatch(models.Model):
     # اگر نیاز دارید هر بچ بداند از کدام فاکتور خرید آمده است:
     # purchase_invoice = models.ForeignKey('PurchaseInvoice', on_delete=models.SET_NULL, null=True, blank=True, related_name='drug_batches', verbose_name="فاکتور خرید") 
     notes = models.TextField(blank=True, null=True, verbose_name="ملاحظات")
+    is_temporary = models.BooleanField(
+        default=False,
+        verbose_name="موجودی موقت (کاذب)",
+        help_text="در صورت انتخاب، این موجودی پس از انبارگردانی حذف خواهد شد."
+    )
     created_at = models.DateTimeField(auto_now_add=True, verbose_name="تاریخ ایجاد")
     updated_at = models.DateTimeField(auto_now=True, verbose_name="تاریخ بروزرسانی")
 

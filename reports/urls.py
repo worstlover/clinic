@@ -21,4 +21,6 @@ urlpatterns = [
     # اگر company_visit_report_view را از اپ visits به اینجا منتقل کرده‌اید:
     path('company-visits/', views.company_visit_report_view, name='company_visit_report'),
     path('examinations/all/', views.reports_view, name='all_examinations_report'),
+    path('export/excel/', views.export_excel, name='export_excel'),
+    
 ]

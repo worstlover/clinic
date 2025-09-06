@@ -36,7 +36,13 @@ from django.shortcuts import get_object_or_404
 # ایمپورت‌های مربوط به نوتیفیکیشن
 from fcm_django.models import FCMDevice
 from clinic_messages.models import Notification # فرض می‌کنیم این مدل وجود دارد و مسیرش صحیح است
-
+from rest_framework import generics
+from rest_framework.decorators import api_view, permission_classes
+from rest_framework.permissions import IsAuthenticated
+from rest_framework.response import Response
+from django.db.models import Q
+from core.models import Patient# مدل Visit را هم import کنید
+from core.serializers import PatientSearchSerializer
 # دریافت مدل User
 from django.contrib.auth import get_user_model
 User = get_user_model()
@@ -95,22 +101,43 @@ def send_visit_referral_notification(visit_instance, recipient_user, sender_user
 
 
 class PatientSearchAPIView(generics.ListAPIView):
-    serializer_class = PatientSerializer
-    # permission_classes = [IsAuthenticated] # اگر نیاز به احراز هویت دارید
+    """
+    API View برای جستجوی بیماران جهت استفاده در Select2.
+    """
+    # 🔽🔽🔽 تغییر اصلی اینجاست 🔽🔽🔽
+    serializer_class = PatientSearchSerializer # از سریالایزر اختصاصی جستجو استفاده می‌کنیم
+    permission_classes = [IsAuthenticated]
 
     def get_queryset(self):
         queryset = Patient.objects.all()
-        query = self.request.query_params.get('q', None)
-        if query is not None:
-            # جستجو بر اساس نام، نام خانوادگی، کد ملی یا شماره پرسنلی
+        search_query = self.request.query_params.get('q', '')
+
+        if search_query:
             queryset = queryset.filter(
-                Q(first_name__icontains=query) |
-                Q(last_name__icontains=query) |
-                Q(national_code__icontains=query) |
-                Q(personnel_number__icontains=query)|
-                Q(phone_number__icontains=query)
-            ).distinct() # برای جلوگیری از نتایج تکراری
-        return queryset
+                Q(first_name__icontains=search_query) |
+                Q(last_name__icontains=search_query) |
+                Q(national_code__icontains=search_query) |
+                Q(personnel_number__icontains=search_query)
+            ).distinct()
+        
+        return queryset[:10]
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def patient_detail_api(request):
+    """
+    API View برای دریافت جزئیات کامل یک بیمار بر اساس شناسه.
+    این view همچنان از PatientSerializer کامل استفاده می‌کند که کار درستی است.
+    """
+    patient_id = request.GET.get('patient_id')
+    if not patient_id:
+        return Response({}, status=404)
+    try:
+        patient = Patient.objects.get(pk=patient_id)
+        serializer = PatientSerializer(patient) # اینجا از سریالایزر کامل استفاده می‌شود
+        return Response(serializer.data)
+    except Patient.DoesNotExist:
+        return Response({}, status=404)
 
 class DrugSearchAPIView(generics.ListAPIView):
     serializer_class = DrugSerializer
@@ -126,43 +153,7 @@ class DrugSearchAPIView(generics.ListAPIView):
             ).distinct()
         return queryset
 
-@api_view(['GET'])
-# @permission_classes([IsAuthenticated]) # اگر نیاز به احراز هویت دارید
-def patient_detail_api(request):
-    """
-    ویوی API برای دریافت جزئیات یک بیمار خاص بر اساس ID.
-    این ویو برای پر کردن فیلدهای سن، حساسیت و سوابق پزشکی استفاده می‌شود.
-    """
-    patient_id = request.query_params.get('patient_id', None)
-    if patient_id:
-        try:
-            patient = get_object_or_404(Patient, pk=patient_id)
-            serializer = PatientSerializer(patient)
-            return Response(serializer.data)
-        except Exception as e:
-            return Response({"error": str(e)}, status=400)
-    return Response({"error": "patient_id parameter is required"}, status=400)
 
-class DrugSearchAPIView(generics.ListAPIView):
-    queryset = Drug.objects.all()
-    serializer_class = DrugSerializer
-    permission_classes = [IsAuthenticated]
-
-    def get_queryset(self):
-        queryset = super().get_queryset()
-        query = self.request.query_params.get('q', None)
-
-        print(f"DrugSearchAPIView - Received query: '{query}'")
-
-        if query:
-            queryset = queryset.filter(
-                Q(name__icontains=query) |
-                Q(generic_name__icontains=query) |
-                Q(drug_code__icontains=query)
-            )
-        print(f"DrugSearchAPIView - Filtered queryset count: {queryset.count()}")
-
-        return queryset
 
 
 # --- VIEW FUNCTIONS ---
@@ -646,3 +637,5 @@ def company_visit_report_view(request):
     }
     
     return render(request, 'visits/reports/company_visits_report.html', context)
+# مطمئن شوید این serializer را import می‌کنید
+
