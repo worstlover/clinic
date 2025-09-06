@@ -1451,7 +1451,7 @@ def upload_temporary_inventory(request):
                                 'min_stock_alert': 20,  # ⭐ افزودن مقدار پیش‌فرض
                                 'reorder_point': 20,    # ⭐ افزودن مقدار پیش‌فرض
                             }
-                            # استفاده از فرم شما برای ایجاد دارو
+                           
                             drug_form_instance = DrugForm(new_drug_data)
                             if drug_form_instance.is_valid():
                                 drug = drug_form_instance.save()
