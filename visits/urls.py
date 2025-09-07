@@ -6,13 +6,14 @@ from visits.views import PatientSearchAPIView, patient_detail_api
 app_name = 'visits'
 
 urlpatterns = [
-    # URLs اصلی مدیریت ویزیت
+    
     path('', views.visit_list, name='visit_list'),
     path('create/', views.visit_create, name='visit_create'),
     path('<int:pk>/', views.visit_detail, name='visit_detail'),
     path('<int:pk>/update/', views.visit_update, name='visit_update'),
     path('<int:pk>/delete/', views.visit_delete, name='visit_delete'),
     path('create/<int:patient_id>/', views.visit_create, name='visit_create_for_patient'),
+
 
     # URLs برای اکشن‌های مربوط به ویزیت
     path('<int:pk>/refer/', views.refer_visit, name='refer_visit'),

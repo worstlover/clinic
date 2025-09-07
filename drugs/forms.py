@@ -211,60 +211,41 @@ class DrugSearchForm(forms.Form):
     id = forms.IntegerField(required=False)
 
 
-from django import forms
-from drugs.models import PurchaseInvoice, PurchaseInvoiceItem
-from jalali_date.fields import JalaliDateField
-from jalali_date.widgets import AdminJalaliDateWidget
-from django_select2.forms import Select2Widget
-from decimal import Decimal
-import pandas as pd
-import io
-from django.core.exceptions import ValidationError
-
-class ExcelUploadForm(forms.Form):
-    excel_file = forms.FileField(
-        label="فایل اکسل",
-        help_text="فایل اکسل حاوی اطلاعات موجودی موقت را آپلود کنید. (ستون ۱: نام دارو، ستون ۲: شکل دارو)",
-        widget=forms.ClearableFileInput(attrs={'class': 'form-control'})
-    )
-
 # --------------------------------------------------
 # فرم فاکتور خرید (PurchaseInvoice Form)
 # --------------------------------------------------
 class PurchaseInvoiceForm(forms.ModelForm):
     invoice_date = JalaliDateField(
         label=('تاریخ فاکتور'),
-        widget=AdminJalaliDateWidget
+        widget=AdminJalaliDateWidget 
     )
 
     class Meta:
         model = PurchaseInvoice
-        fields = ['invoice_number', 'invoice_date', 'supplier', 'status', 'notes']
+        fields = ['invoice_number', 'invoice_date', 'supplier', 'status', 'notes'] # 'status' بازگردانده شد
         widgets = {
             'invoice_number': forms.TextInput(attrs={'class': 'form-control'}),
             'supplier': forms.Select(attrs={'class': 'form-control select2-supplier'}),
-            'status': forms.Select(attrs={'class': 'form-control'}),
+            'status': forms.Select(attrs={'class': 'form-control'}), # 'status' بازگردانده شد
             'notes': forms.Textarea(attrs={'class': 'form-control', 'rows': 3}),
         }
         labels = {
             'invoice_number': 'شماره فاکتور',
             'supplier': 'تامین‌کننده',
-            'status': 'وضعیت',
+            'status': 'وضعیت', # 'status' بازگردانده شد
             'notes': 'توضیحات',
         }
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        # ... بقیه کد مربوط به تولید خودکار شماره فاکتور
         if not self.instance.pk and not self.initial.get('invoice_number'):
-            # تولید خودکار شماره فاکتور
             last_invoice = PurchaseInvoice.objects.all().order_by('-id').first()
             if last_invoice and last_invoice.invoice_number:
                 try:
                     last_number = int(last_invoice.invoice_number)
                     self.initial['invoice_number'] = str(last_number + 1)
                 except ValueError:
-                    self.initial['invoice_number'] = '1001'
+                    self.initial['invoice_number'] = '1001' 
             else:
                 self.initial['invoice_number'] = '1001'
         
@@ -276,7 +257,6 @@ class PurchaseInvoiceForm(forms.ModelForm):
 # فرم آیتم فاکتور خرید (PurchaseInvoiceItem Form)
 # --------------------------------------------------
 class PurchaseInvoiceItemForm(forms.ModelForm):
-    # این فرم باید بتواند داده های raw از اکسل را بپذیرد
     drug = forms.ModelChoiceField(
         queryset=Drug.objects.all(),
         label='دارو',
@@ -287,11 +267,11 @@ class PurchaseInvoiceItemForm(forms.ModelForm):
     expiry_date = forms.DateField(
         label='تاریخ انقضا (میلادی)',
         widget=forms.DateInput(attrs={
-            'type': 'date',
+            'type': 'date', # همچنان type="date" برای استفاده از قابلیت‌های بومی مرورگر
             'class': 'form-control gregorian-date-input',
-            'placeholder': 'مثال: 2025-06-30'
+            'placeholder': 'مثال: 2025-06-30' # راهنمای فرمت YYYY-MM-DD
         }),
-        required=False
+        required=False 
     )
 
     class Meta:
@@ -303,7 +283,6 @@ class PurchaseInvoiceItemForm(forms.ModelForm):
             'batch_number': forms.TextInput(attrs={'class': 'form-control'}),
         }
         labels = {
-            'drug': 'دارو',
             'quantity': 'تعداد',
             'unit_price': 'قیمت واحد (ریال)',
             'batch_number': 'شماره بچ',
@@ -314,7 +293,7 @@ class PurchaseInvoiceItemForm(forms.ModelForm):
         widget=forms.HiddenInput(),
         initial=Decimal('0.00')
     )
-    
+
     def clean(self):
         cleaned_data = super().clean()
         quantity = cleaned_data.get('quantity')
@@ -325,15 +304,19 @@ class PurchaseInvoiceItemForm(forms.ModelForm):
         else:
             cleaned_data['total_item_price'] = Decimal('0.00')
         
-        # اعتبارسنجی وجود فیلدهای کلیدی در دیتا
-        if not cleaned_data.get('drug'):
-            raise forms.ValidationError('فیلد دارو اجباری است.')
-        if cleaned_data.get('quantity') is None or cleaned_data.get('quantity') <= 0:
-            raise forms.ValidationError('تعداد باید یک عدد مثبت باشد.')
-        if cleaned_data.get('unit_price') is None or cleaned_data.get('unit_price') <= 0:
-            raise forms.ValidationError('قیمت واحد باید یک عدد مثبت باشد.')
-            
         return cleaned_data
+
+    def clean_quantity(self):
+        quantity = self.cleaned_data.get('quantity')
+        if quantity is not None and quantity < 0:
+            raise ValidationError('تعداد نمی‌تواند منفی باشد.')
+        return quantity
+
+    def clean_unit_price(self):
+        unit_price = self.cleaned_data.get('unit_price')
+        if unit_price is not None and unit_price < 0:
+            raise ValidationError('قیمت واحد نمی‌تواند منفی باشد.')
+        return unit_price
 
 PurchaseInvoiceItemFormSet = inlineformset_factory(
     PurchaseInvoice,
@@ -345,6 +328,15 @@ PurchaseInvoiceItemFormSet = inlineformset_factory(
     validate_min=True,
 )
 
+class ExcelUploadForm(forms.Form):
+    excel_file = forms.FileField(label='فایل اکسل',
+                                 help_text='فایل اکسل حاوی اطلاعات آیتم‌های فاکتور را انتخاب کنید.',
+                                 required=True)
+    
+    # متد __init__ را برای اضافه کردن کلاس Bootstrap به فیلد اضافه می‌کنیم
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields['excel_file'].widget.attrs.update({'class': 'form-control'})
 
 # ویجت سفارشی برای دیت‌پیکر شمسی (مفید برای فیلدهای تاریخ)
 JALALI_DATE_PICKER_WIDGET = forms.TextInput(attrs={
@@ -566,4 +558,3 @@ class SupplierForm(forms.ModelForm):
             'address': 'آدرس',
             'notes': 'ملاحظات', # اضافه شد
         }
-        

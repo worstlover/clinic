@@ -5,7 +5,10 @@ from jalali_date.fields import JalaliDateField
 from jalali_date.widgets import AdminJalaliDateWidget
 from django.core.exceptions import ValidationError
 from datetime import date, datetime
-
+from django import forms
+from django.contrib.auth.models import User
+from django.contrib.auth.forms import PasswordChangeForm
+from .models import Profile
 from .utils import convert_fa_numbers_to_en # <--- وارد کردن تابع کمکی
 
 
@@ -106,3 +109,25 @@ class PatientForm(forms.ModelForm):
                 self.add_error('national_code', 'برای اتباع خارجی، کد ملی نباید وارد شود.')
         
         return cleaned_data
+class UserUpdateForm(forms.ModelForm):
+    class Meta:
+        model = User
+        fields = ['first_name', 'last_name']
+        labels = {
+            'first_name': 'نام',
+            'last_name': 'نام خانوادگی'
+        }
+
+class ProfileUpdateForm(forms.ModelForm):
+    class Meta:
+        model = Profile
+        fields = ['image']
+        labels = {
+            'image': 'عکس پروفایل'
+        }
+
+class UserPasswordChangeForm(PasswordChangeForm):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        for field in self.fields.values():
+            field.widget.attrs['class'] = 'form-control'    

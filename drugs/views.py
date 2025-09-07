@@ -6,44 +6,10 @@ from django.db.models import Q, Sum
 from django.contrib import messages
 from django.db.models import Sum
 from django.utils import timezone
-import openpyxl
-from io import BytesIO
-from decimal import Decimal
-from django.db import transaction
-from django.db.models import F, Q, Max
-from django.shortcuts import render, redirect
-from django.contrib import messages
-from django.contrib.auth.decorators import login_required
-from django.utils import timezone
-from datetime import date
-from dateutil.relativedelta import relativedelta
-from .models import Drug, DrugBatch, DRUG_FORM_CHOICES
-from .forms import ExcelUploadForm
-from django.db import transaction, models
-from .models import Drug, DrugRequest, DrugRequestItem, PurchaseInvoice, PurchaseInvoiceItem, DrugBatch, Supplier, DrugRequestWorkflowLog
-from django.http import HttpResponseForbidden
-from django.forms import inlineformset_factory
-from django.urls import reverse, reverse_lazy
-from django.views.decorators.http import require_POST
-from django_select2.views import AutoResponseView
-from django.contrib.auth.models import User
-from django.core.exceptions import ValidationError
-from django.db.models import Sum, OuterRef, Subquery, F, Value, Case, IntegerField
-from django_select2.forms import Select2Widget, Select2MultipleWidget
-import sys
-import jdatetime
-import datetime
-from persiantools.jdatetime import JalaliDate
-from math import ceil
 from django.db.models import Q, Sum, F, Count, Case, When, Value, BooleanField
 import sys
 from django.db import transaction
 import jdatetime
-import datetime
-from drugs.models import PurchaseInvoice, PurchaseInvoiceItem, Drug
-from drugs.forms import PurchaseInvoiceForm, PurchaseInvoiceItemForm, ExcelUploadForm
-import pandas as pd
-import io
 import datetime
 from persiantools.jdatetime import JalaliDate
 from .models import (Drug, DrugRequest, DrugRequestItem, PurchaseInvoice, PurchaseInvoiceItem, DrugBatch, Supplier, DrugRequestWorkflowLog)
@@ -87,7 +53,6 @@ from .filters import DrugFilter
 import django.forms as forms
 from .forms import PurchaseInvoiceForm, PurchaseInvoiceItemForm
 from persiantools import digits 
-
 # from clinic_messages.models import Message, MessageRecipient # اینها مربوط به اپ clinic_messages هستند، اینجا لازم نیستند
 DRUG_FORM_CHOICES = [
     ('tablet', 'قرص'),
@@ -402,173 +367,73 @@ def purchase_invoice_list(request):
 
 
 
-
-# تابع ایجاد فاکتور خرید (با پشتیبانی از آپلود اکسل)
-# --------------------------------------------------
-@login_required
-@permission_required('drugs.add_purchaseinvoice', raise_exception=True)
+# --- Purchase Invoice Create View ---
 def purchase_invoice_create(request):
     PurchaseInvoiceItemFormset = inlineformset_factory(
         PurchaseInvoice,
         PurchaseInvoiceItem,
         form=PurchaseInvoiceItemForm,
-        extra=3,
+        extra=3, # مثلاً 3 آیتم خالی اولیه
         can_delete=True
     )
 
     if request.method == 'POST':
         form = PurchaseInvoiceForm(request.POST)
-        excel_form = ExcelUploadForm(request.POST, request.FILES)
+        formset = PurchaseInvoiceItemFormset(request.POST, prefix='items')
 
-        if excel_form.is_valid():
+        if form.is_valid() and formset.is_valid():
             try:
-                # 1. پردازش فایل آپلود شده
-                excel_file = request.FILES['excel_file']
-                
-                # بررسی پسوند فایل
-                if not excel_file.name.endswith(('.csv', '.xls', '.xlsx')):
-                    messages.error(request, 'فایل آپلود شده باید از نوع اکسل (CSV, XLS, XLSX) باشد.')
-                    return redirect('drugs:purchase_invoice_create')
+                with transaction.atomic():
+                    invoice = form.save(commit=False)
+                    invoice.created_by = request.user # اگر فیلد created_by دارید
+                    invoice.save()
+                    
+                    # ذخیره آیتم‌های فرم‌ست.
+                    # سیگنال‌های post_save در PurchaseInvoiceItem موجودی و total_item_price را مدیریت می‌کنند.
+                    instances = formset.save(commit=False)
+                    for item in instances:
+                        item.invoice = invoice
+                        item.save() # این save سیگنال post_save را برای هر آیتم فعال می کند
 
-                # خواندن فایل با pandas
-                df = pd.read_excel(excel_file) if excel_file.name.endswith(('.xls', '.xlsx')) else pd.read_csv(io.StringIO(excel_file.read().decode('utf-8')))
+                    for obj in formset.deleted_objects:
+                        obj.delete() # اگر آیتمی در فرم جدید حذف شده باشد (در update مهمتر است)
 
-                # ستون‌های مورد نیاز ما در فایل
-                required_columns = ['کد دارو', 'تعداد', 'قیمت واحد', 'شماره بچ', 'تاریخ انقضا (YYYY-MM-DD)']
-                if not all(col in df.columns for col in required_columns):
-                    missing_cols = [col for col in required_columns if col not in df.columns]
-                    messages.error(request, f'ستون‌های اجباری زیر در فایل اکسل یافت نشدند: {", ".join(missing_cols)}')
-                    return redirect('drugs:purchase_invoice_create')
-
-                # 2. ایجاد فاکتور اصلی
-                if form.is_valid():
-                    with transaction.atomic():
-                        invoice = form.save(commit=False)
-                        invoice.created_by = request.user
-                        invoice.save()
-
-                        # 3. ایجاد آیتم‌ها از روی داده‌های فایل
-                        item_errors = []
-                        for index, row in df.iterrows():
-                            drug_code = str(row['کد دارو'])
-                            try:
-                                drug = Drug.objects.get(drug_code=drug_code)
-                            except Drug.DoesNotExist:
-                                item_errors.append(f"ردیف {index + 2}: دارویی با کد '{drug_code}' یافت نشد.")
-                                continue
-                            
-                            try:
-                                # تاریخ انقضا می‌تواند خالی باشد
-                                expiry_date = pd.to_datetime(row['تاریخ انقضا (YYYY-MM-DD)']).date() if pd.notna(row['تاریخ انقضا (YYYY-MM-DD)']) else None
-                            except Exception:
-                                item_errors.append(f"ردیف {index + 2}: فرمت تاریخ انقضا نامعتبر است.")
-                                continue
-
-                            try:
-                                # اعتبارسنجی و ایجاد PurchaseInvoiceItem
-                                item_data = {
-                                    'drug': drug,
-                                    'quantity': Decimal(str(row['تعداد'])),
-                                    'unit_price': Decimal(str(row['قیمت واحد'])),
-                                    'batch_number': str(row['شماره بچ']),
-                                    'expiry_date': expiry_date,
-                                    'invoice': invoice,
-                                }
-                                item_form = PurchaseInvoiceItemForm(item_data)
-                                if item_form.is_valid():
-                                    item = item_form.save(commit=False)
-                                    item.invoice = invoice
-                                    item.save()
-                                else:
-                                    item_errors.append(f"ردیف {index + 2}: {item_form.errors.as_text()}")
-                            except (ValueError, TypeError) as e:
-                                item_errors.append(f"ردیف {index + 2}: خطای داده‌ای. {e}")
-
-                        if item_errors:
-                            transaction.set_rollback(True)
-                            messages.error(request, 'خطا در پردازش فایل: ' + ' '.join(item_errors))
-                            return redirect('drugs:purchase_invoice_create')
-                        
-                        invoice.update_total_amount()
-                        messages.success(request, 'فاکتور خرید با موفقیت از طریق فایل اکسل ایجاد شد.')
-                        return redirect('drugs:purchase_invoice_detail', pk=invoice.pk)
-                else:
-                    messages.error(request, 'خطا در اطلاعات اصلی فاکتور. لطفا فرم را بررسی کنید.')
-                    return render(request, 'drugs/purchase_invoice_form.html', {'form': form, 'excel_form': excel_form, 'formset': PurchaseInvoiceItemFormset(prefix='items')})
+                    # پس از ذخیره آیتم‌ها و بروزرسانی موجودی در سیگنال‌ها،
+                    # total_amount فاکتور را بروزرسانی کنید.
+                    invoice.update_total_amount()
+                    
+                messages.success(request, 'فاکتور خرید با موفقیت ایجاد شد.')
+                return redirect('drugs:purchase_invoice_detail', pk=invoice.pk)
 
             except Exception as e:
-                messages.error(request, f'خطا در پردازش فایل: {e}')
-                print(f"--- خطای کلی در پردازش فایل: {e} ---")
+                messages.error(request, f'خطا در ایجاد فاکتور خرید: {e}. لطفا اطلاعات را بررسی کنید.')
+                print(f"\n--- خطای کلی در تراکنش ایجاد: {e} ---")
                 import traceback
                 traceback.print_exc()
-                return redirect('drugs:purchase_invoice_create')
 
-        elif form.is_valid():
-            # 4. روال عادی پردازش فرم‌ست
-            formset = PurchaseInvoiceItemFormset(request.POST, prefix='items')
-            if formset.is_valid():
-                try:
-                    with transaction.atomic():
-                        invoice = form.save(commit=False)
-                        invoice.created_by = request.user
-                        invoice.save()
-                        
-                        instances = formset.save(commit=False)
-                        for item in instances:
-                            item.invoice = invoice
-                            item.save()
-
-                        for obj in formset.deleted_objects:
-                            obj.delete()
-
-                        invoice.update_total_amount()
-                        
-                    messages.success(request, 'فاکتور خرید با موفقیت ایجاد شد.')
-                    return redirect('drugs:purchase_invoice_detail', pk=invoice.pk)
-                except Exception as e:
-                    messages.error(request, f'خطا در ایجاد فاکتور خرید: {e}. لطفا اطلاعات را بررسی کنید.')
-                    print(f"--- خطای کلی در تراکنش ایجاد: {e} ---")
-                    import traceback
-                    traceback.print_exc()
-                    
-            else:
-                messages.error(request, 'خطا در اعتبارسنجی اطلاعات فاکتور. لطفا اطلاعات را بررسی کنید.')
-                print("\n--- خطاهای اعتبارسنجی فرم ---")
-                print("خطاهای فرم اصلی (PurchaseInvoiceForm):", form.errors)
-                print("خطاهای فرم‌ست آیتم‌ها (PurchaseInvoiceItemFormset Errors):", formset.errors)
-                print("------------------------------\n")
-            
-            context = {
-                'page_title': 'ثبت فاکتور خرید جدید',
-                'form': form,
-                'formset': formset,
-                'excel_form': ExcelUploadForm()
-            }
-            return render(request, 'drugs/purchase_invoice_form.html', context)
-        
         else:
-            messages.error(request, 'خطا در اعتبارسنجی اطلاعات فاکتور. لطفا فرم را بررسی کنید.')
-            context = {
-                'page_title': 'ثبت فاکتور خرید جدید',
-                'form': form,
-                'formset': PurchaseInvoiceItemFormset(prefix='items'),
-                'excel_form': ExcelUploadForm()
-            }
-            return render(request, 'drugs/purchase_invoice_form.html', context)
-    
+            messages.error(request, 'خطا در اعتبارسنجی اطلاعات فاکتور. لطفا اطلاعات را بررسی کنید.')
+            print("\n--- خطاهای اعتبارسنجی فرم ---")
+            print("خطاهای فرم اصلی (PurchaseInvoiceForm):", form.errors)
+            if form.non_field_errors():
+                print("خطاهای غیرفیلد فرم اصلی (PurchaseInvoiceForm Non-Field Errors):", form.non_field_errors())
+            print("خطاهای فرم‌ست آیتم‌ها (PurchaseInvoiceItemFormset Errors):")
+            for i, item_form in enumerate(formset):
+                if item_form.errors:
+                    print(f" - Item {i+1} Errors: {item_form.errors}")
+            if formset.non_form_errors():
+                print("خطاهای غیرفیلد فرم‌ست (Formset Non-Form Errors):", formset.non_form_errors())
+            print("------------------------------\n")
     else:
         form = PurchaseInvoiceForm()
         formset = PurchaseInvoiceItemFormset(prefix='items')
-        excel_form = ExcelUploadForm()
     
     context = {
         'page_title': 'ثبت فاکتور خرید جدید',
         'form': form,
-        'formset': formset,
-        'excel_form': excel_form
+        'formset': formset
     }
     return render(request, 'drugs/purchase_invoice_form.html', context)
-
 
 
 # --- Purchase Invoice Update View ---
@@ -1268,139 +1133,6 @@ class UserSelect2View(AutoResponseView):
         return [
             {'id': obj.pk, 'text': obj.get_full_name() or obj.username} for obj in qs[page * 10:(page + 1) * 10]
         ]
-
-@login_required
-def purchase_invoice_upload(request):
-    if request.method == 'POST':
-        form = PurchaseInvoiceUploadForm(request.POST, request.FILES)
-        if form.is_valid():
-            excel_file = request.FILES['excel_file']
-            try:
-                # استفاده از pandas برای خواندن فایل
-                df = pd.read_excel(excel_file, engine='openpyxl')
-                
-                # فرض می‌کنیم ستون‌های فایل اکسل به نام‌های زیر هستند
-                # "نام دارو", "تعداد", "قیمت", "تاریخ انقضا"
-                # با توجه به عکس شما
-                
-                invoice_items_data = []
-                missing_drugs = []
-                
-                # برای هر ردیف در فایل اکسل
-                for index, row in df.iterrows():
-                    drug_name = str(row['نام دارو']).strip()
-                    try:
-                        # جستجوی دارو بر اساس نام
-                        drug = Drug.objects.get(name=drug_name)
-                        
-                        # پردازش تاریخ انقضا
-                        expiry_date_str = str(row['تاریخ انقضا']).strip()
-                        if pd.notna(expiry_date_str) and len(expiry_date_str) > 0:
-                            # تبدیل تاریخ شمسی به میلادی
-                            # اینجا باید منطق تبدیل رو پیاده‌سازی کنی
-                            # مثلاً با استفاده از persiantools
-                            expiry_date = JaliDate(expiry_date_str).to_gregorian()
-                        else:
-                            expiry_date = None # یا تاریخ پیش‌فرض
-                        
-                        invoice_items_data.append({
-                            'drug': drug,
-                            'quantity': int(row['تعداد']),
-                            'price': Decimal(row['قیمت']),
-                            'expiry_date': expiry_date,
-                            'batch_number': str(row.get('شماره بچ', '')), # اگر ستون شماره بچ وجود دارد
-                        })
-                    except Drug.DoesNotExist:
-                        # اگر دارویی در دیتابیس موجود نبود
-                        missing_drugs.append(drug_name)
-                    except Exception as e:
-                        # مدیریت خطاهای دیگر
-                        messages.error(request, f"خطا در پردازش ردیف {index + 1}: {e}")
-                        return render(request, 'drugs/purchase_invoice_upload.html', {'form': form})
-
-                if missing_drugs:
-                    messages.error(request, f"داروهای زیر در دیتابیس یافت نشدند: {', '.join(missing_drugs)}")
-                    return render(request, 'drugs/purchase_invoice_upload.html', {'form': form})
-                
-                # در این مرحله داده‌ها آماده نمایش در قالب فرم‌ست هستند
-                request.session['uploaded_invoice_items'] = [
-                    {'drug_id': item['drug'].id, 'quantity': item['quantity'], 'price': item['price'], 'expiry_date': item['expiry_date'], 'batch_number': item['batch_number']}
-                    for item in invoice_items_data
-                ]
-                
-                # ریدایرکت به صفحه جدید برای تایید نهایی
-                return redirect('drugs:purchase_invoice_confirm')
-
-            except Exception as e:
-                messages.error(request, f"خطا در خواندن فایل: {e}")
-    else:
-        form = PurchaseInvoiceUploadForm()
-    
-    return render(request, 'drugs/purchase_invoice_upload.html', {'form': form})
-
-@login_required
-def purchase_invoice_confirm(request):
-    uploaded_items_data = request.session.get('uploaded_invoice_items')
-    if not uploaded_items_data:
-        messages.error(request, "هیچ داده‌ای برای تایید وجود ندارد.")
-        return redirect('drugs:purchase_invoice_upload')
-
-    PurchaseInvoiceItemFormset = inlineformset_factory(
-        PurchaseInvoice, PurchaseInvoiceItem, form=PurchaseInvoiceItemForm,
-        extra=len(uploaded_items_data), can_delete=True,
-    )
-    
-    if request.method == 'POST':
-        invoice_form = PurchaseInvoiceForm(request.POST)
-        formset = PurchaseInvoiceItemFormset(request.POST)
-        
-        if invoice_form.is_valid() and formset.is_valid():
-            with transaction.atomic():
-                invoice = invoice_form.save(commit=False)
-                invoice.invoice_total_amount = sum(Decimal(item_form.cleaned_data['price']) * Decimal(item_form.cleaned_data['quantity']) for item_form in formset)
-                invoice.created_by = request.user
-                invoice.save()
-                
-                invoice_items = formset.save(commit=False)
-                for item in invoice_items:
-                    item.invoice = invoice
-                    item.save()
-                    
-                    # به‌روزرسانی یا ایجاد DrugBatch
-                    DrugBatch.objects.create(
-                        drug=item.drug,
-                        quantity=item.quantity,
-                        expiry_date=item.expiry_date,
-                        batch_number=item.batch_number,
-                    )
-                    # به‌روزرسانی موجودی Drug
-                    item.drug.current_stock = F('current_stock') + item.quantity
-                    item.drug.save()
-                
-            messages.success(request, "فاکتور با موفقیت ثبت شد.")
-            del request.session['uploaded_invoice_items'] # پاک کردن داده‌ها از سشن
-            return redirect('drugs:purchase_invoice_detail', pk=invoice.pk)
-    else:
-        # ساخت فرم‌ست با داده‌های آپلود شده
-        initial_data = []
-        for item in uploaded_items_data:
-            drug = Drug.objects.get(id=item['drug_id'])
-            initial_data.append({
-                'drug': drug,
-                'quantity': item['quantity'],
-                'price': item['price'],
-                'expiry_date': item['expiry_date'],
-                'batch_number': item['batch_number']
-            })
-            
-        formset = PurchaseInvoiceItemFormset(initial=initial_data, prefix='items')
-        invoice_form = PurchaseInvoiceForm()
-        
-    return render(request, 'drugs/purchase_invoice_confirm.html', {
-        'formset': formset,
-        'invoice_form': invoice_form
-    })
-@login_required
 def upload_temporary_inventory(request):
     """
     View برای آپلود فایل اکسل و ایجاد موجودی موقت (کاذب) برای داروها.
@@ -1522,4 +1254,4 @@ def delete_temporary_inventory(request):
     context = {
         'page_title': "حذف موجودی موقت",
     }
-    return render(request, 'drugs/delete_temporary_inventory_confirm.html', context)
+    return render(request, 'drugs/delete_temporary_inventory_confirm.html', context)    

@@ -1,5 +1,5 @@
 {% extends 'base.html' %}
-{% load jalali_tags %}.
+{% load jformat %}.
 {% load static %}
 {% load crispy_forms_tags %}
 
@@ -52,7 +52,7 @@
                         <div class="col-md-2 col-sm-12 text-end"> {# ستون برای تاریخ و وضعیت #}
                             <small class="text-muted {% if not msg_status.is_read %}fw-bold{% endif %}">
                                 <i class="far fa-clock me-1"></i>
-                                {{ msg_status.message.created_at|to_jalali }}
+                                {{ msg_status.message.created_at|jformat }}
                                 {% if not msg_status.is_read %}
                                     <span class="badge bg-warning text-dark ms-2">جدید</span>
                                 {% endif %}

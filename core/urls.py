@@ -33,6 +33,7 @@ urlpatterns = [
     # Patient Management (اینها باقی میمونند و تحت namespace 'core' خواهند بود)
     path('patients/', patient_list, name='patient_list'),
     path('patients/add/', patient_create, name='patient_create'),
+    path('profile/', views.user_profile, name='user_profile'),
     path('patients/<int:pk>/', patient_detail, name='patient_detail'),
     path('patients/<int:pk>/edit/', patient_update, name='patient_update'),
     path('patients/<int:pk>/delete/', patient_delete, name='patient_delete'),

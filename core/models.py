@@ -5,7 +5,8 @@ import jdatetime # این برای کار با تاریخ جلالی است، ا
 from django.db.models import Sum # اگر در مدل استفاده نمی‌شود، می‌توان حذف کرد
 from django.utils import timezone # اگر در مدل استفاده نمی‌شود، می‌توان حذف کرد
 from django.db.models import Max # اگر در مدل استفاده نمی‌شود، می‌توان حذف کرد
-
+from django.db import models
+from django.contrib.auth import get_user_model
 # --------------------------------------------------
 # 0. تعریف Choices های سراسری (قبل از مدل‌ها)
 # --------------------------------------------------
@@ -191,3 +192,14 @@ class Patient(models.Model):
             return age_years
         return None # اگر تاریخ تولد ثبت نشده باشد، None برمی‌گرداند
 
+User = get_user_model()
+
+def profile_image_upload_path(instance, filename):
+    return f'profile_images/{instance.user.username}/{filename}'
+
+class Profile(models.Model):
+    user = models.OneToOneField(User, on_delete=models.CASCADE)
+    image = models.ImageField(default='default.png', upload_to=profile_image_upload_path)
+
+    def __str__(self):
+        return f'{self.user.username} Profile'

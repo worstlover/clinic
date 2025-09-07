@@ -1,5 +1,5 @@
 {% extends 'base.html' %}
-{% load jalali_tags %}
+{% load jformat %}
 {% load static %}
 {% load crispy_forms_tags %} 
 
@@ -38,7 +38,7 @@
                         </h5>
                         <small class="text-muted">
                             <i class="far fa-clock me-1"></i>
-                            {{ message.created_at|to_jalali }}
+                            {{ message.created_at|jformat }}
                         </small>
                     </div>
                     <p class="mb-1 text-truncate">{{ message.body|striptags|truncatechars:100 }}</p>

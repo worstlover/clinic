@@ -4,7 +4,7 @@
 {% load static %}
 {% load crispy_forms_tags %}
 {% load i18n %}
-{% load jalali_tags %} {# ⭐ این خط برای فعال بودن فیلتر to_jalali و date2jalali حیاتی است ⭐ #}
+{% load jformat %} {# ⭐ این خط برای فعال بودن فیلتر to_jalali و date2jalali حیاتی است ⭐ #}
 {% load humanize %} 
 
 {% block title %}{{ page_title }}{% endblock %}
@@ -85,7 +85,7 @@
                         </td>
                         <td class="text-center">{{ invoice.supplier.name|default:"-" }}</td>
                         <td class="text-center">{{ invoice.get_jalali_invoice_date }}</td> {# استفاده از پرپرتی مدل #}
-                        <td class="text-center">{{ invoice.created_at|to_jalali }}</td> {# استفاده از فیلتر jalali_tags #}
+                        <td class="text-center">{{ invoice.created_at|jformat:"%Y/%m/%d" }}</td>
                         <td class="text-center">{{ invoice.total_amount|floatformat:"0"|intcomma }}</td>
                         <td class="text-center">{{ invoice.created_by.username|default:"ناشناس" }}</td>
                         <td class="text-center">

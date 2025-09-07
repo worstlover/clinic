@@ -1,5 +1,6 @@
 {% load i18n %}
 {% load static %}
+{% load persian_dates %}
 
 <!DOCTYPE html>
 <html lang="fa" dir="rtl">
@@ -417,15 +418,15 @@
                     </li>
                 {% endif %}
 
-                {# این بخش برای درخواست‌های مرخصی است که فعلاً کامنت شده بود. می‌توانید در صورت نیاز فعال کنید. #}
-                {# {% if request.user.is_superuser or is_personnel or is_management %}
+                {# این بخش برای درخواست‌های مرخصی است که فعال شده است #}
+                {% if request.user.is_superuser or is_personnel or is_management %}
                 <li class="nav-item">
                     <a class="list-group-item list-group-item-action bg-light nav-link" href="#">
                         <i class="fas fa-fw fa-calendar-alt"></i>
                         <span>درخواست‌های مرخصی</span>
                     </a>
                 </li>
-                {% endif %} #}
+                {% endif %}
 
                 <hr class="sidebar-divider my-0">
 
@@ -450,7 +451,7 @@
                     <div class="collapse navbar-collapse" id="navbarSupportedContent">
                         <ul class="navbar-nav ms-auto mt-2 mt-lg-0">
                             {# آیکون زنگوله برای اعلانات ویزیت‌های ارجاعی جدید #}
-                            {% if request.user.is_authenticated and is_medical_staff %} {# فرض: فقط کادر درمان این اعلان را می‌بینند #}
+                            {% if request.user.is_authenticated and is_medical_staff %}
                             <li class="nav-item mx-1 notification-bell">
                                 <a class="nav-link" href="{% url 'visits:visit_list' %}?view=referred_to_me" role="button" title="ویزیت‌های ارجاعی جدید">
                                     <i class="fas fa-bell fa-fw"></i>
@@ -472,7 +473,9 @@
                                     <span class="mr-2 d-none d-lg-inline text-gray-600 small">
                                         {{ request.user.get_full_name|default:request.user.username }}
                                     </span>
-                                    <img class="img-profile rounded-circle" src="{% static 'img/undraw_profile.svg' %}" style="width: 25px; height: 25px;">
+                                    <img class="img-profile rounded-circle" 
+                                    src="{% if request.user.profile.image %}{{ request.user.profile.image.url }}{% else %}{% static 'img/undraw_profile.svg' %}{% endif %}" 
+                                    style="width: 50px; height: 50px;">
                                 </a>
                                 <div class="dropdown-menu dropdown-menu-end shadow animated--grow-in" aria-labelledby="navbarDropdown">
                                     <a class="dropdown-item" href="{% url 'core:user_profile' %}">
@@ -493,7 +496,7 @@
 
             <div class="container-fluid p-4">
                 {% if messages %}
-                    <div class="container mt-3">
+                    <div class="container mt-3" id="messages-container">
                         {% for message in messages %}
                             <div class="alert alert-{{ message.tags }} alert-dismissible fade show" role="alert">
                                 {{ message }}
@@ -543,7 +546,6 @@
     {% block extra_js %}
     {% endblock %}
 
-
     <script>
         $(document).ready(function() {
             // ---- منطق مربوط به باز و بسته شدن سایدبار (بهینه شده) ----
@@ -552,14 +554,23 @@
                 $("body").toggleClass("sidebar-toggled");
             });
 
-            // ---- ثبت Service Worker برای قابلیت PWA (فقط یک بار و برای sw.js) ----
+            // ⭐ حل مشکل نمایش پیام‌های تکراری: پیام‌ها پس از چند ثانیه محو می‌شوند. ⭐
+            const messagesContainer = document.getElementById('messages-container');
+            if (messagesContainer) {
+                setTimeout(() => {
+                    messagesContainer.classList.add('fade-out');
+                    setTimeout(() => messagesContainer.remove(), 1000);
+                }, 7000);
+            }
+
+            // ---- ثبت Service Worker برای قابلیت PWA ----
             if ('serviceWorker' in navigator) {
                 navigator.serviceWorker.register("{% static 'sw.js' %}")
                     .then((reg) => console.log('PWA Service worker registered.'))
                     .catch((err) => console.error('PWA Service worker not registered.', err));
             }
             
-            // ---- منطق مربوط به پیام‌های خوانده نشده سیستمی (کد اصلی شما) ----
+            // ---- منطق مربوط به پیام‌های خوانده نشده سیستمی ----
             function updateUnreadMessagesCount() {
                 $.ajax({
                     url: "{% url 'clinic_messages:api_unread_count' %}",
@@ -581,19 +592,14 @@
 
             // ---- منطق مربوط به ویزیت‌های ارجاعی جدید ----
             function updateUnreadReferredVisitsCount() {
-                // این URL باید به API شما برای گرفتن تعداد ویزیت‌های ارجاعی جدید اشاره کند
-                // شما باید این API را در views.py مربوط به Visits ایجاد کنید
                 $.ajax({
-                    url: "{% url 'visits:api_unread_referred_visits_count' %}", // این URL را در urls.py تعریف کنید
+                    url: "{% url 'visits:api_unread_referred_visits_count' %}",
                     method: 'GET',
                     success: function(data) {
                         const unreadCountSpan = $('#unread-referred-visits-count');
                         if (data.unread_count > 0) {
                             unreadCountSpan.text(data.unread_count);
                             unreadCountSpan.show();
-                            // اگر میخواهید عنوان هم نمایش داده شود
-                            // مثلاً با یک Tooltip یا Toast Notification
-                            // در حال حاضر از title attribute استفاده شده
                         } else {
                             unreadCountSpan.hide();
                         }
@@ -605,11 +611,17 @@
             }
 
             updateUnreadMessagesCount();
-            setInterval(updateUnreadMessagesCount, 30000); // به‌روزرسانی پیام‌ها هر 30 ثانیه
-
+            setInterval(updateUnreadMessagesCount, 30000);
             updateUnreadReferredVisitsCount();
-            setInterval(updateUnreadReferredVisitsCount, 10000); // به‌روزرسانی ویزیت‌های ارجاعی هر 10 ثانیه
+            setInterval(updateUnreadReferredVisitsCount, 10000);
         });
     </script>
+
+    <style>
+        #messages-container.fade-out {
+            opacity: 0;
+            transition: opacity 1s ease-out;
+        }
+    </style>
 </body>
 </html>

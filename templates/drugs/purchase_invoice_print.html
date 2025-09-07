@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-{% load jalali_tags %}
+{% load jformat %}
 <html lang="fa" dir="rtl">
 <head>
     <meta charset="UTF-8">
@@ -247,7 +247,7 @@
                 </div>
                 <div>
                     <span class="info-label">تاریخ ثبت سیستم:</span> 
-                    <span class="info-value">{{ invoice.created_at|to_jalali:"%Y/%m/%d - %H:%M" }}</span>
+                    <span class="info-value">{{ invoice.created_at|jformat:"%Y/%m/%d - %H:%M" }}</span>
                 </div>
                 <div>
                     <span class="info-label">ثبت شده توسط:</span> 
@@ -277,7 +277,7 @@
                     <td class="text-center">{{ forloop.counter }}</td>
                     <td>{{ item.drug.name }}</td>
                     <td class="text-center">{{ item.batch_number|default:"-" }}</td>
-                    <td class="text-center">{{ item.expiry_date|to_jalali:"%Y/%m/%d"|default:"-" }}</td>
+                    <td class="text-center">{{ item.expiry_date|jformat:"%Y/%m/%d"|default:"-" }}</td>
                     {# ⭐ کلاس‌های خاص برای تعداد و قیمت واحد اضافه شد ⭐ #}
                     <td class="text-center item-quantity">{{ item.quantity|floatformat:"0" }}</td>
                     <td class="text-center item-unit-price">{{ item.unit_price|floatformat:"0" }}</td>

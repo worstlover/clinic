@@ -1,0 +1,43 @@
+{% extends "base.html" %}
+{% load crispy_forms_tags %}
+{% load static %}
+
+{% block content %}
+<div class="row">
+    <div class="col-lg-6">
+        <div class="card shadow mb-4">
+            <div class="card-header py-3">
+                <h6 class="m-0 font-weight-bold text-primary">ویرایش اطلاعات پروفایل</h6>
+            </div>
+            <div class="card-body">
+                <form method="post" enctype="multipart/form-data">
+                    {% csrf_token %}
+                    <div class="text-center mb-4">
+                        <img src="{{ request.user.profile.image.url }}" class="rounded-circle" style="width: 150px; height: 150px; object-fit: cover;">
+                    </div>
+                    {{ user_form|crispy }}
+                    {{ profile_form|crispy }}
+                    <hr>
+                    <button type="submit" name="update_user" class="btn btn-success">ثبت تغییرات</button>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-lg-6">
+        <div class="card shadow mb-4">
+            <div class="card-header py-3">
+                <h6 class="m-0 font-weight-bold text-warning">تغییر رمز عبور</h6>
+            </div>
+            <div class="card-body">
+                <form method="post">
+                    {% csrf_token %}
+                    {{ password_form|crispy }}
+                    <hr>
+                    <button type="submit" name="change_password" class="btn btn-warning">تغییر رمز</button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

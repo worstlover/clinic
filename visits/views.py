@@ -165,10 +165,11 @@ def visit_create(request, patient_id=None):
     ایجاد ویزیت جدید و تجویز دارو.
     """
     initial_data = {}
-    patient = None # مقدار اولیه برای patient
+    patient = None  # مقدار اولیه برای patient
     if patient_id:
         try:
             patient = Patient.objects.get(pk=patient_id)
+            # پر کردن فیلد بیمار در فرم به صورت خودکار با استفاده از شیء patient
             initial_data['patient'] = patient
             messages.info(request, f"ایجاد ویزیت جدید برای بیمار: {patient.full_name}")
         except Patient.DoesNotExist:
@@ -177,19 +178,18 @@ def visit_create(request, patient_id=None):
 
     if request.method == 'POST':
         form = VisitForm(request.POST, initial=initial_data)
-        formset = VisitItemFormSet(request.POST) # اینجا نیازی به instance نیست، چون بعدا وصل می‌کنیم
+        formset = VisitItemFormSet(request.POST)
 
         if form.is_valid() and formset.is_valid():
             with transaction.atomic():
                 visit = form.save(commit=False)
-                visit.doctor = request.user # پزشک را کاربر فعلی تنظیم کنید
-                # ⭐ مهم: تنظیم کاربر مسئول فعلی در زمان ایجاد ویزیت ⭐
+                visit.doctor = request.user
                 visit.assigned_to = request.user
-                visit.status = 'pending' # وضعیت اولیه ویزیت
-                visit.save() # ذخیره ویزیت اصلی
+                visit.status = 'pending'
+                visit.save()
 
-                formset.instance = visit # اتصال فرم‌ست به آبجکت ویزیت ذخیره شده
-                formset.save() # ذخیره آیتم‌های ویزیت
+                formset.instance = visit
+                formset.save()
 
                 messages.success(request, 'ویزیت جدید با موفقیت ثبت شد.')
                 return redirect('visits:visit_detail', pk=visit.pk)
@@ -206,9 +206,10 @@ def visit_create(request, patient_id=None):
         'formset': formset,
         'page_title': 'ثبت ویزیت جدید',
         'is_update': False,
-        'patient': patient, # ارسال آبجکت patient به context
+        'patient': patient,  # ارسال آبجکت patient به context برای نمایش در قالب HTML
     }
     return render(request, 'visits/visit_form.html', context)
+
 
 @login_required
 @permission_required('visits.change_visit', raise_exception=True)

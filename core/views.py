@@ -1,4 +1,11 @@
 # D:\final\core\views.py
+from django.shortcuts import render, redirect
+from django.contrib import messages
+from django.contrib.auth.decorators import login_required
+from django.contrib.auth import update_session_auth_hash
+
+from .forms import UserUpdateForm, ProfileUpdateForm, UserPasswordChangeForm
+from .models import Profile
 
 from django.db import models
 from django.shortcuts import render, redirect, get_object_or_404
@@ -128,8 +135,16 @@ def patient_create(request):
             patient = form.save(commit=False)
             patient.registered_by = request.user
             patient.save()
-            messages.success(request, 'بیمار با موفقیت ثبت شد.')
-            return redirect('core:patient_list')
+            
+            # ⭐ این بخش اصلاح شده است تا بر اساس دکمه کلیک شده، عمل کند. ⭐
+            if 'save_and_visit' in request.POST:
+                messages.success(request, 'بیمار با موفقیت ثبت شد. لطفاً ویزیت جدید را ثبت کنید.')
+                # هدایت به صفحه ثبت ویزیت با شناسه بیمار جدید
+                return redirect('visits:visit_create_for_patient', patient_id=patient.id)
+            else:
+                messages.success(request, 'بیمار با موفقیت ثبت شد.')
+                # هدایت پیش‌فرض به لیست بیماران
+                return redirect('core:patient_list')
         else:
             messages.error(request, 'لطفا خطاهای فرم را برطرف کنید.')
     else:
@@ -182,12 +197,12 @@ def patient_delete(request, pk):
     if request.method == 'POST':
         patient.delete()
         messages.success(request, 'بیمار با موفقیت حذف شد!')
-        return redirect('patient_list')
+        return redirect('core:patient_list')
     context = {
         'page_title': 'حذف بیمار',
         'object': patient
     }
-    return render(request, 'core/confirm_delete.html', context)
+    return render(request, 'core/patient_list.html', context)
 
 @login_required(login_url=reverse_lazy('login'))
 def company_list(request):
@@ -559,3 +574,54 @@ def process_personnel_import(request):
             return redirect('core:upload_personnel_file')
 
     return redirect('core:upload_personnel_file')
+
+@login_required
+def user_profile(request):
+    # چک کنید که آیا مدل پروفایل برای کاربر وجود دارد یا نه
+    try:
+        profile = request.user.profile
+    except Profile.DoesNotExist:
+        profile = Profile.objects.create(user=request.user)
+    
+    # برای مدیریت درخواست های POST
+    if request.method == 'POST':
+        # چک کنید کدام فرم ارسال شده است
+        if 'update_user' in request.POST:
+            user_form = UserUpdateForm(request.POST, instance=request.user)
+            profile_form = ProfileUpdateForm(request.POST, request.FILES, instance=profile)
+            if user_form.is_valid() and profile_form.is_valid():
+                user_form.save()
+                profile_form.save()
+                messages.success(request, 'اطلاعات پروفایل با موفقیت به‌روزرسانی شد.')
+                return redirect('core:user_profile')
+        
+        elif 'change_password' in request.POST:
+            password_form = UserPasswordChangeForm(request.user, request.POST)
+            if password_form.is_valid():
+                user = password_form.save()
+                update_session_auth_hash(request, user) # مهم: برای جلوگیری از لاگ اوت شدن کاربر
+                messages.success(request, 'رمز عبور با موفقیت تغییر یافت.')
+                return redirect('core:user_profile')
+            else:
+                messages.error(request, 'خطا در تغییر رمز عبور. لطفا اطلاعات را مجددا بررسی کنید.')
+        
+        # اگر فرم ها نامعتبر بودند
+        else:
+            user_form = UserUpdateForm(instance=request.user)
+            profile_form = ProfileUpdateForm(instance=profile)
+            password_form = UserPasswordChangeForm(request.user)
+            messages.error(request, 'خطا در ارسال فرم.')
+
+    # برای مدیریت درخواست های GET
+    else:
+        user_form = UserUpdateForm(instance=request.user)
+        profile_form = ProfileUpdateForm(instance=profile)
+        password_form = UserPasswordChangeForm(request.user)
+
+    context = {
+        'user_form': user_form,
+        'profile_form': profile_form,
+        'password_form': password_form,
+        'page_title': 'پروفایل کاربری'
+    }
+    return render(request, 'core/profile.html', context)

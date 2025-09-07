@@ -1,6 +1,6 @@
 {% load crispy_forms_tags %}
 {% load static %}
-{% load jformat %} 
+{% load jformat %}
 
 <!DOCTYPE html>
 <html lang="fa" dir="rtl">
@@ -11,8 +11,8 @@
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css">
     <link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet" />
-    <link rel="stylesheet" href="{% static 'css/style.css' %}"> 
-    
+    <link rel="stylesheet" href="{% static 'css/style.css' %}">
+
     {# فونت Vazirmatn از Google Fonts #}
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -25,7 +25,7 @@
     <style>
         body {
             background-color: #f8f9fa;
-            font-family: 'Vazirmatn', sans-serif;
+            font-family: 'Vazirmatn', sans-serif; /* اعمال فونت Vazirmatn */
         }
         .container {
             max-width: 1200px;
@@ -55,7 +55,7 @@
             border-bottom: 1px dashed #e9ecef;
             padding-bottom: 10px;
         }
-        .delete-row-btn { 
+        .delete-row-btn {
             color: #dc3545;
             cursor: pointer;
             font-size: 1.2em;
@@ -76,15 +76,15 @@
         }
         /* اصلاح استایل Select2 برای Bootstrap 5 */
         .select2-container .select2-selection--single {
-            height: calc(2.25rem + 2px); 
+            height: calc(2.25rem + 2px);
             display: flex;
             align-items: center;
             border: 1px solid #ced4da;
             border-radius: 0.25rem;
-            font-family: 'Vazirmatn', sans-serif;
+            font-family: 'Vazirmatn', sans-serif; /* اعمال فونت به Select2 */
         }
         .select2-container--default .select2-selection--single .select2-selection__arrow {
-            height: calc(2.25rem + 2px); 
+            height: calc(2.25rem + 2px);
             top: 0;
             right: 0;
             position: absolute;
@@ -94,23 +94,23 @@
             justify-content: center;
         }
         .select2-container--default .select2-selection--single .select2-selection__rendered {
-            line-height: normal; 
+            line-height: normal;
             padding-left: 0.75rem;
             padding-right: 0.75rem;
         }
         .select2-container--open {
-            z-index: 99999; 
+            z-index: 99999;
         }
         .select2-search__field {
-            width: 100% !important; 
-            font-family: 'Vazirmatn', sans-serif;
+            width: 100% !important;
+            font-family: 'Vazirmatn', sans-serif; /* اعمال فونت به فیلد جستجوی Select2 */
         }
 
         /* برای فیلدهای number که فلش نمی‌خواهند */
-        input[type=number]::-webkit-inner-spin-button, 
-        input[type=number]::-webkit-outer-spin-button { 
-            -webkit-appearance: none; 
-            margin: 0; 
+        input[type=number]::-webkit-inner-spin-button,
+        input[type=number]::-webkit-outer-spin-button {
+            -webkit-appearance: none;
+            margin: 0;
         }
         input[type=number] {
             -moz-appearance: textfield;
@@ -118,19 +118,11 @@
 
         /* استایل برای نمایش تاریخ شمسی */
         .jalali-display-text {
-            display: block; 
-            margin-top: 5px; 
-            font-size: 0.85em; 
-            color: #555; 
+            display: block;
+            margin-top: 5px;
+            font-size: 0.85em;
+            color: #555;
             font-weight: bold;
-        }
-        /* استایل برای دکمه‌های فرم‌ها */
-        .form-action-buttons {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-top: 2rem;
-            gap: 1rem;
         }
     </style>
 </head>
@@ -147,18 +139,18 @@
             {% endfor %}
         {% endif %}
 
-        <form method="post" id="purchase-invoice-form" enctype="multipart/form-data">
+        <form method="post" id="purchase-invoice-form">
             {% csrf_token %}
-            <div class="card p-4 shadow-sm mb-4">
+            <div class="card p-4 shadow-sm">
                 <div class="row">
                     <div class="col-md-4">
                         {{ form.invoice_number|as_crispy_field }}
                     </div>
                     <div class="col-md-4">
-                        {{ form.invoice_date|as_crispy_field }} 
+                        {{ form.invoice_date|as_crispy_field }}
                     </div>
                     <div class="col-md-4">
-                        {{ form.status|as_crispy_field }}
+                        {{ form.status|as_crispy_field }} {# 'status' بازگردانده شد #}
                     </div>
                 </div>
                 <div class="row">
@@ -171,20 +163,7 @@
                 </div>
             </div>
 
-            {# بخش جدید برای آپلود فایل اکسل #}
-            <div class="card p-4 shadow-sm mb-4">
-                <h4 class="mb-3">ایجاد فاکتور از طریق فایل اکسل</h4>
-                <p class="text-muted">
-                    برای وارد کردن آیتم‌های فاکتور از طریق یک فایل اکسل، ابتدا فایل را در این قسمت آپلود کنید.
-                </p>
-                <div class="row">
-                    <div class="col-md-12">
-                        {% crispy excel_form %}
-                    </div>
-                </div>
-            </div>
-
-            <h4 class="mt-4 mb-3">آیتم‌های فاکتور (روش دستی)</h4>
+            <h4 class="mt-4 mb-3">آیتم‌های فاکتور</h4>
             <div id="formset-container">
                 {{ formset.management_form }}
                 {% for item_form in formset %}
@@ -201,8 +180,14 @@
                         <div class="row">
                             <div class="col-md-6">
                                 <div class="mb-3">
-                                    <label for="{{ item_form.drug.id_for_label }}" class="form-label">{{ item_form.drug.label }}</label>
-                                    {{ item_form.drug }} 
+                                    <div class="d-flex justify-content-between align-items-center mb-1">
+                                        <label for="{{ item_form.drug.id_for_label }}" class="form-label">{{ item_form.drug.label }}</label>
+                                        {# دکمه جدید برای ایجاد داروی جدید #}
+                                        <a href="{% url 'drugs:drug_create' %}" class="btn btn-sm btn-outline-info" target="_blank" title="ایجاد داروی جدید">
+                                            <i class="fas fa-plus"></i>
+                                        </a>
+                                    </div>
+                                    {{ item_form.drug }}
                                     {% if item_form.drug.errors %}
                                         <div class="invalid-feedback d-block">{{ item_form.drug.errors }}</div>
                                     {% endif %}
@@ -218,12 +203,12 @@
                         <div class="row">
                             <div class="col-md-6">
                                 {# فیلد expiry_date برای ورودی میلادی (YYYY-MM-DD) #}
-                                {{ item_form.expiry_date|as_crispy_field }} 
+                                {{ item_form.expiry_date|as_crispy_field }}
                                 {# نمایش تاریخ شمسی تبدیل شده از میلادی #}
                                 <span class="jalali-display-text" id="{{ item_form.expiry_date.id_for_label }}_jalali_display">
                                     {% if item_form.instance.expiry_date %}
                                         {# این مقدار اولیه توسط JS خوانده و به شمسی تبدیل میشود #}
-                                        تاریخ شمسی: 
+                                        تاریخ شمسی:
                                     {% endif %}
                                 </span>
                             </div>
@@ -233,8 +218,8 @@
                                     <p class="form-control-plaintext item-subtotal-display"></p>
                                 </div>
                             </div>
-                            {{ item_form.id }} 
-                            {{ item_form.total_item_price }} 
+                            {{ item_form.id }}
+                            {{ item_form.total_item_price }}
                         </div>
                     </div>
                 {% endfor %}
@@ -245,9 +230,9 @@
                     <i class="fas fa-plus"></i> افزودن آیتم جدید
                 </button>
             </div>
-            
+
             <hr class="mt-4 mb-4">
-            
+
             <div class="d-flex justify-content-end mb-4">
                 <div class="p-2">
                     <h5>مبلغ کل فاکتور: <span id="total-invoice-amount-display" class="total-invoice-amount-display">0.00</span> ریال</h5>
@@ -268,7 +253,7 @@
     <template id="empty-form-template">
         <div class="item-row mb-4">
             <div class="item-header">
-                <h5>آیتم جدید</h5> 
+                <h5>آیتم جدید</h5>
                 <div class="form-check form-switch">
                     {{ formset.empty_form.DELETE }}
                     <label class="form-check-label" for="{{ formset.empty_form.DELETE.id_for_label }}">حذف آیتم</label>
@@ -277,8 +262,13 @@
             <div class="row">
                 <div class="col-md-6">
                     <div class="mb-3">
-                        <label for="{{ formset.empty_form.drug.id_for_label }}" class="form-label">{{ formset.empty_form.drug.label }}</label>
-                        {{ formset.empty_form.drug }} 
+                        <div class="d-flex justify-content-between align-items-center mb-1">
+                            <label for="{{ formset.empty_form.drug.id_for_label }}" class="form-label">{{ formset.empty_form.drug.label }}</label>
+                            <a href="{% url 'drugs:drug_create' %}" class="btn btn-sm btn-outline-info" target="_blank" title="ایجاد داروی جدید">
+                                <i class="fas fa-plus"></i>
+                            </a>
+                        </div>
+                        {{ formset.empty_form.drug }}
                     </div>
                 </div>
                 <div class="col-md-3">
@@ -291,7 +281,7 @@
             <div class="row">
                 <div class="col-md-6">
                     {# فیلد expiry_date برای ورودی میلادی #}
-                    {{ formset.empty_form.expiry_date|as_crispy_field }} 
+                    {{ formset.empty_form.expiry_date|as_crispy_field }}
                     {# نمایش تاریخ شمسی تبدیل شده از میلادی #}
                     <span class="jalali-display-text" id="{{ formset.empty_form.expiry_date.id_for_label }}_jalali_display"></span>
                 </div>
@@ -308,7 +298,7 @@
     </template>
 
     <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
-    
+
     {# JS های مورد نیاز برای AdminJalaliDateWidget (فقط برای invoice_date) #}
     {{ form.media.js }}
     {{ formset.media.js }}
@@ -317,7 +307,7 @@
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/i18n/fa.js"></script>
-    
+
     <script>
         $(document).ready(function() {
             function initializeSelect2Drug(element) {
@@ -327,12 +317,12 @@
                     placeholder: 'نام یا کد دارو را جستجو کنید...',
                     allowClear: true,
                     ajax: {
-                        url: "{% url 'drugs:search_drugs_ajax' %}", 
+                        url: "{% url 'drugs:search_drugs_ajax' %}",
                         dataType: 'json',
-                        delay: 250, 
+                        delay: 250,
                         data: function (params) {
                             return {
-                                q: params.term, 
+                                q: params.term,
                                 page: params.page
                             };
                         },
@@ -341,13 +331,13 @@
                             return {
                                 results: data.results,
                                 pagination: {
-                                    more: (params.page * 10) < data.count 
+                                    more: (params.page * 10) < data.count
                                 }
                             };
                         },
                         cache: true
                     },
-                    minimumInputLength: 2, 
+                    minimumInputLength: 2,
                     templateResult: function (data) {
                         return data.loading ? data.text : $('<span>' + data.text + '</span>');
                     },
@@ -379,21 +369,21 @@
                                 var year = parseInt(parts[0]);
                                 var month = parseInt(parts[1]);
                                 var day = parseInt(parts[2]);
-                                
+
                                 if (!isNaN(year) && !isNaN(month) && !isNaN(day)) {
                                     // persianDate expects month as 1-12
-                                    var pd = new persianDate([year, month, day]); 
+                                    var pd = new persianDate([year, month, day]);
                                     // نمایش تاریخ شمسی با فرمت YYYY/MM/DD
                                     jalaliDisplaySpan.text('تاریخ شمسی: ' + pd.format('YYYY/MM/DD'));
                                 } else {
-                                    jalaliDisplaySpan.text('تاریخ نامعتبر'); 
+                                    jalaliDisplaySpan.text('تاریخ نامعتبر');
                                 }
                             } catch (e) {
                                 console.error("Error converting Gregorian to Jalali:", e);
                                 jalaliDisplaySpan.text('خطا در تبدیل تاریخ');
                             }
                         } else {
-                            jalaliDisplaySpan.text(''); 
+                            jalaliDisplaySpan.text('');
                         }
                     }
 
@@ -404,14 +394,14 @@
                     element.on('change', updateJalaliDisplay);
                 }
             }
-            
+
             function updateSubtotal() {
                 var row = $(this).closest('.item-row');
                 var quantity = parseFloat(row.find('input[name$="-quantity"]').val()) || 0;
                 var unitPrice = parseFloat(row.find('input[name$="-unit_price"]').val()) || 0;
                 var subtotal = quantity * unitPrice;
 
-                row.find('.item-subtotal-display').text(subtotal.toLocaleString('fa-IR')); 
+                row.find('.item-subtotal-display').text(subtotal.toLocaleString('fa-IR'));
                 row.find('input[name$="-total_item_price"]').val(subtotal.toFixed(2));
 
                 updateTotalAmount();
@@ -462,22 +452,22 @@
             $('.gregorian-date-input').each(function() {
                 initializeGregorianToJalaliDisplay($(this));
             });
-            
-            $(document).on('input', '.item-quantity, .item-unit-price', updateSubtotal);
-            $(document).on('change', 'input[type="checkbox"][id$="-DELETE"]', updateTotalAmount); 
 
-            updateTotalAmount(); 
-            
+            $(document).on('input', '.item-quantity, .item-unit-price', updateSubtotal);
+            $(document).on('change', 'input[type="checkbox"][id$="-DELETE"]', updateTotalAmount);
+
+            updateTotalAmount();
+
             $('#add-item-btn').click(function() {
                 var formsetContainer = $('#formset-container');
                 var totalFormsInput = $('#id_items-TOTAL_FORMS');
                 var currentForms = parseInt(totalFormsInput.val());
-                
+
                 var newFormHtml = $('#empty-form-template').html();
                 newFormHtml = newFormHtml.replace(/__prefix__/g, currentForms);
-                
+
                 var newFormRow = $(newFormHtml);
-                
+
                 newFormRow.find(':input').each(function() {
                     var oldName = $(this).attr('name');
                     if (oldName) {
@@ -493,18 +483,18 @@
                         $(this).val('');
                     }
                 });
-                
+
                 newFormRow.attr('id', 'item-' + currentForms);
                 newFormRow.find('h5').text('آیتم ' + (currentForms + 1));
                 newFormRow.find('.item-subtotal-display').text('0.00');
-                
+
                 formsetContainer.append(newFormRow);
                 totalFormsInput.val(currentForms + 1);
 
                 initializeSelect2Drug(newFormRow.find('.select2-drug'));
-                initializeGregorianToJalaliDisplay(newFormRow.find('input[name$="-expiry_date"]')); 
-                
-                updateTotalAmount(); 
+                initializeGregorianToJalaliDisplay(newFormRow.find('input[name$="-expiry_date"]'));
+
+                updateTotalAmount();
             });
         });
     </script>

@@ -220,3 +220,4 @@ DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
 LOGIN_REDIRECT_URL = 'dashboard'
 LOGIN_URL = 'login' # برای تغییر مسیر ورود
+SESSION_COOKIE_AGE = 21600

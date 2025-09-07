@@ -54,7 +54,10 @@
 
 {% block content %}
 <div class="container-fluid">
-    <h1 class="mb-4">{{ page_title }}</h1>
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h1 class="mb-0">{{ page_title }}</h1>
+        <a href="{% url 'core:patient_create' %}" class="btn btn-info"><i class="fas fa-user-plus me-2"></i> افزودن بیمار جدید</a>
+    </div>
 
     {% include 'snippets/messages.html' %}
 
@@ -109,9 +112,6 @@
                         <div id="bmi-result" class="form-control" style="background-color: #e9ecef;">---</div>
                         <small id="bmi-status" class="form-text"></small>
                     </div>
-                    <div class="col-md-12 mb-3">{{ form.ecg_interpretation|as_crispy_field }}</div>
-                    <div class="col-md-12 mb-3">{{ form.treatment_result|as_crispy_field }}</div>
-                    <div class="col-12 mb-3">{{ form.notes|as_crispy_field }}</div>
                 </div>
                 
                 <hr><h4 class="mb-3">داروهای تجویز شده</h4>
@@ -149,6 +149,12 @@
                 </div>
 
                 <button type="button" id="add-item-btn" class="btn btn-primary mb-4"><i class="fas fa-plus"></i> افزودن دارو</button>
+
+                <div class="row">
+                    <div class="col-md-12 mb-3">{{ form.ecg_interpretation|as_crispy_field }}</div>
+                    <div class="col-md-12 mb-3">{{ form.treatment_result|as_crispy_field }}</div>
+                    <div class="col-12 mb-3">{{ form.notes|as_crispy_field }}</div>
+                </div>
 
                 <div class="d-flex justify-content-end mt-4 border-top pt-3">
                     <button type="submit" class="btn btn-success me-2 px-4"><i class="fas fa-save me-2"></i> ذخیره</button>
@@ -209,40 +215,40 @@
                     return option.text();
                 }
             });
-
-            element.on('select2:select', function (e) {
-                const data = e.params.data;
-                if (data && data.id) {
-                    $.ajax({
-                        url: "{% url 'visits:patient_detail_api' %}",
-                        data: { patient_id: data.id },
-                        dataType: 'json',
-                        success: function(patientData) {
-                            if (patientData) {
-                                $('#patient-age').val(patientData.age || 'نامشخص');
-                                $('#patient-allergies').val(patientData.allergies || 'ندارد');
-                                $('#patient-medical-history').val(patientData.medical_history || 'ندارد');
-                                $('#patient-visit-count').val(patientData.visit_count || '0');
-                                $('#patient-last-visit-date').val(patientData.last_visit_date || 'ندارد');
-                                $('#patient-last-visit-reason').val(patientData.last_visit_reason || 'ندارد');
-                            }
-                        },
-                        error: function(xhr, status, error) {
-                            console.error("Error fetching patient details:", status, error);
-                        }
-                    });
-                }
-            });
-
-            element.on('select2:unselect', function (e) {
-                $('#patient-age').val('');
-                $('#patient-allergies').val('');
-                $('#patient-medical-history').val('');
-                $('#patient-visit-count').val('');
-                $('#patient-last-visit-date').val('');
-                $('#patient-last-visit-reason').val('');
-            });
         }
+        
+        $('#id_patient').on('select2:select', function (e) {
+            const data = e.params.data;
+            if (data && data.id) {
+                $.ajax({
+                    url: "{% url 'visits:patient_detail_api' %}",
+                    data: { patient_id: data.id },
+                    dataType: 'json',
+                    success: function(patientData) {
+                        if (patientData) {
+                            $('#patient-age').val(patientData.age || 'نامشخص');
+                            $('#patient-allergies').val(patientData.allergies || 'ندارد');
+                            $('#patient-medical-history').val(patientData.medical_history || 'ندارد');
+                            $('#patient-visit-count').val(patientData.visit_count || '0');
+                            $('#patient-last-visit-date').val(patientData.last_visit_date || 'ندارد');
+                            $('#patient-last-visit-reason').val(patientData.last_visit_reason || 'ندارد');
+                        }
+                    },
+                    error: function(xhr, status, error) {
+                        console.error("Error fetching patient details:", status, error);
+                    }
+                });
+            }
+        });
+
+        $('#id_patient').on('select2:unselect', function (e) {
+            $('#patient-age').val('');
+            $('#patient-allergies').val('');
+            $('#patient-medical-history').val('');
+            $('#patient-visit-count').val('');
+            $('#patient-last-visit-date').val('');
+            $('#patient-last-visit-reason').val('');
+        });
         
         // =========================================================
         // تابع مقداردهی اولیه Select2 برای فیلد دارو
@@ -347,7 +353,8 @@
             });
         }
 
-        $('.select2-drug').each(function() {
+        // انتخاب فیلدهای دارو با شناسه (ID) به جای کلاس
+        $('#formset-container').find('select[id$="-drug"]').each(function() {
             initializeSelect2Drug($(this));
         });
 
@@ -367,7 +374,7 @@
             $('#formset-container').append(newFormRow);
             totalForms.val(index + 1);
 
-            initializeSelect2Drug(newFormRow.find('.select2-drug'));
+            initializeSelect2Drug(newFormRow.find('select[id$="-drug"]'));
 
             $('html, body').animate({ scrollTop: newFormRow.offset().top - 100 }, 500);
         });
