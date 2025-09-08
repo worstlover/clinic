@@ -87,6 +87,8 @@
                                         <a href="{% url 'visits:visit_create_for_patient' patient.pk %}" class="btn btn-success btn-sm me-1" title="ثبت ویزیت جدید"><i class="fas fa-notes-medical"></i></a>
                                         {# Added button for lab results #}
                                         <a href="{% url 'lab_results:patient_lab_results' patient.pk %}" class="btn btn-primary btn-sm me-1" title="نتایج آزمایشات"><i class="fas fa-flask"></i></a>
+                                        {# Added a new button for patient monitoring report #}
+                                        <a href="{% url 'patient_monitoring:patient_report' patient.pk %}" class="btn btn-dark btn-sm me-1" title="پایش بیمار"><i class="fas fa-chart-line"></i></a>
                                         <button type="button" class="btn btn-danger btn-sm" data-bs-toggle="modal" data-bs-target="#deleteModal{{ patient.pk }}" title="حذف"><i class="fas fa-trash"></i></button>
                                     </div>
                                     <div class="modal fade" id="deleteModal{{ patient.pk }}" tabindex="-1" aria-labelledby="deleteModalLabel{{ patient.pk }}" aria-hidden="true">

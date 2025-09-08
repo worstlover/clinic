@@ -106,7 +106,12 @@ class Patient(models.Model):
         blank=True, 
         verbose_name="شرکت/مجموعه"
     )
-
+    height_cm = models.PositiveIntegerField(
+        null=True, 
+        blank=True, 
+        verbose_name="قد (سانتی‌متر)",
+        help_text="قد بیمار به سانتی‌متر"
+    )
     address = models.TextField(blank=True, null=True, verbose_name="آدرس")
     registered_at = models.DateTimeField(auto_now_add=True, verbose_name="تاریخ ثبت")
     registered_by = models.ForeignKey(

@@ -53,6 +53,7 @@ INSTALLED_APPS = [
     'django_jalali',
     'django_select2',
     'lab_results',
+    'patient_monitoring',
     'reports'
     
 ]

@@ -1,0 +1,152 @@
+{% extends "base.html" %}
+{% load static %}
+{% load jformat %}
+
+{% block title %}گزارش جامع بیمار{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="card shadow-sm">
+        <div class="card-header bg-primary text-white"><h1 class="h3 mb-0">گزارش جامع بیمار: {{ patient.full_name }}</h1></div>
+        <div class="card-body">
+            <div class="row mb-4">
+                <div class="col-md-6">
+                    <h5>اطلاعات فردی</h5>
+                    <p><strong>کد ملی:</strong> {{ patient.national_code }}</p>
+                    <p><strong>تاریخ تولد:</strong> {{ patient.date_of_birth|jformat:"%Y/%m/%d" }}</p>
+                    <p><strong>جنسیت:</strong> {{ patient.gender }}</p>
+                    <p><strong>شرکت:</strong> {{ patient.company }}</p>
+                    <p><strong>سوابق پزشکی:</strong> {{ patient.medical_history }}</p>
+                    
+                </div>
+                <div class="col-md-6 d-flex justify-content-center align-items-center">
+                    {% if patient.profile_picture %}<img src="{{ patient.profile_picture.url }}" alt="عکس پروفایل" class="img-fluid rounded-circle" style="max-width: 150px; height: 150px; object-fit: cover;">
+                    {% else %}<img src="{% static 'images/default_profile.png' %}" alt="عکس پیش‌فرض" class="img-fluid rounded-circle" style="max-width: 150px; height: 150px; object-fit: cover;">{% endif %}
+                </div>
+            </div>
+
+            <hr>
+            <h5 class="mt-4 mb-3">نمودارهای پایش سلامت</h5>
+            <div class="row">
+                <div class="col-lg-3 col-md-6 mb-4"><div class="card chart-card h-100"><div class="card-body"><h6 class="card-title">نمودار وزن</h6><canvas id="weightChart"></canvas></div></div></div>
+                <div class="col-lg-3 col-md-6 mb-4"><div class="card chart-card h-100"><div class="card-body"><h6 class="card-title">نمودار BMI</h6><canvas id="bmiChart"></canvas></div></div></div>
+                <div class="col-lg-3 col-md-6 mb-4"><div class="card chart-card h-100"><div class="card-body"><h6 class="card-title">نمودار فشار خون</h6><canvas id="bpChart"></canvas></div></div></div>
+                <div class="col-lg-3 col-md-6 mb-4"><div class="card chart-card h-100"><div class="card-body"><h6 class="card-title">نمودار قند خون</h6><canvas id="bloodSugarChart"></canvas></div></div></div>
+                <div class="col-lg-4 col-md-6 mb-4"><div class="card chart-card h-100"><div class="card-body"><h6 class="card-title">چربی خون</h6><canvas id="lipid_profile"></canvas></div></div></div>
+                <div class="col-lg-4 col-md-6 mb-4"><div class="card chart-card h-100"><div class="card-body"><h6 class="card-title">تیروئید</h6><canvas id="thyroid_panel"></canvas></div></div></div>
+                <div class="col-lg-4 col-md-6 mb-4"><div class="card chart-card h-100"><div class="card-body"><h6 class="card-title">شمارش خون</h6><canvas id="cbc_panel"></canvas></div></div></div>
+            </div>
+
+            <hr>
+
+            <h5 class="mt-4 mb-3">سوابق معاینات، ویزیت‌ها و آزمایش‌ها</h5>
+            <div class="list-group">
+                {% for item in all_data %}
+                    <div class="list-group-item flex-column align-items-start mb-2">
+                        <div class="d-flex w-100 justify-content-between">
+                            <h6 class="mb-1 text-primary">{{ item.type }}</h6>
+                            <small class="text-muted">تاریخ: {{ item.date|jformat:"%Y/%m/%d" }}</small>
+                        </div>
+                        <p class="mb-1"><strong>علت مراجعه:</strong> {{ item.reason_for_visit|default:"فاقد توضیحات" }}</p>
+                        <p class="mb-1"><strong>نتیجه درمان:</strong> {{ item.treatment_result|default:"فاقد توضیحات" }}</p>
+                        <div class="mt-2">
+                            <strong>اندازه‌گیری‌ها:</strong>
+                            <ul class="list-inline mb-0">
+                                {% if item.weight %}<li class="list-inline-item">وزن: {{ item.weight|floatformat:2 }} کیلوگرم</li>{% endif %}
+                                {% if item.height %}<li class="list-inline-item">قد: {{ item.height }} سانتی‌متر</li>{% endif %}
+                                {% if item.blood_pressure %}<li class="list-inline-item">فشار خون: {{ item.blood_pressure }}</li>{% endif %}
+                                {% if item.blood_sugar %}<li class="list-inline-item">قند خون: {{ item.blood_sugar }} mg/dL</li>{% endif %}
+                            </ul>
+                        </div>
+                        {% if item.lab_results %}
+                        <div class="mt-2">
+                            <strong>نتایج آزمایش:</strong>
+                            <ul class="list-inline mb-0">
+                                {% for key, value in item.lab_results.items %}
+                                <li class="list-inline-item"><strong>{{ key }}:</strong> {{ value }}</li>
+                                {% endfor %}
+                            </ul>
+                        </div>
+                        {% endif %}
+                    </div>
+                {% empty %}
+                    <div class="alert alert-info">هیچ سابقه معاینه، ویزیت یا آزمایشی برای این بیمار ثبت نشده است.</div>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js@3.7.0/dist/chart.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/jalalijs/dist/jalali.min.js"></script>
+
+{{ chart_data|json_script:"chart-data-json" }}
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const scriptTag = document.getElementById('chart-data-json');
+    if (!scriptTag) {
+        console.error('Data script tag not found.');
+        return;
+    }
+    const chartData = JSON.parse(scriptTag.textContent);
+    
+    // استفاده مستقیم از لیبل‌های ایجاد شده در بک‌اند
+    const labels = chartData.dates;
+    
+    function createSingleLineChart(elementId, label, data, borderColor, yAxisTitle) {
+        const canvas = document.getElementById(elementId);
+        if (canvas && data.some(d => d !== null)) {
+            new Chart(canvas, {
+                type: 'line', data: { labels: labels, datasets: [{ label: label, data: data, borderColor: borderColor, tension: 0.1, spanGaps: true }] },
+                options: { responsive: true, scales: { y: { beginAtZero: false, title: { display: true, text: yAxisTitle }}}}
+            });
+        }
+    }
+    function createMultiLineChart(elementId, datasets, yAxisTitle) {
+        const canvas = document.getElementById(elementId);
+        if (canvas && datasets.length > 0) {
+            new Chart(canvas, {
+                type: 'line', data: { labels: labels, datasets: datasets },
+                options: { responsive: true, scales: { y: { beginAtZero: false, title: { display: true, text: yAxisTitle }}}}
+            });
+        }
+    }
+
+    const baseCharts = chartData.base_charts;
+    createSingleLineChart('weightChart', 'وزن (کیلوگرم)', baseCharts.weights, 'rgb(75, 192, 192)', 'وزن (کیلوگرم)');
+    createSingleLineChart('bmiChart', 'شاخص توده بدنی (BMI)', baseCharts.bmis, 'rgb(255, 159, 64)', 'BMI');
+    createSingleLineChart('bloodSugarChart', 'قند خون (mg/dL)', baseCharts.blood_sugars, 'rgb(255, 205, 86)', 'قند خون (mg/dL)');
+
+    createMultiLineChart('bpChart', [
+        { label: 'فشار خون سیستولیک', data: baseCharts.systolic_bp, borderColor: 'rgb(255, 99, 132)', tension: 0.1, spanGaps: true },
+        { label: 'فشار خون دیاستولیک', data: baseCharts.diastolic_bp, borderColor: 'rgb(54, 162, 235)', tension: 0.1, spanGaps: true }
+    ], 'فشار خون');
+
+    const labConfigs = chartData.lab_charts_config;
+    const labData = chartData.lab_charts_data;
+
+    for (const chartId in labConfigs) {
+        const config = labConfigs[chartId];
+        const chartDatasets = [];
+        for (const testName in config.tests) {
+            if (labData[chartId] && labData[chartId][testName]) {
+                const testData = labData[chartId][testName];
+                if (testData.some(d => d !== null)) {
+                    chartDatasets.push({
+                        label: config.tests[testName].label,
+                        data: testData,
+                        borderColor: config.tests[testName].borderColor,
+                        tension: 0.1,
+                        spanGaps: true
+                    });
+                }
+            }
+        }
+        if (chartDatasets.length > 0) {
+             createMultiLineChart(chartId, chartDatasets, config.yAxisTitle);
+        }
+    }
+});
+</script>
+{% endblock %}

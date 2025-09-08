@@ -44,7 +44,7 @@ urlpatterns = [
     path('api/react/patients/', PatientListAPIView.as_view(), name='api-react-patient-list'),
     path('reports/', include('reports.urls', namespace='reports')), 
     path('select2/', include('django_select2.urls')),
-    
+    path('monitor/', include('patient_monitoring.urls')),
     path('lab_results/', include('lab_results.urls', namespace='lab_results'))
 ]
 
