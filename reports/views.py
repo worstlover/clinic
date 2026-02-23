@@ -1,5 +1,13 @@
-# D:\final\reports\views.py
-
+import datetime
+from django.shortcuts import render
+from django.db.models import Value, CharField, F, fields ,Sum
+from django.db import models
+from persiantools.jdatetime import JalaliDate, JalaliDateTime
+from django.shortcuts import render
+from django.db.models import Value, CharField, F, fields
+from django.utils import timezone  # حیاتی برای حل مشکل Offset-Aware
+from persiantools.jdatetime import JalaliDate, JalaliDateTime
+from .filters import DrugTransactionFilter
 from django.shortcuts import render
 from django.db.models import Count, Q, Sum, F, ExpressionWrapper, fields, OuterRef, Subquery ,Max# OuterRef, Subquery اضافه شدند
 from django.db.models.functions import TruncMonth, TruncDay, Coalesce # Coalesce اضافه شد
@@ -13,7 +21,7 @@ from drugs.models import Drug, DrugRequest, DrugRequestItem, PurchaseInvoice, Pu
 from core.models import GENDER_CHOICES, Patient, Company, BLOOD_TYPE_CHOICES
 from visits.models import Visit, ReasonForVisit, TreatmentResult, VISIT_STATUS_CHOICES, INCIDENT_TYPE_CHOICES, VisitItem # VisitItem اضافه شد
 import re
-from reports.filters import PatientFilter, VisitFilter, DrugFilter
+from reports.filters import PatientFilter, VisitFilter, DrugFilter,DrugTransactionFilter
 from drugs.models import DrugBatch 
 import jdatetime
 from lab_results.models import PeriodicExamination, LabParameterResult 
@@ -22,17 +30,10 @@ from openpyxl import Workbook
 from openpyxl.styles import Font, Alignment, PatternFill, Border, Side
 import jdatetime
 from datetime import timedelta
-import io# سایر مدل‌های نتایج معاینه اگر نیاز باشد
+import io
 @login_required
 def base_report_context(request, report_title, filter_form=None):
-    """
-    توابع مشترک برای ساختار گزارشات و فیلترینگ.
-    این تابع یک دیکشنری شامل:
-    - فرم فیلتر (اگر وجود داشته باشد)
-    - عنوان گزارش
-    - تاریخ و زمان فعلی (شمسی)
-    را برمی‌گرداند.
-    """
+   
     now = datetime.now()
     current_jalali_date = JalaliDate.today().strftime('%Y/%m/%d')
     current_time = now.strftime('%H:%M')
@@ -516,14 +517,7 @@ def company_visit_report_view(request):
     return visits_company_visit_report_view(request, template_name='reports/company_visit_report.html')
 
 
-
-# D:\final\lab_results\views.py
-
-# ... (کدهای موجود در ابتدای فایل بدون تغییر) ...
-from django.db.models import Max
-from datetime import timedelta
-# ... (کدهای موجود) ...
-
+@login_required
 def get_report_data(report_type, company_id, final_opinion_filters, re_exam_date_jalali_str):
     patients_without_exams = None
     patients_without_personnel_id = None
@@ -700,6 +694,7 @@ def get_report_data(report_type, company_id, final_opinion_filters, re_exam_date
         'report_title': report_title,
     }
 
+@login_required
 def reports_view(request):
     report_type = request.GET.get('report_type')
     company_id = request.GET.get('company')
@@ -713,7 +708,7 @@ def reports_view(request):
     context['selected_final_opinion_filters'] = final_opinion_filters
     
     return render(request, 'lab_results/reports.html', context)
-
+@login_required
 def export_excel(request):
     report_type = request.GET.get('report_type')
     company_id = request.GET.get('company')
@@ -892,6 +887,8 @@ def export_excel(request):
 
     workbook.save(response)
     return response
+
+@login_required
 def reports_view(request):
     report_type = request.GET.get('report_type')
     company_id = request.GET.get('company')
@@ -905,3 +902,296 @@ def reports_view(request):
     context['selected_final_opinion_filters'] = final_opinion_filters
     
     return render(request, 'lab_results/reports.html', context)
+
+
+
+
+import datetime as dt_module
+from django.shortcuts import render
+from django.db.models import Value, CharField, F, fields
+from django.utils import timezone
+from persiantools.jdatetime import JalaliDate, JalaliDateTime
+
+# ۱. ایمپورت مدل‌ها در بالاترین سطح (خارج از تابع) برای جلوگیری از UnboundLocalError
+# آدرس‌ها را بر اساس ساختار دقیق پروژه‌ات اصلاح کن
+from drugs.models import Drug,  PurchaseInvoiceItem 
+
+from visits.models import VisitItem
+from .filters import DrugTransactionFilter
+def get_drug_transactions_data(request):
+    """تابع مشترک برای استخراج تراکنش‌ها در گزارش و چاپ"""
+    drug_ids = request.GET.getlist('drug')
+    select_all = request.GET.get('select_all_drugs') == 'on'
+    start_date_str = request.GET.get('start_date')
+    end_date_str = request.GET.get('end_date')
+    t_type_filter = request.GET.get('transaction_type', 'all')
+
+    transactions = []
+    selected_drugs = []
+    start_dt = None
+    end_dt = None
+
+    # تبدیل تاریخ شمسی به میلادی
+    try:
+        table = str.maketrans('۰۱۲۳۴۵۶۷۸۹', '0123456789')
+        if start_date_str:
+            p = [int(x) for x in start_date_str.translate(table).split('/')]
+            start_dt = timezone.make_aware(dt_module.datetime.combine(JalaliDate(p[0],p[1],p[2]).to_gregorian(), dt_module.time.min))
+        if end_date_str:
+            p = [int(x) for x in end_date_str.translate(table).split('/')]
+            end_dt = timezone.make_aware(dt_module.datetime.combine(JalaliDate(p[0],p[1],p[2]).to_gregorian(), dt_module.time.max))
+    except: pass
+
+    if select_all or drug_ids:
+        if select_all:
+            selected_drugs = Drug.objects.all()
+            drug_ids = [int(d.id) for d in selected_drugs]
+        else:
+            drug_ids = [int(d_id) for d_id in drug_ids]
+            selected_drugs = Drug.objects.filter(id__in=drug_ids)
+
+        drug_balances = {}
+        target_date = start_dt if start_dt else timezone.make_aware(dt_module.datetime(1900, 1, 1))
+        
+        for d_id in drug_ids:
+            p_sum = PurchaseInvoiceItem.objects.filter(drug_id=d_id, invoice__invoice_date__lt=target_date).aggregate(s=models.Sum('quantity'))['s'] or 0
+            v_sum = VisitItem.objects.filter(drug_id=d_id, visit__visit_date__lt=target_date).aggregate(s=models.Sum('quantity'))['s'] or 0
+            drug_balances[d_id] = p_sum - v_sum
+
+        # فیلتر خریدها
+        p_filters = {'drug_id__in': drug_ids}
+        if start_dt: p_filters['invoice__invoice_date__gte'] = start_dt
+        if end_dt: p_filters['invoice__invoice_date__lte'] = end_dt
+
+        purchases = []
+        if t_type_filter in ['all', 'in']:
+            purchases = list(PurchaseInvoiceItem.objects.filter(**p_filters).annotate(
+                raw_date=F('invoice__invoice_date'),
+                drug_name=F('drug__name'),
+                q_in=F('quantity'),
+                q_out=Value(0, output_field=fields.IntegerField()),
+                op_type=Value('ورود', output_field=CharField())
+            ).values('raw_date', 'drug_name', 'drug_id', 'q_in', 'q_out', 'op_type'))
+
+        # فیلتر مصرف‌ها
+        c_filters = {'drug_id__in': drug_ids}
+        if start_dt: c_filters['visit__visit_date__gte'] = start_dt
+        if end_dt: c_filters['visit__visit_date__lte'] = end_dt
+
+        consumptions = []
+        if t_type_filter in ['all', 'out']:
+            consumptions = list(VisitItem.objects.filter(**c_filters).annotate(
+                raw_date=F('visit__visit_date'),
+                drug_name=F('drug__name'),
+                q_in=Value(0, output_field=fields.IntegerField()),
+                q_out=F('quantity'),
+                op_type=Value('خروج', output_field=CharField())
+            ).values('raw_date', 'drug_name', 'drug_id', 'q_in', 'q_out', 'op_type'))
+
+        all_items = purchases + consumptions
+
+        def safe_dt(val):
+            if not val: return timezone.make_aware(dt_module.datetime(1900,1,1))
+            if isinstance(val, dt_module.date) and not isinstance(val, dt_module.datetime):
+                return timezone.make_aware(dt_module.datetime.combine(val, dt_module.time.min))
+            return timezone.make_aware(val) if timezone.is_naive(val) else val
+
+        all_items.sort(key=lambda x: safe_dt(x['raw_date']))
+
+        for item in all_items:
+            d_id = int(item['drug_id'])
+            drug_balances[d_id] += (item['q_in'] - item['q_out'])
+            item['balance_after'] = drug_balances[d_id]
+            item['date_jalali'] = to_jalali_helper(item['raw_date'])
+
+        transactions = all_items[::-1]
+    
+    return transactions, selected_drugs, bool(select_all or drug_ids)
+
+
+def to_jalali_helper(dt_obj):
+    if not dt_obj: return "-"
+    try:
+        if hasattr(dt_obj, 'hour'):
+            dt_obj = timezone.localtime(dt_obj)
+            return JalaliDateTime.to_jalali(dt_obj).strftime('%Y/%m/%d - %H:%M')
+        return JalaliDate.to_jalali(dt_obj).strftime('%Y/%m/%d')
+    except: return str(dt_obj)
+
+def drug_transaction_report_view(request):
+    drug_ids = request.GET.getlist('drug')
+    select_all = request.GET.get('select_all_drugs') == 'on'
+    start_date_str = request.GET.get('start_date')
+    end_date_str = request.GET.get('end_date')
+    t_type_filter = request.GET.get('transaction_type', 'all')
+
+    transactions = []
+    selected_drugs = []
+    start_dt = None
+    end_dt = None
+
+    # تبدیل تاریخ شمسی به میلادی
+    try:
+        table = str.maketrans('۰۱۲۳۴۵۶۷۸۹', '0123456789')
+        if start_date_str:
+            p = [int(x) for x in start_date_str.translate(table).split('/')]
+            start_dt = timezone.make_aware(dt_module.datetime.combine(JalaliDate(p[0],p[1],p[2]).to_gregorian(), dt_module.time.min))
+        if end_date_str:
+            p = [int(x) for x in end_date_str.translate(table).split('/')]
+            end_dt = timezone.make_aware(dt_module.datetime.combine(JalaliDate(p[0],p[1],p[2]).to_gregorian(), dt_module.time.max))
+    except: pass
+
+    if select_all or drug_ids:
+        if select_all:
+            selected_drugs = Drug.objects.all()
+            drug_ids = [int(d.id) for d in selected_drugs]
+        else:
+            # تبدیل آی‌دی‌ها به عدد برای جلوگیری از KeyError
+            drug_ids = [int(d_id) for d_id in drug_ids]
+            selected_drugs = Drug.objects.filter(id__in=drug_ids)
+
+        # محاسبه موجودی اولیه هر دارو تا قبل از شروع بازه
+        drug_balances = {}
+        target_date = start_dt if start_dt else timezone.make_aware(dt_module.datetime(1900, 1, 1))
+        
+        for d_id in drug_ids:
+            p_sum = PurchaseInvoiceItem.objects.filter(drug_id=d_id, invoice__invoice_date__lt=target_date).aggregate(s=models.Sum('quantity'))['s'] or 0
+            v_sum = VisitItem.objects.filter(drug_id=d_id, visit__visit_date__lt=target_date).aggregate(s=models.Sum('quantity'))['s'] or 0
+            drug_balances[d_id] = p_sum - v_sum
+
+        # دریافت تراکنش‌ها
+        p_filters = {'drug_id__in': drug_ids}
+        if start_dt: p_filters['invoice__invoice_date__gte'] = start_dt
+        if end_dt: p_filters['invoice__invoice_date__lte'] = end_dt
+
+        purchases = []
+        if t_type_filter in ['all', 'in']:
+            purchases = list(PurchaseInvoiceItem.objects.filter(**p_filters).annotate(
+                raw_date=F('invoice__invoice_date'),
+                drug_name=F('drug__name'),
+                q_in=F('quantity'),
+                q_out=Value(0, output_field=fields.IntegerField()),
+                op_type=Value('ورود', output_field=CharField())
+            ).values('raw_date', 'drug_name', 'drug_id', 'q_in', 'q_out', 'op_type'))
+
+        c_filters = {'drug_id__in': drug_ids}
+        if start_dt: c_filters['visit__visit_date__gte'] = start_dt
+        if end_dt: c_filters['visit__visit_date__lte'] = end_dt
+
+        consumptions = []
+        if t_type_filter in ['all', 'out']:
+            consumptions = list(VisitItem.objects.filter(**c_filters).annotate(
+                raw_date=F('visit__visit_date'),
+                drug_name=F('drug__name'),
+                q_in=Value(0, output_field=fields.IntegerField()),
+                q_out=F('quantity'),
+                op_type=Value('خروج', output_field=CharField())
+            ).values('raw_date', 'drug_name', 'drug_id', 'q_in', 'q_out', 'op_type'))
+
+        all_items = purchases + consumptions
+
+        # تابع کمکی برای مرتب‌سازی (رفع باگ datetime vs date)
+        def safe_dt(val):
+            if not val: return timezone.make_aware(dt_module.datetime(1900,1,1))
+            if isinstance(val, dt_module.date) and not isinstance(val, dt_module.datetime):
+                return timezone.make_aware(dt_module.datetime.combine(val, dt_module.time.min))
+            return timezone.make_aware(val) if timezone.is_naive(val) else val
+
+        all_items.sort(key=lambda x: safe_dt(x['raw_date']))
+
+        # محاسبه موجودی لحظه‌ای تفکیک شده
+        for item in all_items:
+            d_id = int(item['drug_id'])
+            drug_balances[d_id] += (item['q_in'] - item['q_out'])
+            item['balance_after'] = drug_balances[d_id]
+            item['date_jalali'] = to_jalali_helper(item['raw_date'])
+
+        transactions = all_items[::-1]
+    today_jalali = JalaliDate.today().strftime('%Y/%m/%d')
+    return render(request, 'reports/drug_transaction_report.html', {
+        'report_title': "گزارش کارتکس و موجودی داروخانه",
+        'drugs_list': Drug.objects.all(),
+        'transactions': transactions,
+        'selected_drugs': selected_drugs,
+        'is_filtered': bool(select_all or drug_ids),
+        'today_jalali': today_jalali, # اضافه شد
+    })
+
+
+
+@login_required
+def drug_print_report_view(request):
+    # فراخوانی تابع کمکی برای دریافت دقیق همان داده‌ها
+    transactions, selected_drugs, is_filtered = get_drug_transactions_data(request)
+    
+    context = {
+        'report_title': "گزارش چاپی کارتکس داروخانه",
+        'transactions': transactions,
+        'selected_drugs': selected_drugs,
+        'is_filtered': is_filtered,
+        'start_date': request.GET.get('start_date'),
+        'end_date': request.GET.get('end_date'),
+        'today_jalali': JalaliDate.today().strftime('%Y/%m/%d'),
+    }
+    return render(request, 'reports/drug_transaction_print.html', context)
+
+
+
+def drug_summary_report_view(request):
+    start_date_str = request.GET.get('start_date')
+    end_date_str = request.GET.get('end_date')
+    
+    # تبدیل تاریخ شمسی به میلادی (با استفاده از منطق قبلی خودتان)
+    start_dt, end_dt = None, None
+    try:
+        table = str.maketrans('۰۱۲۳۴۵۶۷۸۹', '0123456789')
+        if start_date_str:
+            p = [int(x) for x in start_date_str.translate(table).split('/')]
+            start_dt = timezone.make_aware(dt_module.datetime.combine(JalaliDate(p[0],p[1],p[2]).to_gregorian(), dt_module.time.min))
+        if end_date_str:
+            p = [int(x) for x in end_date_str.translate(table).split('/')]
+            end_dt = timezone.make_aware(dt_module.datetime.combine(JalaliDate(p[0],p[1],p[2]).to_gregorian(), dt_module.time.max))
+    except: pass
+
+    summary_data = []
+    # اگر بازه زمانی انتخاب نشده باشد، گزارشی چاپ نمی‌کنیم یا بازه پیش‌فرض می‌گذاریم
+    if start_dt and end_dt:
+        drugs = Drug.objects.all()
+        for drug in drugs:
+            # ۱. موجودی اول دوره (تمام ورودی‌ها منهای خروجی‌های قبل از start_dt)
+            p_before = PurchaseInvoiceItem.objects.filter(drug=drug, invoice__invoice_date__lt=start_dt).aggregate(s=Sum('quantity'))['s'] or 0
+            v_before = VisitItem.objects.filter(drug=drug, visit__visit_date__lt=start_dt).aggregate(s=Sum('quantity'))['s'] or 0
+            opening_balance = p_before - v_before
+
+            # ۲. مجموع ورود در بازه
+            total_in = PurchaseInvoiceItem.objects.filter(drug=drug, invoice__invoice_date__range=(start_dt, end_dt)).aggregate(s=Sum('quantity'))['s'] or 0
+            
+            # ۳. مجموع خروج در بازه
+            total_out = VisitItem.objects.filter(drug=drug, visit__visit_date__range=(start_dt, end_dt)).aggregate(s=Sum('quantity'))['s'] or 0
+
+            # ۴. مانده پایان دوره
+            closing_balance = opening_balance + total_in - total_out
+
+            # فقط داروهایی که گردش داشته‌اند یا موجودی دارند را لیست می‌کنیم
+            if opening_balance != 0 or total_in != 0 or total_out != 0:
+                summary_data.append({
+                    'drug_name': drug.name,
+                    'opening': opening_balance,
+                    'in': total_in,
+                    'out': total_out,
+                    'closing': closing_balance,
+                })
+
+    context = {
+        'report_title': "گزارش خلاصه گردش موجودی (تجمعی)",
+        'summary_data': summary_data,
+        'start_date': start_date_str,
+        'end_date': end_date_str,
+        'today_jalali': JalaliDate.today().strftime('%Y/%m/%d'),
+    }
+    
+    # اگر پارامتر print در URL بود، قالب چاپ را رندر کن
+    if request.GET.get('print') == '1':
+        return render(request, 'reports/drug_summary_print.html', context)
+    
+    return render(request, 'reports/drug_summary_report.html', context)    

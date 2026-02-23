@@ -34,6 +34,9 @@ from .filters import MessageFilter
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.views.generic import ListView
 from django.utils.html import strip_tags
+from django.db.models import Q, Value
+from django.db.models.functions import Concat
+from django.http import JsonResponse
 
 # --- Helper function for mobile push notifications (if not defined elsewhere) ---
 # This is a placeholder and should be implemented with a real push notification service
@@ -118,36 +121,40 @@ class UnreadMessagesCountAPIView(APIView):
         ).count()
         return Response({'unread_count': unread_count}, status=status.HTTP_200_OK)
 
+
 class UserSearchAPIView(generics.ListAPIView):
-    """
-    API endpoint for searching users, formatted for Select2.
-    This replaces the redundant UserSearchAPIView (APIView) at the end of the file.
-    """
     serializer_class = UserSerializer
     permission_classes = [IsAuthenticated]
 
     def get_queryset(self):
-        query = self.request.query_params.get('q', '')
-        if query:
-            return User.objects.filter(
-                Q(username__icontains=query) | 
-                Q(first_name__icontains=query) | 
-                Q(last_name__icontains=query)
-            ).distinct()[:20] 
-        return User.objects.none()
+        query = self.request.query_params.get('q', '').strip()
+        if not query:
+            return User.objects.none()
+
+        # ایجاد یک فیلد مجازی برای ترکیب نام و نام خانوادگی جهت جستجوی یکپارچه
+        return User.objects.annotate(
+            full_name=Concat('first_name', Value(' '), 'last_name')
+        ).filter(
+            Q(username__icontains=query) | 
+            Q(first_name__icontains=query) | 
+            Q(last_name__icontains=query) |
+            Q(full_name__icontains=query) # جستجو در "نام + نام خانوادگی"
+        ).distinct()[:20]
 
     def list(self, request, *args, **kwargs):
         queryset = self.get_queryset()
-        serializer = self.get_serializer(queryset, many=True)
-        # Format for Select2: { "results": [], "pagination": { "more": false } }
-        # Select2 expects 'id' and 'text' fields. UserSerializer should provide this.
-        # Adjusted to 'items' and 'total_count' as per the original APIView implementation for consistency
         results = []
-        for user_data in serializer.data:
+        for user in queryset:
+            # نمایش هوشمند: اگر نام داشت، نام کامل، در غیر این صورت نام کاربری
+            full_name = f"{user.first_name} {user.last_name}".strip()
+            display_text = full_name if full_name else user.username
+            
             results.append({
-                'id': user_data['id'],
-                'text': user_data.get('first_name', '') + ' ' + user_data.get('last_name', '') if user_data.get('first_name') else user_data['username']
+                'id': user.id,
+                'text': display_text
             })
+        
+        # خروجی استاندارد برای Select2 (استفاده از کلید 'items' طبق نیاز شما)
         return JsonResponse({'items': results, 'total_count': len(results)})
 
 

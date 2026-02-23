@@ -1,101 +1,126 @@
-{% extends "base.html" %}
-{% load crispy_forms_tags static %}
-
-{% block extra_head %}
-    {{ form.media }}
-    {{ formset.media }}
-    <style>
-        .select2-container { width: 100% !important; }
-        .dynamic-formset {
-            border: 1px solid #ddd;
-            padding: 1rem;
-            margin-bottom: 1rem;
-            border-radius: 0.25rem;
-            background-color: #f8f9fa;
-        }
-        .formset-row {
-             display: flex;
-             align-items: flex-start;
-             gap: 1rem;
-        }
-        .formset-row .form-group {
-            flex-grow: 1;
-        }
-    </style>
-{% endblock %}
+{% extends main_base %}
+{% load crispy_forms_tags %}
+{% load static %}
 
 {% block content %}
-<div class="card">
-    <div class="card-header">
-        <h4 class="card-title">{{ page_title }}</h4>
+<link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet" />
+<link href="https://cdn.jsdelivr.net/npm/select2-bootstrap-5-theme@1.3.0/dist/select2-bootstrap-5-theme.rtl.min.css" rel="stylesheet" />
+
+<style>
+    body { background-color: #f4f7f6; padding-bottom: 90px; }
+    .readonly-field { background-color: #f1f3f5 !important; color: #495057; pointer-events: none; border: 1px solid #ced4da; }
+    
+    /* استایل اسکنر اصلاح شده */
+    #scanner-full-screen {
+        position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+        background: #000; z-index: 99999; display: none;
+    }
+    #qr-reader { width: 100% !important; height: 100% !important; }
+    /* هماهنگی کادر با تصویر واقعی */
+    #qr-reader video { object-fit: contain !important; width: 100% !important; height: 100% !important; }
+
+    .scanner-overlay {
+        position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+        pointer-events: none; z-index: 100;
+        display: flex; align-items: center; justify-content: center;
+    }
+    .scanner-box {
+        width: 280px; height: 180px;
+        border: 2px solid #00ff00; border-radius: 12px;
+        box-shadow: 0 0 0 9999px rgba(0, 0, 0, 0.6);
+        position: relative;
+    }
+
+    /* پاپ‌آپ تعداد روی اسکنر */
+    #qty-popup {
+        position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
+        width: 85%; background: white; padding: 25px; border-radius: 20px;
+        z-index: 1000; display: none; pointer-events: all;
+    }
+
+    .item-card { border-right: 5px solid #0d6efd; margin-bottom: 12px; border-radius: 12px; background: white; }
+</style>
+
+<div class="container py-3" dir="rtl">
+    <form method="post" id="drug-form">
+        {% csrf_token %}
+        {{ formset.management_form }}
+
+        <div class="d-flex justify-content-between align-items-center mb-4">
+            <h5 class="fw-bold mb-0">ثبت درخواست دارو</h5>
+            <button type="button" class="btn btn-primary px-4 py-2 shadow-sm" onclick="initScanner()">
+                <i class="fas fa-barcode me-2"></i> باز کردن اسکنر
+            </button>
+        </div>
+
+        <div class="card p-3 mb-3 border-0 shadow-sm rounded-4">
+            <div class="row g-2">
+                <div class="col-6 text-end">
+                    <label class="small fw-bold text-muted mb-1">تاریخ (شمسی)</label>
+                    <input type="text" id="display_date" class="form-control readonly-field" readonly>
+                </div>
+                <div class="col-6 text-end">
+                    <label class="small fw-bold text-muted mb-1">کاربر</label>
+                    <input type="text" class="form-control readonly-field" value="{{ request.user.get_full_name }}" readonly>
+                </div>
+                <div class="col-12 mt-2">
+                    <label class="small fw-bold mb-1">تایید کننده</label>
+                    {{ form.assigned_approver }}
+                </div>
+                <div class="d-none">{{ form.request_date }}{{ form.requested_by }}{{ form.status }}</div>
+            </div>
+        </div>
+
+        <div id="items-list">
+            {% for item_form in formset %}
+            <div class="item-card p-3 shadow-sm">
+                {% for hidden in item_form.hidden_fields %}{{ hidden }}{% endfor %}
+                <div class="row g-2 align-items-center">
+                    <div class="col-7">{{ item_form.drug }}</div>
+                    <div class="col-3">{{ item_form.requested_quantity }}</div>
+                    <div class="col-2 text-center">
+                        <button type="button" class="btn btn-link text-danger btn-remove"><i class="fas fa-trash"></i></button>
+                    </div>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+
+        <button type="button" class="btn btn-outline-primary w-100 py-2 mt-2" onclick="manualAdd()">+ افزودن دستی</button>
+        <button type="submit" class="btn btn-success w-100 mt-4 py-3 fw-bold rounded-4 shadow">ثبت و ارسال</button>
+    </form>
+</div>
+
+<div id="scanner-full-screen">
+    <div style="position: absolute; top: 0; width: 100%; z-index: 1001; padding: 15px; background: rgba(0,0,0,0.6);">
+        <button class="btn btn-danger" onclick="stopAndExitScanner()">خروج / لغو</button>
+        <select id="cam-source" class="form-select bg-dark text-white border-0 mt-2"></select>
     </div>
-    <div class="card-body">
-        <form method="post" id="drug-request-form">
-            {% csrf_token %}
 
-            <fieldset class="border p-3 mb-4">
-                <legend class="w-auto px-2">اطلاعات کلی درخواست</legend>
-                <div class="row">
-                    {# request_code به صورت خودکار تولید می‌شود و نباید اینجا نمایش داده شود #}
-                    <div class="col-md-4">{{ form.request_date|as_crispy_field }}</div>
-                    <div class="col-md-4">{{ form.requested_by|as_crispy_field }}</div>
-                    <div class="col-md-4">{{ form.assigned_approver|as_crispy_field }}</div>
-                </div>
-                <div class="row">
-                    <div class="col-md-6">{{ form.status|as_crispy_field }}</div>
-                </div>
-                {{ form.description|as_crispy_field }}
-            </fieldset>
+    <div id="qr-reader"></div>
 
-            <fieldset class="border p-3 mb-4">
-                <legend class="w-auto px-2">آیتم‌های درخواست</legend>
-                {{ formset.management_form }}
-                
-                {% if formset.non_form_errors %}
-                    <div class="alert alert-danger">{{ formset.non_form_errors }}</div>
-                {% endif %}
+    <div class="scanner-overlay">
+        <div class="scanner-box"></div>
+    </div>
 
-                <div id="item-formset">
-                    {% for form in formset %}
-                        <div class="dynamic-formset" id="item-{{ forloop.counter0 }}">
-                            {{ form.id }}
-                            <div class="row">
-                                <div class="col-md-5">{{ form.drug|as_crispy_field }}</div>
-                                <div class="col-md-2">{{ form.requested_quantity|as_crispy_field }}</div>
-                                <div class="col-md-4">{{ form.notes|as_crispy_field }}</div>
-                                <div class="col-md-1 d-flex align-items-center pt-4">
-                                    {% if form.instance.pk %}
-                                        {# برای آیتم‌های موجود، چک‌باکس حذف نمایش داده می‌شود #}
-                                        {{ form.DELETE|as_crispy_field }}
-                                    {% else %}
-                                        {# برای آیتم‌های جدید، دکمه حذف نمایش داده می‌شود #}
-                                        <button type="button" class="btn btn-danger remove-form-row">حذف</button>
-                                    {% endif %}
-                                </div>
-                            </div>
-                        </div>
-                    {% endfor %}
-                </div>
-                
-                <button type="button" class="btn btn-secondary mt-2" id="add-form-row">
-                    <i class="fas fa-plus"></i> افزودن آیتم جدید
-                </button>
-            </fieldset>
-            
-            <button type="submit" class="btn btn-primary">ذخیره درخواست</button>
-            <a href="{% url 'drugs:drug_request_list' %}" class="btn btn-outline-secondary">بازگشت</a>
-        </form>
+    <div id="qty-popup" class="text-center shadow-lg">
+        <h6 id="scanned-name" class="fw-bold text-primary mb-3">...</h6>
+        <input type="number" id="scanned-qty" class="form-control form-control-lg text-center mb-3" value="1" inputmode="numeric">
+        <button class="btn btn-success btn-lg w-100" onclick="confirmScannedItem()">تایید و ثبت</button>
     </div>
 </div>
 
-<template id="empty-form-template">
-    <div class="dynamic-formset">
-        <div class="row">
-            <div class="col-md-5">{{ formset.empty_form.drug|as_crispy_field }}</div>
-            <div class="col-md-2">{{ formset.empty_form.requested_quantity|as_crispy_field }}</div>
-            <div class="col-md-4">{{ formset.empty_form.notes|as_crispy_field }}</div>
-            <div class="col-md-1 d-flex align-items-center pt-4">
-                <button type="button" class="btn btn-danger remove-form-row">حذف</button>
+<template id="row-tmpl">
+    <div class="item-card p-3 shadow-sm">
+        <div class="row g-2 align-items-center">
+            <div class="col-7">
+                <select name="items-__prefix__-drug" class="form-select drug-select"></select>
+            </div>
+            <div class="col-3">
+                <input type="number" name="items-__prefix__-requested_quantity" class="form-control" value="1">
+            </div>
+            <div class="col-2 text-center">
+                <button type="button" class="btn btn-link text-danger btn-remove"><i class="fas fa-trash"></i></button>
             </div>
         </div>
     </div>
@@ -104,67 +129,126 @@
 {% endblock %}
 
 {% block scripts %}
+<script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
+<script src="{% static 'js/html5-qrcode.min.js' %}"></script>
+
 <script>
-function updateElementIndex(el, prefix, ndx) {
-    const id_regex = new RegExp('(' + prefix + '-\\d+)');
-    const replacement = prefix + '-' + ndx;
-    if ($(el).attr("for")) $(el).attr("for", $(el).attr("for").replace(id_regex, replacement));
-    if (el.id) el.id = el.id.replace(id_regex, replacement);
-    if (el.name) el.name = el.name.replace(id_regex, replacement);
-}
+    let html5QrCode;
+    let currentDrug = null;
 
-document.addEventListener('DOMContentLoaded', function () {
-    const addFormBtn = document.getElementById('add-form-row');
-    const formContainer = document.getElementById('item-formset');
-    const totalForms = document.getElementById('id_items-TOTAL_FORMS');
-    const formRegex = RegExp(`items-(\\d){1}-`, 'g');
+    $(document).ready(function() {
+        // تاریخ شمسی
+        const now = new Date().toLocaleDateString('fa-IR');
+        $('#display_date').val(now);
+        initSelect2();
+    });
 
-    addFormBtn.addEventListener('click', function (e) {
-        e.preventDefault();
-        const formNum = parseInt(totalForms.value);
-        const emptyFormTemplate = document.getElementById('empty-form-template').innerHTML.replace(/__prefix__/g, formNum);
-        
-        const newFormEl = document.createElement('div');
-        newFormEl.innerHTML = emptyFormTemplate;
-        
-        formContainer.append(newFormEl.firstElementChild);
-        totalForms.value = formNum + 1;
-        
-        // Initialize Select2 for the new row
-        // این بخش فقط برای فیلدهای Select2 موجود در ردیف جدید عمل می‌کند.
-        // از آنجا که هر ردیف جدید نیاز به مقداردهی اولیه Select2 دارد، این کد لازم است.
-        $(newFormEl).find('.django-select2').select2({
-             dir: "rtl",
-             language: "fa",
-             theme: 'bootstrap-5',
-             width: 'resolve'
+    function initSelect2(parent = document) {
+        $(parent).find('select').not('#cam-source').each(function() {
+            if ($(this).hasClass('select2-hidden-accessible')) return;
+            const isApprover = $(this).attr('id')?.includes('assigned_approver');
+            $(this).select2({
+                dir: "rtl", theme: 'bootstrap-5', width: '100%',
+                ajax: {
+                    url: isApprover ? "{% url 'clinic_messages:user_search_api' %}" : "{% url 'visits:api_drug_search' %}",
+                    dataType: 'json',
+                    processResults: data => ({ results: data.items || data })
+                }
+            });
         });
-    });
+    }
 
-    formContainer.addEventListener('click', function(e) {
-        if (e.target && e.target.classList.contains('remove-form-row')) {
-            e.preventDefault();
-            e.target.closest('.dynamic-formset').remove();
-            
-            let forms = document.querySelectorAll('.dynamic-formset');
-            totalForms.value = forms.length;
-            for (let i=0; i<forms.length; i++) {
-                $(forms[i]).find(':input').each(function() {
-                    updateElementIndex(this, 'items', i);
-                });
-            }
+    function manualAdd(data = null, qty = 1) {
+        const totalForms = $('#id_items-TOTAL_FORMS');
+        let count = parseInt(totalForms.val());
+        let html = $('#row-tmpl').html().replace(/__prefix__/g, count);
+        const $row = $(html);
+        
+        $('#items-list').prepend($row);
+        totalForms.val(count + 1);
+        initSelect2($row);
+
+        if (data) {
+            const opt = new Option(data.name, data.id, true, true);
+            $row.find('select').append(opt).trigger('change');
+            $row.find('input[type="number"]').val(qty);
         }
+    }
+
+    $(document).on('click', '.btn-remove', function() {
+        $(this).closest('.item-card').remove();
+        $('#id_items-TOTAL_FORMS').val($('.item-card').length);
     });
 
-    // Initialize Select2 for existing fields on page load
-    // این بخش Select2 را برای تمام فیلدهای Select2 موجود در صفحه هنگام بارگذاری اولیه اعمال می‌کند.
-    // شامل فیلدهای 'requested_by', 'assigned_approver' و آیتم‌های اولیه فرم‌ست می‌شود.
-    $('.django-select2').select2({
-        dir: "rtl",
-        language: "fa",
-        theme: 'bootstrap-5',
-        width: 'resolve'
-    });
-});
+    // --- اسکنر با قابلیت Cleanup کامل ---
+    async function initScanner() {
+        $('#scanner-full-screen').show();
+        try {
+            const devices = await Html5Qrcode.getCameras();
+            const $select = $('#cam-source').empty();
+            if (devices.length) {
+                devices.forEach(d => $select.append(`<option value="${d.id}">${d.label}</option>`));
+                const lastCam = devices[devices.length - 1].id;
+                $select.val(lastCam);
+                startScanning(lastCam);
+            }
+            $select.on('change', () => startScanning($select.val()));
+        } catch (e) { alert("خطا در دسترسی به دوربین"); }
+    }
+
+    async function startScanning(camId) {
+        if (html5QrCode) { await html5QrCode.stop(); }
+        html5QrCode = new Html5Qrcode("qr-reader");
+        
+        const config = { 
+            fps: 20, 
+            qrbox: { width: 280, height: 180 },
+            aspectRatio: 1.777778 // نسبت ۱۶:۹ برای موبایل
+        };
+
+        html5QrCode.start(camId, config, onScanSuccess);
+    }
+
+    function onScanSuccess(text) {
+        html5QrCode.pause();
+        let code = (text.startsWith('01') && text.length > 14) ? text.substring(2, 16) : text;
+
+        $.ajax({
+            url: "{% url 'drugs:find_drug_by_barcode_api' %}",
+            data: { barcode: code },
+            success: function(resp) {
+                if (resp.drug_id) {
+                    currentDrug = { id: resp.drug_id, name: resp.drug_name };
+                    $('#scanned-name').text(resp.drug_name);
+                    $('#qty-popup').fadeIn(200);
+                    $('#scanned-qty').val(1).focus();
+                } else {
+                    alert("کد کالا در سیستم یافت نشد");
+                    html5QrCode.resume();
+                }
+            },
+            error: () => html5QrCode.resume()
+        });
+    }
+
+    function confirmScannedItem() {
+        const q = $('#scanned-qty').val() || 1;
+        manualAdd(currentDrug, q);
+        $('#qty-popup').hide();
+        stopAndExitScanner(); // بستن خودکار برای جلوگیری از فریز شدن
+    }
+
+    async function stopAndExitScanner() {
+        if (html5QrCode) {
+            try {
+                await html5QrCode.stop();
+                // پاک کردن کامل محتوای اِلمان برای ریست فیزیکی
+                $('#qr-reader').empty(); 
+            } catch (e) { console.log(e); }
+        }
+        $('#scanner-full-screen').hide();
+        $('#qty-popup').hide();
+    }
 </script>
 {% endblock %}

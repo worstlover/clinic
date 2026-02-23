@@ -1,0 +1,29 @@
+{% load static %}
+
+<div class="mobile-bottom-nav">
+    <a href="{% url 'dashboard' %}" class="mobile-nav-item {% if request.resolver_match.url_name == 'dashboard' %}active{% endif %}">
+        <i class="fas fa-home"></i>
+        <span>خانه</span>
+    </a>
+    
+    <a href="{% url 'drugs:drug_list' %}" class="mobile-nav-item {% if 'drugs' in request.path %}active{% endif %}">
+        <i class="fas fa-pills"></i>
+        <span>داروها</span>
+    </a>
+
+    <div class="mobile-fab-container">
+        <a href="{% url 'visits:visit_create' %}" class="mobile-fab">
+            <i class="fas fa-plus"></i>
+        </a>
+    </div>
+
+    <a href="{% url 'core:patient_list' %}" class="mobile-nav-item {% if 'patient' in request.path %}active{% endif %}">
+        <i class="fas fa-user-injured"></i>
+        <span>بیماران</span>
+    </a>
+
+    <div class="mobile-nav-item" id="mobileMenuTrigger" style="cursor:pointer;">
+        <i class="fas fa-bars"></i>
+        <span>منو</span>
+    </div>
+</div>

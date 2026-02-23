@@ -1,0 +1,160 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="card">
+        <div class="card-header bg-primary text-white">
+            <h4 class="card-title mb-0">افزودن دارو از طریق اسکن QR کد</h4>
+        </div>
+        <div class="card-body">
+
+            {# نمایش پیام‌های وضعیت (موفقیت، خطا، هشدار) از بک‌اند #}
+            {% if messages %}
+                {% for message in messages %}
+                    <div class="alert alert-{{ message.tags }} alert-dismissible fade show" role="alert">
+                        {{ message }}
+                        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                    </div>
+                {% endfor %}
+            {% endif %}
+
+            {# نمایش خطاهای خاص که مستقیماً از ویو ارسال می‌شوند #}
+            {% if error %}
+                <div class="alert alert-danger">{{ error }}</div>
+            {% endif %}
+
+            <div class="row g-4">
+                <div class="col-lg-5">
+                    <h5 class="border-bottom pb-2 mb-3">۱. اسکنر QR</h5>
+                    
+                    <div id="scanner-container">
+                        <button id="activate-scanner-btn" class="btn btn-primary w-100 mb-3">
+                            <i class="fas fa-camera me-2"></i> فعال‌سازی اسکنر
+                        </button>
+                        <div id="qr-reader" style="width:100%;" class="border rounded p-2 d-none"></div>
+                    </div>
+                </div>
+
+                <div class="col-lg-7">
+                    <h5 class="border-bottom pb-2 mb-3">۲. اطلاعات دارو و ثبت تعداد</h5>
+
+                    {% if scanned_data %}
+                    <form method="POST" action="{% url 'drugs:add_drug_from_qr' %}">
+                        {% csrf_token %}
+
+                        <div class="alert alert-success">
+                            <i class="fas fa-check-circle"></i> <strong>اسکن موفق!</strong> اطلاعات دارو در زیر نمایش داده شده است. لطفاً تعداد را وارد کنید.
+                        </div>
+
+                        <div class="mb-3">
+                            <label class="form-label">نام دارو</label>
+                            <input type="text" class="form-control" value="{{ scanned_data.drug.name }}" readonly>
+                        </div>
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label">شماره بچ (LOT)</label>
+                                <input type="text" class="form-control" value="{{ scanned_data.lot_number }}" readonly>
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label">تاریخ انقضا</label>
+                                <input type="text" class="form-control" value="{{ scanned_data.expiry_date|date:'Y/m/d' }}" readonly>
+                            </div>
+                        </div>
+                        
+                        <hr>
+
+                        <input type="hidden" name="drug_id" value="{{ scanned_data.drug.id }}">
+                        <input type="hidden" name="lot_number" value="{{ scanned_data.lot_number }}">
+                        <input type="hidden" name="expiry_date" value="{{ scanned_data.expiry_date|date:'Y-m-d' }}">
+
+                        <div class="mb-3">
+                            <label for="quantity" class="form-label fw-bold fs-5">تعداد ورودی به انبار:</label>
+                            <input type="number" class="form-control form-control-lg text-center" id="quantity" name="quantity" required min="1" autofocus placeholder="تعداد را اینجا وارد کنید...">
+                        </div>
+
+                        <button type="submit" class="btn btn-success w-100 btn-lg">
+                            <i class="fas fa-save me-2"></i>ثبت نهایی در انبار
+                        </button>
+                    </form>
+                    {% else %}
+                        <div class="alert alert-info d-flex align-items-center" style="min-height: 200px;">
+                            <i class="fas fa-camera fa-2x me-3"></i>
+                            <div>
+                                لطفاً با استفاده از اسکنر، QR کد روی جعبه دارو را مقابل دوربین قرار دهید. پس از اسکن موفق، اطلاعات دارو برای ثبت نهایی در این قسمت نمایش داده خواهد شد.
+                            </div>
+                        </div>
+                    {% endif %}
+                </div>
+            </div>
+
+            <form id="qr-form" method="POST" action="{% url 'drugs:add_drug_from_qr' %}" class="d-none">
+                {% csrf_token %}
+                <input type="hidden" name="qr_code" id="qr_code_input">
+            </form>
+
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+
+
+
+{% block extra_js %}
+<script src="https://unpkg.com/html5-qrcode" type="text/javascript"></script>
+
+<script>
+document.addEventListener("DOMContentLoaded", function() {
+    const activateButton = document.getElementById("activate-scanner-btn");
+    const qrReaderElement = document.getElementById("qr-reader");
+    const qrForm = document.getElementById("qr-form");
+    const qrCodeInput = document.getElementById("qr_code_input");
+
+    if (!activateButton || !qrReaderElement || !qrForm || !qrCodeInput) {
+        console.error("Critical: One or more elements not found. Check your HTML IDs.");
+        return;
+    }
+
+    let html5QrcodeScanner = null;
+
+    activateButton.addEventListener("click", function() {
+        console.log("Activate scanner clicked");
+        activateButton.disabled = true;
+        qrReaderElement.classList.remove("d-none");
+
+        html5QrcodeScanner = new Html5Qrcode("qr-reader");
+
+        const onScanSuccess = (decodedText, decodedResult) => {
+            console.log("QR Code scanned:", decodedText);
+            qrCodeInput.value = decodedText;
+
+            html5QrcodeScanner.stop().then(() => {
+                html5QrcodeScanner.clear();
+                qrReaderElement.classList.add("d-none");
+                activateButton.disabled = false;
+            }).catch(err => console.error("Error stopping scanner:", err));
+
+            qrForm.submit();
+        };
+
+        const onScanFailure = (errorMessage) => {
+            // scan failed, ignore silently or log if needed
+        };
+
+        html5QrcodeScanner.start(
+            { facingMode: "environment" },
+            { fps: 10, qrbox: { width: 250, height: 250 } },
+            onScanSuccess,
+            onScanFailure
+        ).catch(err => {
+            console.error("Cannot start scanner:", err);
+            alert("دوربین فعال نشد. لطفاً دسترسی دوربین را بررسی کنید و صفحه را روی HTTPS باز کنید.");
+            qrReaderElement.classList.add("d-none");
+            activateButton.disabled = false;
+        });
+    });
+});
+</script>
+{% endblock %}
+

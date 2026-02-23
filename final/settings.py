@@ -35,6 +35,7 @@ INSTALLED_APPS = [
     'widget_tweaks',
     'ckeditor',
     'ckeditor_uploader',
+    'aiapp',
     # اپلیکیشن‌های سفارشی شما
     'core',
     'clinic_messages',   # <<< فقط یک بار باید اینجا باشد
@@ -54,9 +55,16 @@ INSTALLED_APPS = [
     'django_select2',
     'lab_results',
     'patient_monitoring',
+    "django_extensions",
+    "didrug",
+    "mfa",
+    
     'reports'
     
 ]
+SECURE_SSL_REDIRECT = False
+SESSION_COOKIE_SECURE = False
+CSRF_COOKIE_SECURE = False
 CRISPY_ALLOWED_TEMPLATE_PACKS = "bootstrap5" # برای مشخص کردن پکیج قالب‌های مجاز
 CRISPY_TEMPLATE_PACK = "bootstrap5"   
 JALALI_SETTINGS = {
@@ -121,7 +129,8 @@ TEMPLATES = [
                 'django.contrib.auth.context_processors.auth',
                 'django.contrib.messages.context_processors.messages',
                 'core.context_processors.unread_messages_count',
-                'core.context_processors.user_groups_processor',  # اضافه شده برای شمارنده پیام‌های خوانده نشده
+                'core.context_processors.user_groups_processor',
+                'core.context_processors.theme_picker'  
             ],
         },
     },
@@ -218,7 +227,25 @@ CKEDITOR_CONFIGS = {
 # https://docs.djangoproject.com/en/5.2/ref/settings/#default-auto-field
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
+MFA_UNNAMED_KEY_DEFAULT = "MyDevice"
 
+MFA_SUCCESS_REGISTRATION_MSG = "دستگاه بیومتریک با موفقیت ثبت شد."
+MFA_DELETE_KEY_MSG = "کلید با موفقیت حذف شد."
+MFA_RECHECK_MSG = "لطفاً جهت تایید نهایی دوباره سنسور را لمس کنید."
+MFA_REDIRECT_AFTER_REGISTRATION = "dashboard" # نام URL پنل اصلی خودت
+
+# تنظیمات فنی FIDO2 برای اجبار به استفاده از سنسور گوشی (اثر انگشت/چهره)
+MFA_FIDO2_SERVER = {
+    "id": "127.0.0.1", # اگر آنلاین شدی به دامین تغییر بده مثل: 'clinic.com'
+    "name": "سیستم درمانگاه",
+}
+
+# اجبار به استفاده از سنسور داخلی دستگاه (Platform) بجای فلش USB
+MFA_FIDO2_AUTHENTICATOR_SELECTION = {
+    "authenticatorAttachment": "platform",
+    "userVerification": "required",
+    "requireResidentKey": False,
+}
 LOGIN_REDIRECT_URL = 'dashboard'
 LOGIN_URL = 'login' # برای تغییر مسیر ورود
 SESSION_COOKIE_AGE = 21600

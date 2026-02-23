@@ -20,6 +20,8 @@ from jalali_date.widgets import AdminJalaliDateWidget
 from persiantools.jdatetime import JalaliDate
 from django import forms
 from .models import PurchaseInvoice, PurchaseInvoiceItem, Drug, Supplier
+from .models import  DrugBarcode, DRUG_UNIT_CHOICES
+
 # برای فیلد تاریخ شمسی در فرم
 from jalali_date.fields import JalaliDateField
 from jalali_date.widgets import AdminJalaliDateWidget
@@ -29,6 +31,11 @@ from datetime import date, datetime
 from django.core.exceptions import ValidationError
 from decimal import Decimal # برای کار با مقادیر پولی
 from django_select2.forms import Select2Widget, Select2MultipleWidget
+from django.core.validators import MinValueValidator
+from django.contrib.auth.models import Group
+import logging
+logger = logging.getLogger(__name__)
+logger.setLevel(logging.DEBUG)
 query = forms.CharField(
         label='جستجو',
         required=False,
@@ -37,68 +44,206 @@ query = forms.CharField(
             'placeholder': 'نام یا کد دارو را برای جستجو وارد کنید...'
         })
     )
+
+class DrugReceiveForm(forms.Form):
+    # این فیلدها در HTML وجود ندارند، اما برای اعتبارسنجی در اینجا تعریف می‌شوند
+    drug_name = forms.CharField(label="نام دارو", required=False)
+    batch_number = forms.CharField(label="شماره بچ", max_length=100)
+    expiry_date = forms.DateField(label="تاریخ انقضا")
+    
+    # تغییر اصلی: استفاده از IntegerField و اضافه کردن validator
+    quantity = forms.IntegerField(
+        label="تعداد دریافتی", 
+        validators=[MinValueValidator(1, message="تعداد دریافتی باید حداقل ۱ باشد.")]
+    )
+    
+    supplier = forms.ModelChoiceField(queryset=Supplier.objects.all(), label="تامین‌کننده")
 # --------------------------------------------------
 # فرم‌های مدیریت داروها (Drug Forms) - CORRECTED
 # --------------------------------------------------
 
+DRUG_FORM_CHOICES = [
+    ('tablet', 'قرص'),
+    ('capsule', 'کپسول'),
+    ('syrup', 'شربت'),
+    ('ampoule', 'آمپول'),
+    ('injection', 'تزریقی'), # Added 'injection' as a valid choice
+    ('vial', 'ویال'),
+    ('inhaler', 'اسپری تنفسی'),
+    ('aerosol', 'آئروسل'),
+    ('solution', 'محلول'),
+    ('ointment', 'پماد'),
+    ('cream', 'کرم'),
+    ('gel', 'ژل'),
+    ('suspension', 'سوسپانسیون'),
+    ('drop', 'قطره'),
+    ('suppository', 'شیاف'),
+    ('patch', 'چسب ترانس درمال'),
+    ('granules', 'گرانول'),
+    ('other', 'سایر')
+]
+
+
 class DrugForm(forms.ModelForm):
+    search_drug = forms.ModelChoiceField(
+        queryset=Drug.objects.all(),
+        required=False,
+        label='جستجوی داروهای موجود',
+        widget=forms.Select(attrs={'class': 'select2-drug-search', 'data-placeholder': 'جستجو بر اساس نام یا بارکد'})
+    )
+    
+    # This field is used to track if a drug is new or existing.
+    is_new_drug = forms.BooleanField(widget=forms.HiddenInput(), required=False)
+
+    def __init__(self, *args, **kwargs):
+        self.request = kwargs.pop('request', None)
+        super().__init__(*args, **kwargs)
+        
+        instance = kwargs.get('instance')
+        
+        # Check if the user is a manager based on group membership
+        is_manager = False
+        if self.request and self.request.user.is_authenticated:
+            try:
+                managers_group = Group.objects.get(name='مدیران')
+                if managers_group in self.request.user.groups.all():
+                    is_manager = True
+            except Group.DoesNotExist:
+                logger.warning("Managers group not found. All users will have full edit access.")
+        
+        # Make certain fields read-only if the user is not a manager and is editing an existing drug
+        if instance and not is_manager:
+            self.fields['name'].widget.attrs['readonly'] = 'readonly'
+            self.fields['generic_name'].widget.attrs['readonly'] = 'readonly'
+            self.fields['company_name'].widget.attrs['readonly'] = 'readonly'
+
+        # Set the choices and label for the `form` field
+        self.fields['form'].choices = DRUG_FORM_CHOICES
+        self.fields['form'].label = 'شکل دارو'
+    
+    # NEW: Override this method to make the Select2 search on both name and GTIN.
+    # این متد به جنگو می گوید که برای هر گزینه در فیلد، چه متنی را نمایش دهد.
+    def label_from_instance(self, obj):
+        # بارکدهای مرتبط با دارو را دریافت می‌کنیم
+        barcodes = obj.barcodes.all()
+        
+        # رشته‌ای از بارکدها را ایجاد می‌کنیم تا قابل نمایش باشند
+        gtin_str = ", ".join([barcode.gtin for barcode in barcodes])
+        
+        # اگر بارکدی وجود داشت، آن را به نام دارو اضافه می‌کنیم
+        if gtin_str:
+            return f"{obj.name} ({gtin_str})"
+        
+        # در غیر این صورت، فقط نام دارو را برمی‌گردانیم
+        return f"{obj.name}"
+
     class Meta:
         model = Drug
+        # تغییر نام فیلد از `unit` به `form` برای هماهنگی با مدل
         fields = [
-            'name', 'generic_name', 'form',
-            'min_stock_alert', 'reorder_point', 'description',
+            'name', 'generic_name', 'form', 'drug_code','unit',
+            'min_stock_alert', 'reorder_point', 'description', 'company_name',
         ]
         widgets = {
             'name': forms.TextInput(attrs={'class': 'form-control'}),
             'generic_name': forms.TextInput(attrs={'class': 'form-control'}),
-            'form': forms.Select(attrs={'class': 'form-control'}),
+            'company_name': forms.TextInput(attrs={'class': 'form-control'}),
+            'drug_code': forms.TextInput(attrs={'class': 'form-control', 'readonly': 'readonly'}),
             'min_stock_alert': forms.NumberInput(attrs={'class': 'form-control'}),
             'reorder_point': forms.NumberInput(attrs={'class': 'form-control'}),
             'description': forms.Textarea(attrs={'class': 'form-control', 'rows': 3}),
+            'form': forms.Select(attrs={'class': 'form-control'}),
         }
         labels = {
             'name': 'نام دارو',
             'generic_name': 'نام ژنریک',
-            'form': 'شکل دارو',
+            'company_name': 'نام شرکت',
+            'drug_code': 'کد دارو',
             'min_stock_alert': 'حداقل موجودی هشدار',
             'reorder_point': 'نقطه سفارش مجدد',
             'description': 'توضیحات',
+            'form': 'شکل دارو',
         }
+    
+    def clean(self):
+        cleaned_data = super().clean()
+        
+        # Correctly get the selected value for the 'form' field
+        form_choice = cleaned_data.get('form')
+        name_input = cleaned_data.get('name')
 
+        if form_choice and name_input:
+            # Get the human-readable text from the choices list
+            form_text = dict(DRUG_FORM_CHOICES).get(form_choice)
+            if form_text:
+                combined_name = f"{form_text} {name_input}"
+                cleaned_data['name'] = combined_name
+            else:
+                logger.error("Failed to find a matching human-readable name for the selected form.")
+        
+        return cleaned_data
+    
     def save(self, commit=True):
         instance = super().save(commit=False)
-        if not instance.drug_code: # اگر کد دارو قبلا تنظیم نشده باشد (فقط هنگام ایجاد جدید)
-            # یک حلقه برای پیدا کردن اولین کد منحصر به فرد
-            max_attempts = 1000 # حداکثر تلاش برای پیدا کردن کد منحصر به فرد
-            
-            # آخرین کد عددی موجود در دیتابیس را پیدا کن
-            # اطمینان حاصل میکنیم که فقط کدهای عددی رو در نظر بگیره
-            # و بعد به int تبدیلش کنیم
-            last_drug = Drug.objects.order_by('-drug_code').first()
-            if last_drug and last_drug.drug_code.isdigit():
-                current_max_code = int(last_drug.drug_code)
-            else:
-                current_max_code = 1000 # شروع از یک عدد پایه نسبتا بالا
-
+        
+        # Auto-generate a new drug code if one doesn't exist
+        if not instance.drug_code:
+            max_attempts = 1000
+            last_drug = Drug.objects.filter(drug_code__regex=r'^\d+$').order_by('-drug_code').first()
+            current_max_code = int(last_drug.drug_code) if last_drug and last_drug.drug_code.isdigit() else 1000
             next_code_value = current_max_code + 1
             
             for _ in range(max_attempts):
-                # اگر فیلد drug_code در مدل Drug شما CharField هست
-                prospective_code = str(next_code_value) 
-                # اگر فیلد drug_code در مدل Drug شما IntegerField هست، فقط از next_code_value استفاده کنید
-
+                prospective_code = str(next_code_value)
                 if not Drug.objects.filter(drug_code=prospective_code).exists():
                     instance.drug_code = prospective_code
                     break
                 next_code_value += 1
             else:
-                # اگر بعد از max_attempts هم کد منحصر به فرد پیدا نشد
                 raise Exception("Unable to generate a unique drug code after multiple attempts.")
-                
+        
         if commit:
             instance.save()
         return instance
 
+class DrugBarcodeForm(forms.ModelForm):
+    class Meta:
+        model = DrugBarcode
+        fields = ['gtin']
+        widgets = {
+            'gtin': forms.TextInput(attrs={'class': 'form-control'}),
+        }
+        labels = {
+            'gtin': 'بارکد (GTIN)',
+        }
+
+DrugBarcodeFormSet = inlineformset_factory(
+    parent_model=Drug,
+    model=DrugBarcode,
+    form=DrugBarcodeForm,
+    extra=1,
+    can_delete=True
+)
+class DrugBarcodeForm(forms.ModelForm):
+    class Meta:
+        model = DrugBarcode
+        fields = ['gtin']
+        widgets = {
+            'gtin': forms.TextInput(attrs={'class': 'form-control'}),
+        }
+        labels = {
+            'gtin': 'بارکد (GTIN)',
+        }
+
+DrugBarcodeFormSet = inlineformset_factory(
+    Drug,
+    DrugBarcode,
+    form=DrugBarcodeForm,
+    extra=1,
+    can_delete=True
+)
+# استفاده از inlineformset برای مدیریت بارکدهای یک دارو
+# این کلاس در views.py برای مدیریت فرم‌ها استفاده می‌شود.
 
 class DrugBatchForm(forms.ModelForm):
     # ⭐ FIX: نام فیلد شمسی برای مطابقت با مدل به manufacturing_date_jalali تغییر کرد
@@ -267,10 +412,10 @@ class PurchaseInvoiceItemForm(forms.ModelForm):
     expiry_date = forms.DateField(
         label='تاریخ انقضا (میلادی)',
         widget=forms.DateInput(attrs={
-            'type': 'date', # همچنان type="date" برای استفاده از قابلیت‌های بومی مرورگر
+            'type': 'date', 
             'class': 'form-control gregorian-date-input',
-            'placeholder': 'مثال: 2025-06-30' # راهنمای فرمت YYYY-MM-DD
-        }),
+        }, format='%Y-%m-%d'), # <--- این قسمت حیاتی است: فرمت خروجی جنگو برای HTML
+        input_formats=['%Y-%m-%d'], # فرمت ورودی از HTML به جنگو
         required=False 
     )
 
@@ -408,110 +553,52 @@ class DrugRequestItemForm(forms.ModelForm):
 # --------------------------------------------------
 # فرم درخواست دارو (DrugRequest Form)
 # --------------------------------------------------
+from django import forms
+from django.forms import inlineformset_factory
+from .models import DrugRequest, DrugRequestItem, Drug
+from jalali_date.widgets import AdminJalaliDateWidget
+from jalali_date.fields import JalaliDateField
+
 class DrugRequestForm(forms.ModelForm):
-    request_date = JalaliDateField(
-        label=('تاریخ درخواست'),
-        widget=AdminJalaliDateWidget
-    )
-    requested_by = forms.ModelChoiceField(
-        queryset=User.objects.all(),
-        label='درخواست‌کننده',
-        widget=Select2Widget(attrs={'data-placeholder': 'انتخاب درخواست‌کننده'}),
-        required=True
-    )
-    assigned_approver = forms.ModelChoiceField(
-        queryset=User.objects.all(),
-        label='تاییدکننده ارجاع شده',
-        widget=Select2Widget(attrs={'data-placeholder': 'انتخاب تاییدکننده'}),
-        required=False
-    )
+    request_date = JalaliDateField(label='تاریخ درخواست', widget=AdminJalaliDateWidget)
 
     class Meta:
         model = DrugRequest
-        fields = [
-            'request_date', 'requested_by', 'assigned_approver',
-            'status', 'description'
-        ]
+        fields = ['request_date', 'requested_by', 'assigned_approver', 'status', 'description']
         widgets = {
+            # استفاده از Select ساده برای جلوگیری از تداخل با JS
+            'requested_by': forms.Select(attrs={'class': 'form-select'}),
+            'assigned_approver': forms.Select(attrs={'class': 'form-select'}),
             'status': forms.Select(attrs={'class': 'form-control'}),
             'description': forms.Textarea(attrs={'class': 'form-control', 'rows': 3}),
         }
-        labels = {
-            'request_date': 'تاریخ درخواست',
-            'requested_by': 'درخواست‌کننده',
-            'assigned_approver': 'تاییدکننده ارجاع شده',
-            'status': 'وضعیت',
-            'description': 'توضیحات درخواست',
-        }
 
     def __init__(self, *args, **kwargs):
-        self.request = kwargs.pop('request', None) 
+        self.request = kwargs.pop('request', None)
         super().__init__(*args, **kwargs)
         
-        if self.instance and self.instance.request_date:
-            try:
-                jdate = jdatetime.date.fromgregorian(date=self.instance.request_date)
-                self.initial['request_date'] = jdate.strftime('%Y/%m/%d')
-            except Exception:
-                self.initial['request_date'] = ''
-        
-        if not self.instance.pk:
-            today_jdate = jdatetime.date.today()
-            year_prefix = str(today_jdate.year)[-2:]
-            
-            last_request = DrugRequest.objects.filter(request_code__startswith=f'REQ-{year_prefix}-').order_by('-request_code').first()
-            
-            if last_request and last_request.request_code:
-                try:
-                    last_sequential_number = int(last_request.request_code.split('-')[-1])
-                except ValueError:
-                    last_sequential_number = 0
-            else:
-                last_sequential_number = 0
-            
-            self.initial['request_code'] = f'REQ-{year_prefix}-{last_sequential_number + 1:04d}'
-        
-        self.fields['requested_by'].widget.attrs['class'] = 'form-control django-select2'
-        self.fields['assigned_approver'].widget.attrs['class'] = 'form-control django-select2'
-        
-    def clean_request_code(self):
+        # ۱. غیرفعال کردن فیلد تاریخ و درخواست‌کننده در حالت ویرایش
         if self.instance.pk:
-            return self.instance.request_code
-        return self.cleaned_data['request_code']
+            self.fields['request_date'].widget.attrs['readonly'] = True
+            self.fields['request_date'].disabled = True
+            self.fields['requested_by'].disabled = True
 
-# --- New: Define DrugRequestItemForm ---
 class DrugRequestItemForm(forms.ModelForm):
     class Meta:
         model = DrugRequestItem
-        # Ensure 'approved_quantity' is included in the fields
-        fields = ['drug', 'requested_quantity', 'approved_quantity', 'notes'] 
+        fields = ['drug', 'requested_quantity', 'approved_quantity', 'notes']
         widgets = {
-            'drug': Select2Widget(attrs={'data-placeholder': 'انتخاب دارو'}),
+            'drug': forms.Select(attrs={'class': 'form-select drug-select-field'}),
             'requested_quantity': forms.NumberInput(attrs={'class': 'form-control'}),
-            'approved_quantity': forms.NumberInput(attrs={'class': 'form-control'}), # Added this line
-            'notes': forms.Textarea(attrs={'class': 'form-control', 'rows': 2}),
+            'approved_quantity': forms.NumberInput(attrs={'class': 'form-control'}),
         }
-        labels = {
-            'drug': 'دارو',
-            'requested_quantity': 'تعداد درخواستی',
-            'approved_quantity': 'تعداد تایید شده', # Added this line
-            'notes': 'ملاحظات',
-        }
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        # Apply Select2 class to the drug field for proper rendering
-        self.fields['drug'].widget.attrs['class'] = 'form-control django-select2 select2-single-item'
+DrugRequestItemFormset = inlineformset_factory(
+    DrugRequest, DrugRequestItem, 
+    form=DrugRequestItemForm,
+    extra=0, # بسیار مهم: ردیف خالی اضافه نسازد
+    can_delete=True
+)
 
-# --- Corrected: DrugRequestItemFormset using the new DrugRequestItemForm ---
-DrugRequestItemFormset = inlineformset_factory(
-    DrugRequest, DrugRequestItem, form=DrugRequestItemForm,
-    extra=1, can_delete=True, min_num=1, validate_min=True,
-)
-# --------------------------------------------------
-DrugRequestItemFormset = inlineformset_factory(
-    DrugRequest, DrugRequestItem, form=DrugRequestItemForm,
-    extra=1, can_delete=True, min_num=0, validate_min=False, # min_num و validate_min تغییر یافتند
-)
 
 class BaseDrugRequestItemFormSet(forms.BaseInlineFormSet):
     def clean(self):
@@ -530,11 +617,7 @@ class BaseDrugRequestItemFormSet(forms.BaseInlineFormSet):
                     # raise forms.ValidationError("داروهای تکراری در درخواست وجود دارد.")
                 drugs.append(drug)
 
-DrugRequestItemFormset = inlineformset_factory(
-    DrugRequest, DrugRequestItem, form=DrugRequestItemForm,
-    formset=BaseDrugRequestItemFormSet, # Add this line
-    extra=1, can_delete=True, min_num=1, validate_min=True,
-)
+
 # --------------------------------------------------
 # فرم مدیریت تامین‌کننده (Supplier Form)
 # --------------------------------------------------

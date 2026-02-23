@@ -1,135 +1,168 @@
-{# D:\final\clinic_messages\templates\clinic_messages\message_reply.html #}
-
-{% extends 'base.html' %}
+{% extends main_base %}
 {% load crispy_forms_tags %}
 {% load static %}
-{% load widget_tweaks %} {# این را برای فیلتر attr اضافه کنید #}
-
+{% load widget_tweaks %}
 
 {% block extra_head %}
-    <script src="{% static 'ckeditor/ckeditor.js' %}"></script>
-    <script src="{% static 'ckeditor/adapters/jquery.js' %}"></script>
-    <script>
-        // Set CKEditor's file browser URL
-        CKEDITOR_BASEPATH = '{% static "ckeditor/ckeditor/" %}';
-    </script>
-    
-    <link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet" />
-    <style>
-        /* Optional: Custom styles for select2 to match your theme */
-        .select2-container .select2-selection--multiple {
-            min-height: 38px; /* Match typical input height */
-            border: 1px solid #ced4da; /* Match bootstrap border color */
-            border-radius: 0.25rem; /* Match bootstrap border radius */
-            padding: 5px;
+<script src="{% static 'ckeditor/ckeditor/ckeditor.js' %}"></script>
+<script src="{% static 'ckeditor/ckeditor/adapters/jquery.js' %}"></script>
+<script>
+    CKEDITOR_BASEPATH = '{% static "ckeditor/ckeditor/" %}';
+</script>
+
+<link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet" />
+<link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2-bootstrap-5-theme.min.css" rel="stylesheet" />
+
+<style>
+    /* Mobile-friendly reply form styles */
+    .form-label {
+        font-weight: 600;
+        font-size: 0.9rem;
+        margin-bottom: 0.3rem;
+    }
+    .form-control, .form-select {
+        font-size: 0.9rem;
+        padding: 0.5rem 0.75rem;
+    }
+    .attachment-item {
+        background: #f8f9fa;
+        border-radius: 10px;
+        padding: 12px;
+        margin-bottom: 10px;
+    }
+    /* Select2 mobile fixes */
+    .select2-container {
+        width: 100% !important;
+    }
+    .select2-container--default .select2-selection--multiple {
+        min-height: 42px;
+        padding: 5px;
+    }
+    .select2-container--default .select2-selection--multiple .select2-selection__choice {
+        background-color: #007bff;
+        color: white;
+        border-radius: 4px;
+        padding: 2px 8px;
+        margin: 3px;
+    }
+    .select2-container--default .select2-selection--multiple .select2-selection__choice__remove {
+        color: white;
+        margin-left: 5px;
+    }
+    .select2-container--default .select2-search--inline .select2-search__field {
+        min-height: 30px;
+        padding: 4px 8px;
+    }
+    .btn-mobile {
+        padding: 0.5rem 1rem;
+        font-size: 0.9rem;
+    }
+    @media (max-width: 576px) {
+        .card-body {
+            padding: 1rem 0.75rem;
         }
-        .select2-container--default .select2-selection--multiple .select2-selection__choice {
-            background-color: #007bff;
-            color: white;
-            border: 1px solid #007bff;
-            border-radius: 4px;
-            padding: 0 5px;
-            margin-top: 5px;
-        }
-        .select2-container--default .select2-selection--multiple .select2-selection__choice__remove {
-            color: white;
-            margin-right: 5px;
-        }
-        .select2-container--default .select2-results__option--highlighted.select2-results__option--selectable {
-            background-color: #007bff;
-            color: white;
-        }
-    </style>
+    }
+</style>
 {% endblock %}
 
 {% block content %}
-<div class="container-fluid">
-    <h1 class="h3 mb-4 text-gray-800">{{ page_title }}</h1>
+<div class="container-fluid py-3">
+    <div class="d-flex justify-content-between align-items-center mb-3">
+        <h5 class="m-0 fw-bold text-primary">{{ page_title }}</h5>
+    </div>
 
-    <div class="card shadow mb-4">
+    <div class="card shadow-sm">
         <div class="card-body">
-            <form method="post" enctype="multipart/form-data">
+            <form method="post" enctype="multipart/form-data" class="row g-3">
                 {% csrf_token %}
 
                 {# Main Message Form Fields #}
-                <div class="row">
-                    <div class="col-md-12">
-                        {# Recipients field should be disabled and pre-filled for reply #}
-                        {# It will likely be a HiddenInput or similar if handled purely by backend #}
-                        {# If you still want to show it as disabled, you need to set initial in view and disable in form/template #}
-                        {{ form.recipients|as_crispy_field }} 
-                    </div>
+                <div class="col-12">
+                    <label for="id_recipients" class="form-label">گیرندگان:</label>
+                    <select name="recipients" id="id_recipients" class="form-select select2" multiple>
+                    </select>
                 </div>
-                <div class="row">
-                    <div class="col-md-12">
-                        {{ form.subject|as_crispy_field }}
-                    </div>
+                <div class="col-12">
+                    <label for="id_subject" class="form-label">موضوع:</label>
+                    {{ form.subject|add_class:"form-control" }}
                 </div>
-                <div class="row">
-                    <div class="col-md-12">
-                        {{ form.body|as_crispy_field }}
-                    </div>
+                <div class="col-12">
+                    <label for="id_body" class="form-label">متن پیام:</label>
+                    <textarea name="body" id="id_body" class="form-control" rows="10"></textarea>
                 </div>
 
-                {# Hidden fields for related_visit, related_drug_request, and parent_message #}
+                {# Hidden fields #}
                 {{ form.related_visit }}
                 {{ form.related_drug_request }}
                 {{ form.parent_message }}
 
-
-                <h3>پیوست‌ها:</h3>
-                <div id="attachments-formset" class="mb-3">
-                    {{ attachment_formset.management_form }} {# This is CRUCIAL for formset management #}
-                    {% for form in attachment_formset %}
-                        <div class="attachment-item card card-body mb-2">
-                            {% for hidden_field in form.hidden_fields %}
-                                {{ hidden_field }}
-                            {% endfor %}
-                            {% for field in form.visible_fields %}
-                                <div class="mb-2">
-                                    {{ field.label_tag }}
-                                    {{ field }}
-                                    {% if field.help_text %}
-                                        <small class="form-text text-muted">{{ field.help_text }}</small>
-                                    {% endif %}
-                                    {% for error in field.errors %}
-                                        <div class="text-danger">{{ error }}</div>
-                                    {% endfor %}
-                                </div>
-                            {% endfor %}
-                            {% if form.instance.pk %} {# If it's an existing form (for edit/reply, allowing deletion of existing attachments) #}
-                                <div class="form-check">
-                                    <input type="checkbox" name="{{ form.prefix }}-DELETE" id="id_{{ form.prefix }}-DELETE" class="form-check-input">
-                                    <label class="form-check-label" for="id_{{ form.prefix }}-DELETE">حذف این پیوست</label>
-                                </div>
-                            {% endif %}
-                            <button type="button" class="btn btn-danger btn-sm mt-2 remove-attachment-form">حذف</button>
-                        </div>
-                    {% endfor %}
-                </div>
-
-                {# Template for new empty attachment forms #}
-                <template id="empty-form-template">
-                    <div class="attachment-item card card-body mb-2">
-                        {% for hidden_field in attachment_formset.empty_form.hidden_fields %}
-                            {{ hidden_field }}
-                        {% endfor %}
-                        {% for field in attachment_formset.empty_form.visible_fields %}
-                            <div class="mb-2">
-                                {{ field.label_tag }}
-                                {{ field|attr:"name:attachments-__prefix__-file"|attr:"id:id_attachments-__prefix__-file" }}
-                                {% if field.help_text %}
-                                    <small class="form-text text-muted">{{ field.help_text }}</small>
+                {# Attachments Section #}
+                <div class="col-12">
+                    <h6 class="fw-bold mb-2">
+                        <i class="fas fa-paperclip me-1"></i>پیوست‌ها:
+                    </h6>
+                    <div id="attachments-formset" class="mb-3">
+                        {{ attachment_formset.management_form }}
+                        {% for form in attachment_formset %}
+                            <div class="attachment-item">
+                                {% for hidden_field in form.hidden_fields %}
+                                    {{ hidden_field }}
+                                {% endfor %}
+                                {% for field in form.visible_fields %}
+                                    <div class="mb-2">
+                                        {{ field|add_class:"form-control" }}
+                                        {% if field.help_text %}
+                                            <small class="text-muted">{{ field.help_text }}</small>
+                                        {% endif %}
+                                        {% for error in field.errors %}
+                                            <div class="text-danger small">{{ error }}</div>
+                                        {% endfor %}
+                                    </div>
+                                {% endfor %}
+                                {% if form.instance.pk %}
+                                    <div class="form-check">
+                                        <input type="checkbox" name="{{ form.prefix }}-DELETE" id="id_{{ form.prefix }}-DELETE" class="form-check-input">
+                                        <label class="form-check-label" for="id_{{ form.prefix }}-DELETE">حذف این پیوست</label>
+                                    </div>
                                 {% endif %}
+                                <button type="button" class="btn btn-outline-danger btn-sm mt-2 remove-attachment-form">
+                                    <i class="fas fa-trash me-1"></i>حذف
+                                </button>
                             </div>
                         {% endfor %}
-                        <button type="button" class="btn btn-danger btn-sm mt-2 remove-attachment-form">حذف</button>
                     </div>
-                </template>
-                
-                <button type="button" class="btn btn-secondary mt-2" id="add-attachment-form">افزودن پیوست</button>
 
-                <button type="submit" class="btn btn-primary mt-3">ارسال پاسخ</button>
+                    {# Template for new empty attachment forms #}
+                    <template id="empty-form-template">
+                        <div class="attachment-item">
+                            {% for hidden_field in attachment_formset.empty_form.hidden_fields %}
+                                {{ hidden_field }}
+                            {% endfor %}
+                            {% for field in attachment_formset.empty_form.visible_fields %}
+                                <div class="mb-2">
+                                    {{ field|add_class:"form-control"|attr:"name:attachments-__prefix__-file"|attr:"id:id_attachments-__prefix__-file" }}
+                                    {% if field.help_text %}
+                                        <small class="text-muted">{{ field.help_text }}</small>
+                                    {% endif %}
+                                </div>
+                            {% endfor %}
+                            <button type="button" class="btn btn-outline-danger btn-sm mt-2 remove-attachment-form">
+                                <i class="fas fa-trash me-1"></i>حذف
+                            </button>
+                        </div>
+                    </template>
+                    
+                    <button type="button" class="btn btn-outline-secondary btn-mobile" id="add-attachment-form">
+                        <i class="fas fa-plus me-1"></i>افزودن پیوست
+                    </button>
+                </div>
+
+                {# Action Buttons #}
+                <div class="col-12 mt-3">
+                    <button type="submit" class="btn btn-primary btn-mobile">
+                        <i class="fas fa-paper-plane me-1"></i>ارسال پاسخ
+                    </button>
+                </div>
             </form>
         </div>
     </div>
@@ -137,130 +170,126 @@
 {% endblock %}
 
 {% block extra_js %}
-    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
-    
-    <script>
-        $(document).ready(function() {
-            // Initialize CKEditor
-            $('.ckeditor-field').each(function() {
-                var fieldId = $(this).attr('id');
-                CKEDITOR.replace(fieldId, {
-                    filebrowserUploadUrl: '{% url "clinic_messages:ckeditor_upload_file" %}',
-                    filebrowserBrowseUrl: '/ckfinder/browser/', // If you use CKFinder
-                    filebrowserImageBrowseUrl: '/ckfinder/browser/',
-                    filebrowserFlashBrowseUrl: '/ckfinder/browser/',
-                    filebrowserUploadMethod: 'form',
-                    // Add extraPlugins for file upload functionality
-                    extraPlugins: 'uploadimage,image2,quicktools',
-                    // Optional: Custom toolbar configuration
-                    toolbar: [
-                        { name: 'document', items: ['Source', '-', 'Save', 'NewPage', 'Preview', 'Print', '-', 'Templates'] },
-                        { name: 'clipboard', items: ['Cut', 'Copy', 'Paste', 'PasteText', 'PasteFromWord', '-', 'Undo', 'Redo'] },
-                        { name: 'editing', items: ['Find', 'Replace', '-', 'SelectAll', '-', 'Scayt'] },
-                        '/',
-                        { name: 'basicstyles', items: ['Bold', 'Italic', 'Underline', 'Strike', 'Subscript', 'Superscript', '-', 'RemoveFormat'] },
-                        { name: 'paragraph', items: ['NumberedList', 'BulletedList', '-', 'Outdent', 'Indent', '-', 'Blockquote', 'CreateDiv', '-', 'JustifyLeft', 'JustifyCenter', 'JustifyRight', 'JustifyBlock', '-', 'BidiLtr', 'BidiRtl', 'Language'] },
-                        { name: 'links', items: ['Link', 'Unlink', 'Anchor'] },
-                        { name: 'insert', items: ['Image', 'Flash', 'Table', 'HorizontalRule', 'Smiley', 'SpecialChar', 'PageBreak', 'Iframe'] },
-                        '/',
-                        { name: 'styles', items: ['Styles', 'Format', 'Font', 'FontSize'] },
-                        { name: 'colors', items: ['TextColor', 'BGColor'] },
-                        { name: 'tools', items: ['Maximize', 'ShowBlocks'] },
-                        { name: 'others', items: ['-'] },
-                        { name: 'about', items: ['About'] }
-                    ]
-                });
+<script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
+
+<script>
+    $(document).ready(function() {
+        // Initialize CKEditor
+        if (typeof CKEDITOR !== 'undefined') {
+            CKEDITOR.replace('id_body', {
+                filebrowserUploadUrl: '{% url "clinic_messages:ckeditor_upload_file" %}',
+                filebrowserBrowseUrl: '/ckfinder/browser/',
+                filebrowserImageBrowseUrl: '/ckfinder/browser/',
+                filebrowserFlashBrowseUrl: '/ckfinder/browser/',
+                filebrowserUploadMethod: 'form',
+                extraPlugins: 'uploadimage,image2',
+                toolbar: [
+                    { name: 'document', items: ['Source', '-', 'Save', 'NewPage', 'Preview', 'Print', '-', 'Templates'] },
+                    { name: 'clipboard', items: ['Cut', 'Copy', 'Paste', 'PasteText', 'PasteFromWord', '-', 'Undo', 'Redo'] },
+                    { name: 'editing', items: ['Find', 'Replace', '-', 'SelectAll', '-', 'Scayt'] },
+                    '/',
+                    { name: 'basicstyles', items: ['Bold', 'Italic', 'Underline', 'Strike', 'Subscript', 'Superscript', '-', 'RemoveFormat'] },
+                    { name: 'paragraph', items: ['NumberedList', 'BulletedList', '-', 'Outdent', 'Indent', '-', 'Blockquote', 'CreateDiv', '-', 'JustifyLeft', 'JustifyCenter', 'JustifyRight', 'JustifyBlock', '-', 'BidiLtr', 'BidiRtl', 'Language'] },
+                    { name: 'links', items: ['Link', 'Unlink', 'Anchor'] },
+                    { name: 'insert', items: ['Image', 'Flash', 'Table', 'HorizontalRule', 'Smiley', 'SpecialChar', 'PageBreak', 'Iframe'] },
+                    '/',
+                    { name: 'styles', items: ['Styles', 'Format', 'Font', 'FontSize'] },
+                    { name: 'colors', items: ['TextColor', 'BGColor'] },
+                    { name: 'tools', items: ['Maximize', 'ShowBlocks'] },
+                    { name: 'others', items: ['-'] },
+                    { name: 'about', items: ['About'] }
+                ]
             });
+        }
 
-            // Initialize Select2 for recipients field (even if disabled, it needs to be initialized if it's there)
-            // It might be disabled or hidden in the reply view, but if it exists, select2 should be applied.
-            $('#id_recipients').select2({
-                placeholder: "گیرندگان را انتخاب کنید...",
-                allowClear: true,
-                multiple: true, // If it's a multi-select field
-                minimumInputLength: 1, // Minimum characters to type before searching
-                ajax: {
-                    url: "{% url 'clinic_messages:user_search_api' %}", // Your user search API endpoint
-                    dataType: 'json',
-                    delay: 250,
-                    data: function (params) {
-                        return {
-                            q: params.term // Search term
-                        };
-                    },
-                    processResults: function (data) {
-                        return {
-                            results: data.items
-                        };
-                    },
-                    cache: true
-                }
-            });
-
-            // Formset Management Logic (same as message_create)
-            var emptyFormHtmlTemplate = $('#empty-form-template').html(); 
-            var totalForms = $('#id_attachments-TOTAL_FORMS'); 
-            var initialForms = $('#id_attachments-INITIAL_FORMS'); 
-
-            // Ensure initialForms and totalForms are set to 0 if not already
-            if (initialForms.val() === '') {
-                initialForms.val('0'); 
+        // Initialize Select2 for recipients field
+        $('#id_recipients').select2({
+            placeholder: "گیرندگان را انتخاب کنید...",
+            allowClear: true,
+            multiple: true,
+            theme: "bootstrap-5",
+            minimumInputLength: 1,
+            ajax: {
+                url: "{% url 'clinic_messages:user_search_api' %}",
+                dataType: 'json',
+                delay: 250,
+                data: function (params) {
+                    return {
+                        q: params.term
+                    };
+                },
+                processResults: function (data) {
+                    return {
+                        results: data.items
+                    };
+                },
+                cache: true
             }
-            if (totalForms.val() === '') {
-                totalForms.val('0'); 
-            }
+        });
 
-            $('#add-attachment-form').on('click', function() { 
-                var currentFormCount = parseInt(totalForms.val());
-                var newFormHtml = emptyFormHtmlTemplate.replace(/__prefix__/g, currentFormCount);
-                $('#attachments-formset').append(newFormHtml);
-                totalForms.val(currentFormCount + 1); // Increment TOTAL_FORMS
-            });
+        // Formset Management Logic
+        var emptyFormHtmlTemplate = $('#empty-form-template').html(); 
+        var totalForms = $('#id_attachments-TOTAL_FORMS'); 
+        var initialForms = $('#id_attachments-INITIAL_FORMS'); 
 
-            $('#attachments-formset').on('click', '.remove-attachment-form', function() {
-                var formToRemove = $(this).closest('.attachment-item');
-                var deleteInput = formToRemove.find('input[type="checkbox"][id$="-DELETE"]');
-                
-                if (deleteInput.length > 0) { 
-                    deleteInput.prop('checked', true); 
-                    formToRemove.hide(); 
-                } else { 
-                    formToRemove.remove(); 
-                }
-                
-                updateTotalForms();
-            });
+        if (initialForms.length && initialForms.val() === '') {
+            initialForms.val('0'); 
+        }
+        if (totalForms.length && totalForms.val() === '') {
+            totalForms.val('0'); 
+        }
 
-            function updateTotalForms() {
-                var visibleFormCount = 0;
-                $('#attachments-formset .attachment-item').each(function(index) {
-                    var formItem = $(this);
-                    var deleteCheckbox = formItem.find('input[type="checkbox"][id$="-DELETE"]');
-                    
-                    if (deleteCheckbox.length === 0 || !deleteCheckbox.is(':checked')) {
-                        formItem.find(':input, label').each(function() {
-                            var name = $(this).attr('name');
-                            var id = $(this).attr('id');
-                            var forAttr = $(this).attr('for');
+        $('#add-attachment-form').on('click', function() { 
+            var currentFormCount = parseInt(totalForms.val());
+            var newFormHtml = emptyFormHtmlTemplate.replace(/__prefix__/g, currentFormCount);
+            $('#attachments-formset').append(newFormHtml);
+            totalForms.val(currentFormCount + 1);
+        });
 
-                            if (name) {
-                                $(this).attr('name', name.replace(/attachments-\d+-/g, `attachments-${visibleFormCount}-`));
-                            }
-                            if (id) {
-                                $(this).attr('id', id.replace(/attachments-\d+-/g, `attachments-${visibleFormCount}-`));
-                            }
-                            if (forAttr) { 
-                                $(this).attr('for', forAttr.replace(/attachments-\d+-/g, `attachments-${visibleFormCount}-`));
-                            }
-                        });
-                        visibleFormCount++;
-                    }
-                });
-                totalForms.val(visibleFormCount); 
+        $('#attachments-formset').on('click', '.remove-attachment-form', function() {
+            var formToRemove = $(this).closest('.attachment-item');
+            var deleteInput = formToRemove.find('input[type="checkbox"][id$="-DELETE"]');
+            
+            if (deleteInput.length > 0) { 
+                deleteInput.prop('checked', true); 
+                formToRemove.hide(); 
+            } else { 
+                formToRemove.remove(); 
             }
             
             updateTotalForms();
         });
-    </script>
+
+        function updateTotalForms() {
+            var visibleFormCount = 0;
+            $('#attachments-formset .attachment-item').each(function(index) {
+                var formItem = $(this);
+                var deleteCheckbox = formItem.find('input[type="checkbox"][id$="-DELETE"]');
+                
+                if (deleteCheckbox.length === 0 || !deleteCheckbox.is(':checked')) {
+                    formItem.find(':input, label').each(function() {
+                        var name = $(this).attr('name');
+                        var id = $(this).attr('id');
+                        var forAttr = $(this).attr('for');
+
+                        if (name) {
+                            $(this).attr('name', name.replace(/attachments-\d+-/g, `attachments-${visibleFormCount}-`));
+                        }
+                        if (id) {
+                            $(this).attr('id', id.replace(/attachments-\d+-/g, `attachments-${visibleFormCount}-`));
+                        }
+                        if (forAttr) { 
+                            $(this).attr('for', forAttr.replace(/attachments-\d+-/g, `attachments-${visibleFormCount}-`));
+                        }
+                    });
+                    visibleFormCount++;
+                }
+            });
+            totalForms.val(visibleFormCount); 
+        }
+        
+        updateTotalForms();
+    });
+</script>
 {% endblock %}

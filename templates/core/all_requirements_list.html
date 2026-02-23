@@ -1,0 +1,67 @@
+{% extends 'base.html' %}
+{% load jformat %}
+
+{% block content %}
+<div class="container mt-4" style="direction: rtl; text-align: right; font-family: Tahoma, Arial, sans-serif;">
+    <h3 class="fw-bold text-primary mb-4 border-bottom pb-3">
+        <i class="fas fa-tasks me-2"></i> پنل مدیریت نیازمندی‌ها (شمسی)
+    </h3>
+
+    <div class="card shadow-sm border-0">
+        <div class="table-responsive">
+            <table class="table table-hover align-middle mb-0">
+                <thead class="table-dark">
+                    <tr>
+                        <th>شرح درخواست</th>
+                        <th>ثبت‌کننده / زمان</th>
+                        <th>وضعیت و بازدید مدیران</th>
+                        <th>یادداشت مدیر</th>
+                        <th>عملیات</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for req in requirements %}
+                    <tr>
+                        <td class="fw-bold">{{ req.title }}</td>
+                        <td>
+                            <div class="small fw-bold">{{ req.creator.get_full_name }}</div>
+                            <div class="text-muted" style="font-size: 0.7rem;">
+                                {{ req.created_at|jformat:"%Y/%m/%d - %H:i" }}
+                            </div>
+                        </td>
+                        <td>
+                            <select id="status-all-{{ req.id }}" class="form-select form-select-sm mb-2 shadow-sm border-info">
+                                {% for code, name in req.STATUS_CHOICES %}
+                                    <option value="{{ code }}" 
+                                        {% if req.status == code %}selected{% endif %}
+                                        {% if req.status != 'created' and code == 'created' %}disabled{% endif %}>
+                                        {{ name }}
+                                    </option>
+                                {% endfor %}
+                            </select>
+                            
+                            <div class="p-2 bg-light rounded border-start border-3 border-success" style="font-size: 0.75rem;">
+                                {% for v in req.requirementview_set.all %}
+                                    <div class="text-success mb-1">
+                                        <i class="fas fa-check-double"></i> {{ v.admin.get_full_name }}: 
+                                        {{ v.viewed_at|jformat:"%Y/%m/%d ساعت %H:i" }}
+                                    </div>
+                                {% empty %}
+                                    <span class="text-danger small">مشاهده نشده</span>
+                                {% endfor %}
+                            </div>
+                        </td>
+                        <td>
+                            <textarea id="note-all-{{ req.id }}" class="form-control form-control-sm" rows="1">{{ req.admin_note|default:'' }}</textarea>
+                        </td>
+                        <td>
+                            <button onclick="updateRequirement({{ req.id }}, 'all')" class="btn btn-sm btn-success w-100 shadow-sm">بروزرسانی</button>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endblock %}

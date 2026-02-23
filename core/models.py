@@ -208,3 +208,65 @@ class Profile(models.Model):
 
     def __str__(self):
         return f'{self.user.username} Profile'
+    
+class Requirement(models.Model):
+    STATUS_CHOICES = [
+        ('created', 'ایجاد شده'),
+        ('viewed', 'مشاهده شده'),
+        ('following', 'در حال پیگیری'),
+        ('resolved', 'انجام شده'),
+    ]
+    
+    title = models.CharField(max_length=500, verbose_name="شرح نیاز")
+    created_at = models.DateTimeField(auto_now_add=True)
+    creator = models.ForeignKey(User, on_delete=models.CASCADE)
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='created')
+    is_archived = models.BooleanField(default=False) # وقتی تهیه شد آرشیو می‌شود
+    admin_note = models.TextField(blank=True, null=True, verbose_name="یادداشت مدیر")
+    viewed_by = models.ManyToManyField(User, through='RequirementView', related_name='viewed_requirements')
+    def __str__(self):
+        return self.title
+class RequirementView(models.Model):
+    """مدل واسط برای ثبت دقیق زمان بازدید هر مدیر"""
+    requirement = models.ForeignKey(Requirement, on_delete=models.CASCADE)
+    admin = models.ForeignKey(User, on_delete=models.CASCADE)
+    viewed_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        unique_together = ('requirement', 'admin') # هر مدیر فقط یکبار ثبت شود
+class DailyReport(models.Model):
+    date = models.DateField(auto_now_add=True)
+    doctor = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, related_name='doc_reports')
+    nurse = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, related_name='nurse_reports')
+    driver = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, related_name='driver_reports')
+    shift_type = models.CharField(max_length=20) # 12h or 24h
+    created_at = models.DateTimeField(auto_now_add=True, verbose_name="زمان ثبت")
+    # فیلدهای متنی دقیقاً مطابق تصویر
+    dispatched_action = models.TextField(blank=True, verbose_name="فعالیت اعزام")
+    next_shift_plan = models.TextField(blank=True, verbose_name="برنامه شیفت بعد")
+    ambulance_status = models.TextField(blank=True, verbose_name="وضعیت آمبولانس")
+    equipment_status = models.TextField(blank=True, verbose_name="تجهیزات و دارو")
+    occupational_health = models.TextField(blank=True, verbose_name="معاینات شغلی")
+    health_alerts = models.TextField(blank=True, verbose_name="هشدارها و پیام‌ها")
+    environmental_inspections = models.TextField(blank=True, verbose_name="بازدیدهای بهداشتی")
+    general_notes = models.TextField(blank=True, verbose_name="توضیحات")
+    
+    # آمار عددی
+    outpatient_count = models.IntegerField(default=0)
+    nursing_services_count = models.IntegerField(default=0)
+    visit_exam_count = models.IntegerField(default=0)
+    vaccination_count = models.IntegerField(default=0)
+    consultation_count = models.IntegerField(default=0)
+    referral_to_clinic = models.IntegerField(default=0)
+
+    requirements = models.ManyToManyField(Requirement, blank=True)
+    class Meta:
+        verbose_name = "گزارش روزانه"
+        verbose_name_plural = "گزارش‌های روزانه"
+        ordering = ['-created_at'] # گزارش‌های جدید همیشه اول باشند
+
+class UserPasskey(models.Model):
+    user = models.ForeignKey(User, on_delete=models.CASCADE)
+    credential_id = models.TextField() # شناسنامه دستگاه
+    public_key = models.TextField()    # کلید عمومی برای تایید امضا
+    device_name = models.CharField(max_length=200, default="Mobile")

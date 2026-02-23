@@ -350,9 +350,36 @@
                             <div class="py-2 collapse-inner rounded">
                                 <a class="collapse-item" href="{% url 'visits:visit_list' %}"><i class="fas fa-calendar-check"></i>لیست ویزیت‌ها</a>
                                 <a class="collapse-item" href="{% url 'visits:visit_create' %}"><i class="fas fa-calendar-plus"></i>ثبت ویزیت جدید</a>
+                                <a class="collapse-item" href="{% url 'visits:company_visit_report' %}"><i class="fas fa-building"></i>گزارش ویزیت شرکت‌ها</a>
                             </div>
                         </div>
                     </li>
+
+                    <li class="nav-item">
+                        <a class="list-group-item list-group-item-action bg-light collapsed nav-link" href="#collapseLabResults" data-bs-toggle="collapse" aria-expanded="false" aria-controls="collapseLabResults">
+                            <i class="fas fa-fw fa-flask"></i> <span>نتایج آزمایشگاه</span> <i class="fas fa-chevron-down ms-auto"></i>
+                        </a>
+                        <div id="collapseLabResults" class="collapse" aria-labelledby="headingLabResults" data-bs-parent="#accordionSidebar">
+                            <div class="py-2 collapse-inner rounded">
+                                <a class="collapse-item" href="{% url 'lab_results:upload_excel_file' %}"><i class="fas fa-file-excel"></i>آپلود فایل اکسل</a>
+                                <a class="collapse-item" href="{% url 'lab_results:bulk_print_page' %}"><i class="fas fa-print"></i>چاپ گروهی</a>
+                            </div>
+                        </div>
+                    </li>
+
+                    <li class="nav-item">
+                        <a class="list-group-item list-group-item-action bg-light collapsed nav-link" href="#collapseDailyReports" data-bs-toggle="collapse" aria-expanded="false" aria-controls="collapseDailyReports">
+                            <i class="fas fa-fw fa-clipboard-list"></i> <span>گزارشات روزانه</span> <i class="fas fa-chevron-down ms-auto"></i>
+                        </a>
+                        <div id="collapseDailyReports" class="collapse" aria-labelledby="headingDailyReports" data-bs-parent="#accordionSidebar">
+                            <div class="py-2 collapse-inner rounded">
+                                <a class="collapse-item" href="{% url 'core:manage_daily_report' %}"><i class="fas fa-tasks"></i>ثبت گزارش روزانه</a>
+                                <a class="collapse-item" href="{% url 'core:daily_report_list' %}"><i class="fas fa-list-alt"></i>لیست گزارشات</a>
+                            </div>
+                        </div>
+                    </li>
+
+                    
                 {% endif %}
 
                 {# شرط: فقط برای مدیریت (پزشک، سرپرست) یا سوپریوزر #}
@@ -369,6 +396,9 @@
                         </div>
                     </li>
 
+                    
+
+                    
                     <li class="nav-item">
                         <a class="list-group-item list-group-item-action bg-light collapsed nav-link" href="#collapseDrugs" data-bs-toggle="collapse" aria-expanded="false" aria-controls="collapseDrugs">
                             <i class="fas fa-fw fa-pills"></i> <span>داروها</span> <i class="fas fa-chevron-down ms-auto"></i>
@@ -380,6 +410,7 @@
                                 <a class="collapse-item" href="{% url 'drugs:drug_batch_list' %}"><i class="fas fa-boxes"></i>مدیریت دسته‌ها</a>
                                 <a class="collapse-item" href="{% url 'drugs:drug_batch_create' %}"><i class="fas fa-box-open"></i>ثبت دسته جدید</a>
                                 <a class="collapse-item" href="{% url 'drugs:drug_request_list' %}"><i class="fas fa-paper-plane"></i>درخواست‌های دارو</a>
+                                <a class="collapse-item" href="{% url 'drugs:drug_request_generate' %}"><i class="fas fa-magic"></i>پیشنهاد درخواست دارو</a>
                                 <a class="collapse-item" href="{% url 'drugs:drug_request_create' %}"><i class="fas fa-file-medical"></i>ثبت درخواست دارو</a>
                             </div>
                         </div>
@@ -394,6 +425,8 @@
                                 <a class="collapse-item" href="{% url 'reports:patient_report' %}"><i class="fas fa-file-alt"></i>گزارش بیماران</a>
                                 <a class="collapse-item" href="{% url 'reports:generic_visit_report' %}"><i class="fas fa-file-medical-alt"></i>گزارش ویزیت‌ها</a>
                                 <a class="collapse-item" href="{% url 'reports:drug_report' %}"><i class="fas fa-file-prescription"></i>گزارش داروها</a>
+                                <a class="collapse-item" href="{% url 'reports:drug_summary_report' %}"><i class="fas fa-chart-pie"></i>گزارش خلاصه دارو</a>
+                                <a class="collapse-item" href="{% url 'reports:drug_transaction_report' %}"><i class="fas fa-exchange-alt"></i>گزارش تراکنش دارو</a>
                                 <a class="collapse-item" href="{% url 'reports:company_visit_report' %}"><i class="fas fa-building"></i>گزارش ویزیت شرکت‌ها</a>
                                 <a class="collapse-item" href="{% url 'reports:all_examinations_report' %}"><i class="fas fa-clipboard-check"></i>گزارش کلی معاینات</a>
                             </div>

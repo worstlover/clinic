@@ -2,521 +2,197 @@
 <html lang="fa" dir="rtl">
 <head>
     <meta charset="UTF-8">
-    <title>چاپ کلی فرم‌های نظریه طب کار</title>
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.rtl.min.css">
     <link rel="stylesheet" href="https://unpkg.com/persian-datepicker@1.2.0/dist/css/persian-datepicker.min.css"/>
     <style>
         @import url('https://cdn.jsdelivr.net/gh/rastikerdar/sahel-font@v3.4.0/dist/font-face.css');
+        * { box-sizing: border-box; -webkit-print-color-adjust: exact; }
+        body { font-family: 'Sahel', Tahoma, sans-serif; margin: 0; padding: 0; background: #eee; }
+        .en-font { font-family: Arial, sans-serif; }
 
-        body {
-            font-family: 'Sahel', sans-serif;
-            background-color: #f0f2f5;
-            margin: 0;
-            padding: 0;
-            font-size: 0.95rem;
-            color: #333;
-        }
-        .container-fluid {
-            max-width: 1000px;
-            margin: 0 auto;
-        }
-        .filter-form-container {
-            background-color: white;
-            padding: 2rem;
-            border-radius: 8px;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-            margin-bottom: 2rem;
-        }
-        .printable-report {
-            background-color: white;
-            padding: 20px 30px;
-            border: 1px solid #dee2e6;
-            box-shadow: 0 0 10px rgba(0,0,0,0.05);
-            margin: 20px auto;
-            page-break-inside: avoid;
-            width: 210mm;
-            min-height: 297mm;
-            box-sizing: border-box;
-            display: flex;
-            flex-direction: column;
-            position: relative;
-        }
-        .report-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-bottom: 20px;
-            border-bottom: 1px solid #eee;
-            padding-bottom: 10px;
-            position: relative;
-            min-height: 70px;
-        }
-        .report-header .logo-left, .report-header .logo-right {
-            position: absolute;
-            top: 50%;
-            transform: translateY(-50%);
-            max-height: 60px;
-        }
-        .report-header .logo-left {
-            left: 0;
-        }
-        .report-header .logo-right {
-            right: 0;
-        }
-        .report-header h4 {
-            flex-grow: 1;
-            text-align: center;
-            font-size: 1.6rem;
-            font-weight: 700;
-            margin: 0;
-            color: #0056b3;
-        }
+        .filter-panel { background:#1a252f; color:white; padding:20px; margin-bottom:20px; }
+        .filter-grid { display:grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap:10px; }
+        .filter-grid input { padding:8px; border-radius:4px; border:none; width:100%; font-size:12px; }
         
-        .report-table {
-            width: 100%;
-            border-collapse: collapse;
-            margin-bottom: 15px;
-            font-size: 0.9rem;
-        }
-        .report-table th, .report-table td {
-            border: 1px solid #ddd;
-            padding: 6px 8px;
-            text-align: right;
-            vertical-align: top;
-        }
-        .report-table th {
-            background-color: #f2f2f2;
-            font-weight: bold;
-            white-space: nowrap;
-            width: 15%;
-            color: #555;
-        }
-        .report-table td {
-            width: 35%;
-        }
-        .report-table .section-title-row th {
-            background-color: #e9ecef;
-            text-align: center;
-            font-size: 1.1rem;
-            padding: 8px;
-            color: #333;
+        .page { 
+            width: 210mm; min-height: 297mm; padding: 10mm 15mm; margin: 10mm auto; 
+            background: white; border: 1px solid #000; display: flex; flex-direction: column; 
         }
 
-        /* Adjusted widths for signature table columns */
-        .signature-table th { width: 12%; } /* Reduced */
-        .signature-table td:nth-child(2) { width: 13%; } /* Reduced */
-        .signature-table td:nth-child(3) { width: 40%; } /* Increased for 'دلیل نظر' */
-        .signature-table td:nth-child(4) { width: 35%; } /* For merged 'نام و امضا مسئول' */
-
-        /* Specific padding for the 'دلیل نظر' column in signature table to make text start closer to the edge */
-        .signature-table tbody tr td:nth-child(3) {
-            padding-right: 4px; /* Reduced right padding */
-            padding-left: 8px; /* Keep existing left padding */
-        }
-
-        .signature-image { max-width: 80px; max-height: 40px; display: block; margin: 0 auto; }
-        .checkbox-option { display: flex; align-items: center; margin-bottom: 3px; }
-        .checkbox-option input[type="checkbox"] { margin-left: 8px; width: 16px; height: 16px; accent-color: #007bff; }
-        .opinion-text-area { 
-            width: 100%; 
-            min-height: 60px; 
-            border: none; 
-            padding: 0; /* No internal padding for the div */
-            line-height: 1.4; 
-            white-space: pre-wrap; 
-            overflow-wrap: break-word; 
-            word-wrap: break-word; 
-            resize: none; 
-            text-align: right; /* Explicitly right-align text */
-        }
-        .empty-signature-space { height: 40px; border: none; }
-
+        @page { size: A4 portrait; margin: 0; }
         @media print {
-            body { 
-                font-family: 'Sahel', sans-serif !important;
-                background-color: white; 
-                margin: 0;
-                padding: 0;
-                font-size: 0.8rem;
-                color: #000;
-            }
             .no-print { display: none !important; }
-            .printable-report { box-shadow: none !important; border: 1px solid #ccc !important; margin: 0 !important; width: 210mm !important; min-height: 297mm !important; padding: 15px 25px !important; page-break-after: always !important; }
-            .printable-report:last-of-type { page-break-after: auto !important; }
-            .container-fluid { padding: 0 !important; margin: 0 !important; max-width: none !important; }
-            .report-table th, .report-table td { border-color: #ccc !important; padding: 4px 6px !important; }
-            .report-table .section-title-row th { background-color: #f0f0f0 !important; }
-            .signature-image { max-width: 70px; max-height: 35px; }
-            .report-header h4 { font-size: 1.5rem; color: #000; }
-
-            /* New CSS for single print mode */
-            body.single-print-mode .printable-report {
-                display: none !important; /* Hide all reports by default in single print mode */
-            }
-            body.single-print-mode .printable-report.is-printing {
-                display: flex !important; /* Only show the one being printed */
-            }
+            body { background: white; }
+            .page { width: 100%; margin: 0; border: none; padding: 10mm 15mm; page-break-after: always; }
+            body.single-print-mode .page { display: none !important; }
+            body.single-print-mode .page.is-printing { display: flex !important; }
         }
+
+        .header-table { width: 100%; border: 2.5px solid #000; border-collapse: collapse; margin-bottom: 10px; }
+        .header-table td { border: 1.5px solid #000; text-align: center; vertical-align: middle; padding: 5px; font-size: 11px; }
+        .inner-table { width: 100%; border-collapse: collapse; }
+        .inner-table td { border: none !important; border-bottom: 1px solid #000 !important; padding: 4px !important; text-align: right; }
+
+        .bold-table { width: 100%; border-collapse: collapse; margin-top: 10px; border: 2.2px solid #000 !important; }
+        .bold-table th, .bold-table td { border: 1.5px solid #000 !important; padding: 8px; font-size: 14px; text-align: right; }
+        .bold-table th { background: #f2f2f2 !important; width: 22%; font-weight: bold; }
+        .section-title { background: #d9d9d9 !important; text-align: center !important; font-weight: 900; font-size: 15px; }
+
+        .final-opinion-box { font-size: 20px; font-weight: 900; background: #e9e9e9 !important; text-align: center !important; padding: 12px !important; border: 2.5px solid #000 !important; }
+        .sq-box { width: 16px; height: 16px; border: 1.8px solid #000; display: inline-block; vertical-align: middle; margin-left: 5px; text-align: center; line-height: 12px; font-weight: bold; }
+        .option-group { display: block; margin-bottom: 4px; line-height: 1.6; }
     </style>
 </head>
 <body>
 
-<div class="container-fluid my-4">
+<div class="no-print filter-panel">
+    <form method="post">
+        {% csrf_token %}
+        <div class="filter-grid">
+            <input type="text" name="national_id" placeholder="کد ملی" value="{{ form_values.national_id }}">
+            <input type="text" name="start_pid" placeholder="پرسنلی از" value="{{ form_values.start_pid }}">
+            <input type="text" name="end_pid" placeholder="پرسنلی تا" value="{{ form_values.end_pid }}">
+            <input type="text" name="start_date" class="pdate" placeholder="تاریخ معاینه از" value="{{ form_values.start_date }}">
+            <input type="text" name="end_date" class="pdate" placeholder="تاریخ معاینه تا" value="{{ form_values.end_date }}">
+            <input type="text" name="health_expert_name" placeholder="نام پزشک" value="{{ health_expert_name }}">
+            <input type="text" name="safety_expert_name" placeholder="نام مسئول HSE" value="{{ safety_expert_name }}">
+            <input type="text" name="factory_manager_name" placeholder="نام مدیر کارخانه" value="{{ factory_manager_name }}">
+        </div>
+        <div style="margin-top:15px; display:flex; gap:20px; align-items:center;">
+            <button type="submit" style="background:#27ae60; color:white; padding:8px 15px; border:none; cursor:pointer; border-radius:4px;">🔄 اعمال فیلتر</button>
+            <button type="button" style="background:#3498db; color:white; padding:8px 15px; border:none; cursor:pointer; border-radius:4px;" onclick="window.print()">🖨️ چاپ گروهی</button>
+            <label><input type="checkbox" name="exclude_empty_pid" value="1" {% if form_values.exclude_empty_pid %}checked{% endif %}> فقط عددی</label>
+        </div>
+        <div style="margin-top:10px; font-size:12px; border-top:1px solid #444; padding-top:10px;">
+            <b>درج تیک و نظریه واحدها در چاپ:</b>
+            <label><input type="checkbox" name="opinion_source_department" value="physician" {% if 'physician' in selected_depts %}checked{% endif %}> پزشک</label> |
+            <label><input type="checkbox" name="opinion_source_department" value="hse" {% if 'hse' in selected_depts %}checked{% endif %}> HSE</label> |
+            <label><input type="checkbox" name="opinion_source_department" value="factory" {% if 'factory' in selected_depts %}checked{% endif %}> مدیریت</label>
+        </div>
+    </form>
+</div>
 
-    <div class="filter-form-container no-print">
-        <h3 class="mb-4">فیلتر پیشرفته برای چاپ کلی</h3>
-        <form method="post" action="{% url 'lab_results:bulk_print_page' %}" enctype="multipart/form-data">
-            {% csrf_token %} <input type="hidden" name="filter" value="1">
-            
-            <div class="row g-3 mb-3">
-                <div class="col-md-3">
-                    <label for="final_opinion" class="form-label">براساس نظریه نهایی</label>
-                    <select class="form-select" id="final_opinion" name="final_opinion">
-                        <option value="">-- همه نظریه‌ها --</option>
-                        {% for opinion in final_opinions %}
-                            <option value="{{ opinion }}" {% if form_values.final_opinion == opinion %}selected{% endif %}>{{ opinion }}</option>
-                        {% endfor %}
-                    </select>
-                </div>
-                <div class="col-md-3">
-                    <label for="job_title" class="form-label">براساس شغل</label>
-                    <input type="text" class="form-control" name="job_title" id="job_title" placeholder="مثال: جوشکار" value="{{ form_values.job_title|default_if_none:'' }}">
-                </div>
-                <div class="col-md-3">
-                    <label for="national_id" class="form-label">براساس کد ملی</label>
-                    <input type="text" class="form-control" name="national_id" id="national_id" value="{{ form_values.national_id|default_if_none:'' }}">
-                </div>
-                 <div class="col-md-3">
-                    <label for="opinion_source_department" class="form-label">نظر کدام واحد(ها) ثبت شود؟</label>
-                    <small class="form-text text-muted d-block mb-1">برای انتخاب چند مورد، کلید Ctrl را نگه دارید.</small>
-                    <select class="form-select" id="opinion_source_department" name="opinion_source_department" multiple size="3">
-                        <option value="physician" {% if 'physician' in opinion_source_departments %}selected{% endif %}>پزشک/بهداشت حرفه‌ای</option>
-                        <option value="hse" {% if 'hse' in opinion_source_departments %}selected{% endif %}>مشاور HSE</option>
-                        <option value="manager" {% if 'manager' in opinion_source_departments %}selected{% endif %}>مدیریت کارخانه</option>
-                    </select>
-                </div>
-            </div>
+{% for exam in examinations %}
+<div class="page" id="exam-page-{{ exam.id }}">
+    <div class="no-print" style="text-align:left;"><button type="button" onclick="printSingle('exam-page-{{ exam.id }}')">🖨️ چاپ تکی</button></div>
 
-            <div class="row g-3 mb-3">
-                <div class="col-md-3">
-                    <label for="start_date" class="form-label">تاریخ آزمایش (از)</label>
-                    <input type="text" class="form-control persian-datepicker" name="start_date" id="start_date" value="{{ form_values.start_date|default_if_none:'' }}">
-                </div>
-                <div class="col-md-3">
-                    <label for="end_date" class="form-label">تاریخ آزمایش (تا)</label>
-                    <input type="text" class="form-control persian-datepicker" name="end_date" id="end_date" value="{{ form_values.end_date|default_if_none:'' }}">
-                </div>
-                <div class="col-md-3">
-                    <label for="start_pid" class="form-label">شماره پرسنلی (از)</label>
-                    <input type="text" class="form-control" name="start_pid" id="start_pid" value="{{ form_values.start_pid|default_if_none:'' }}">
-                </div>
-                <div class="col-md-3">
-                    <label for="end_pid" class="form-label">شماره پرسنلی (تا)</label>
-                    <input type="text" class="form-control" name="end_pid" id="end_pid" value="{{ form_values.end_pid|default_if_none:'' }}">
-                </div>
-            </div>
+    <table class="header-table">
+        <tr>
+            <td style="width:22%">
+                <img src="/static/images/logo_left.png" style="height:55px;"><br>
+                <b>آهن و فولاد غدیر ایرانیان</b>
+            </td>
+            <td style="width:56%; padding:0;">
+                <div style="font-weight:bold; font-size:15px; padding:8px; border-bottom:2px solid #000;">فرم اعلام وضعیت معاینات پزشکی و آزمایشات طب کار</div>
+                <table class="inner-table">
+                    <tr>
+                        <td style="width:20%" class="en-font">Doc Code:</td><td class="en-font" style="border-left:2px solid #000 !important; text-align:center;">BR-BPP-FR-HS-009</td>
+                        <td style="width:15%">صفحه:</td><td>۱ از ۱</td>
+                    </tr>
+                    <tr>
+                        <td>تاریخ تهیه:</td><td style="border-left:2px solid #000 !important; text-align:center;">1404/12/03</td>
+                        <td>ویرایش:</td><td class="en-font">00</td>
+                    </tr>
+                </table>
+            </td>
+            <td style="width:22%">
+                <img src="/static/images/logo_right.png" style="height:50px;"><br>
+                <b class="en-font" style="font-size:18px;">BORNA</b><br>
+                <small style="font-size:8px;">Engineering & Construction</small>
+            </td>
+        </tr>
+    </table>
 
-            <hr>
-            <p><strong>تکمیل اسامی و امضاها (در تمام فرم‌ها یکسان خواهد بود)</strong></p>
-            <div class="row g-3 mb-4">
-                <div class="col-md-4">
-                    <label for="health_expert_name" class="form-label">نام و نام خانوادگی پزشک/بهداشت حرفه‌ای</label>
-                    <input type="text" class="form-control" name="health_expert_name" id="health_expert_name" placeholder="مثال: دکتر مهدی هوشمند" value="{{ health_expert_name|default_if_none:'' }}">
-                    <label for="health_expert_signature" class="form-label mt-2">تصویر امضاء</label>
-                    <input type="file" class="form-control" name="health_expert_signature" id="health_expert_signature" accept="image/*">
-                    {% if health_expert_signature_url %}
-                        <img src="{{ health_expert_signature_url }}" alt="امضای فعلی" style="max-height: 50px; margin-top: 5px;">
-                        <small class="text-muted"> (امضای فعلی)</small>
-                    {% endif %}
-                </div>
-                <div class="col-md-4">
-                    <label for="safety_expert_name" class="form-label">نام و نام خانوادگی مشاور HSE</label>
-                    <input type="text" class="form-control" name="safety_expert_name" id="safety_expert_name" placeholder="مثال: امیر لطفی" value="{{ safety_expert_name|default_if_none:'' }}">
-                    <label for="safety_expert_signature" class="form-label mt-2">تصویر امضاء</label>
-                    <input type="file" class="form-control" name="safety_expert_signature" id="safety_expert_signature" accept="image/*">
-                     {% if safety_expert_signature_url %}
-                        <img src="{{ safety_expert_signature_url }}" alt="امضای فعلی" style="max-height: 50px; margin-top: 5px;">
-                        <small class="text-muted"> (امضای فعلی)</small>
-                    {% endif %}
-                </div>
-                <div class="col-md-4">
-                    <label for="factory_manager_name" class="form-label">نام و نام خانوادگی مدیریت کارخانه</label>
-                    <input type="text" class="form-control" name="factory_manager_name" id="factory_manager_name" placeholder="مثال: مهندس احمدی" value="{{ factory_manager_name|default_if_none:'' }}">
-                    <label for="factory_manager_signature" class="form-label mt-2">تصویر امضاء</label>
-                    <input type="file" class="form-control" name="factory_manager_signature" id="factory_manager_signature" accept="image/*">
-                     {% if factory_manager_signature_url %}
-                        <img src="{{ factory_manager_signature_url }}" alt="امضای فعلی" style="max-height: 50px; margin-top: 5px;">
-                        <small class="text-muted"> (امضای فعالی)</small>
-                    {% endif %}
-                </div>
-            </div>
-
-            <button type="submit" class="btn btn-primary">جستجو و نمایش نتایج</button>
-            <a href="{% url 'lab_results:bulk_print_page' %}" class="btn btn-secondary">پاک کردن فیلترها</a>
-        </form>
+    <div style="margin:10px 0; font-size:14px; line-height:2;">
+        <b>سرپرست محترم اداری و سرمایه انسانی</b><br>
+        احتراما پس از بررسی پرونده طب کار جناب آقای/سرکار خانم: <b>{{ exam.patient.full_name }}</b><br>
+        متقاضی شغل: <b style="border-bottom: 1px dotted #000; padding: 0 40px;">{{ exam.patient.occupation|default:"&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;" }}</b> 
+        وضعیت نهایی معاینات بدین‌وسیله ابلاغ می‌گردد.
     </div>
 
-    {% if examinations is not None %}
-        <div class="no-print text-center my-4">
-            {% if examinations %}
-                 <button onclick="window.print()" class="btn btn-lg btn-success">🖨️ چاپ همه {{ examinations|length }} گزارش</button>
-            {% else %}
-                 <div class="alert alert-warning">موردی با این فیلترها یافت نشد.</div>
-            {% endif %}
-        </div>
+    <table class="bold-table">
+        <tr><td colspan="4" class="section-title">۱. مشخصات شناسنامه‌ای و پرسنلی</td></tr>
+        <tr>
+            <th>کد ملی:</th><td>{{ exam.patient.national_code }}</td>
+            <th>نام پدر:</th><td>{{ exam.patient.father_name|default:"---" }}</td>
+        </tr>
+        <tr>
+            <th>کد پرسنلی:</th><td class="en-font">{{ exam.patient.personnel_number|default:"---" }}</td>
+            <th>تاریخ معاینه:</th><td class="en-font">{{ exam.jalali_exam_date }}</td>
+        </tr>
+    </table>
 
-        {% for exam in examinations %}
-        <div class="printable-report" id="report-{{ exam.id }}">
-            <div class="report-header">
-                <img src="/static/images/logo_left.png" alt="لوگو چپ" class="logo-left">
-                <h4>فرم اعلام نظر طب کار</h4>
-                <img src="/static/images/logo_right.png" alt="لوگو راست" class="logo-right">
-            </div>
-            
-            <div class="no-print text-start mb-2">
-                <a href="{% url 'lab_results:patient_lab_results' patient_id=exam.patient.id %}" class="btn btn-sm btn-outline-primary ms-2">🔗 جزئیات آزمایش این فرد</a>
-                <button class="btn btn-sm btn-info print-single-report-btn" data-report-id="{{ exam.id }}">🖨️ چاپ این گزارش</button>
-            </div>
+    <table class="bold-table">
+        <tr><td colspan="2" class="section-title">۲. سوابق پزشکی و نظریه نهایی</td></tr>
+        <tr><th>سوابق بیماری/جراحی:</th><td>{{ exam.patient.medical_history|default:"فاقد سابقه بیماری خاص" }}</td></tr>
+        <tr><th>توصیه‌های ملاحظات شغلی:</th><td>{{ exam.final_opinion_conditions|default:"فاقد محدودیت" }}</td></tr>
+        <tr>
+            <td colspan="2" class="final-opinion-box">
+                نظریه نهایی: 
+                {% if exam.status_type == 'fit' %}بلامانع{% elif exam.status_type == 'conditional' %}مشروط{% elif exam.status_type == 'unfit' %}عدم صلاحیت{% else %}---{% endif %}
+            </td>
+        </tr>
+    </table>
 
-            <div class="mb-3" style="text-align: justify; line-height: 1.8;">
-                <p>با سلام</p>
-                <p>احتراماً به استحضار می‌رساند پس از بررسی پرونده طب کار و آزمایشات مربوط به آقا/خانم <b>{{ exam.patient.full_name }}</b> متقاضی شغل <b>{{ exam.patient.occupation|default:"[شغل ثبت نشده]" }}</b>، اظهار نظر نهایی طبق جدول ذیل جهت هرگونه اقدام خدمتتان ارسال می‌گردد.</p>
-            </div>
+    <table class="bold-table" style="flex-grow:1;">
+        <tr><td colspan="4" class="section-title">۳. اظهار نظر نهایی واحدهای نظارتی</td></tr>
+        <tr style="text-align:center; background:#f0f0f0;">
+            <th style="width:18%">واحد اعلام نظر</th><th style="width:28%">وضعیت صلاحیت</th><th>نظریه و ملاحظات</th><th style="width:20%">نام و امضاء</th>
+        </tr>
+        
+        <tr>
+            <td style="text-align:center;"><b>پزشک معتمد</b></td>
+            <td>
+                <div class="option-group"><span class="sq-box">{% if 'physician' in selected_depts and exam.status_type == 'fit' %}✓{% endif %}</span>بلامانع</div>
+                <div class="option-group"><span class="sq-box">{% if 'physician' in selected_depts and exam.status_type == 'conditional' %}✓{% endif %}</span>مشروط</div>
+                <div class="option-group"><span class="sq-box">{% if 'physician' in selected_depts and exam.status_type == 'unfit' %}✓{% endif %}</span>عدم صلاحیت</div>
+            </td>
+            <td>
+                <small>{% if 'physician' in selected_depts %}{{ exam.final_opinion_text|default:"---" }}{% endif %}</small>
+            </td>
+            <td style="text-align:center; font-size:11px;">{{ health_expert_name }}</td>
+        </tr>
 
-            <table class="report-table">
-                <thead>
-                    <tr class="section-title-row"><th colspan="4">اطلاعات فردی</th></tr>
-                </thead>
-                <tbody>
-                    <tr>
-                        <th style="width: 20%;">نام و نام خانوادگی:</th>
-                        <td style="width: 30%;">{{ exam.patient.full_name }}</td>
-                        <th style="width: 20%;">کد ملی:</th>
-                        <td style="width: 30%;">{{ exam.patient.national_code }}</td>
-                    </tr>
-                    <tr>
-                        <th>شغل:</th>
-                        <td>{{ exam.patient.occupation|default:"-" }}</td>
-                        <th>نام پدر:</th>
-                        <td>{{ exam.patient.father_name|default:"-" }}</td>
-                    </tr>
-                    <tr>
-                        <th>تاریخ تولد:</th>
-                        <td>{{ exam.patient.jalali_date_of_birth|default:"-" }}</td>
-                        <th>شماره پرسنلی:</th>
-                        <td>
-                            {% if exam.patient.personnel_number %}
-                                {{ exam.patient.personnel_number }}
-                            {% else %}
-                                مشغول به کار نیست
-                            {% endif %}
-                        </td>
-                    </tr>
-                </tbody>
-            </table>
+        <tr>
+            <td style="text-align:center;"><b>واحد HSE</b></td>
+            <td>
+                <div class="option-group"><span class="sq-box">{% if 'hse' in selected_depts and exam.status_type == 'fit' %}✓{% endif %}</span>بلامانع</div>
+                <div class="option-group"><span class="sq-box">{% if 'hse' in selected_depts and exam.status_type == 'conditional' %}✓{% endif %}</span>مشروط</div>
+                <div class="option-group"><span class="sq-box">{% if 'hse' in selected_depts and exam.status_type == 'unfit' %}✓{% endif %}</span>عدم صلاحیت</div>
+            </td>
+            <td>
+                <small>{% if 'hse' in selected_depts %}{{ exam.final_opinion_conditions|default:"---" }}{% endif %}</small>
+            </td>
+            <td style="text-align:center; font-size:11px;">{{ safety_expert_name }}</td>
+        </tr>
 
-            <table class="report-table">
-                <thead>
-                    <tr class="section-title-row"><th colspan="2">نتایج و نظریات (تاریخ معاینه: {{ exam.jalali_exam_date|default:"-" }})</th></tr>
-                </thead>
-                <tbody>
-                    <tr>
-                        <th style="width: 25%;">شرح نظر/شروط:</th>
-                        <td>
-                            <b>نظریه:</b> {{ exam.final_opinion_text|default:"-" }}<br>
-                            <b>شروط/دلیل:</b> {{ exam.final_opinion_conditions|default:"-" }}
-                        </td>
-                    </tr>
-                </tbody>
-            </table>
-
-            <table class="report-table signature-table">
-                <thead>
-                    <tr class="section-title-row"><th colspan="4">امضاء و تایید</th></tr>
-                    <tr>
-                        <th>نام واحد</th>
-                        <th>نظریه</th>
-                        <th>دلیل نظر</th>
-                        <th>نام و امضا مسئول</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    <tr>
-                        <td>پزشک/بهداشت حرفه‌ای</td>
-                        <td>
-                            {% if 'physician' in opinion_source_departments %}
-                                <div class="checkbox-option">
-                                    <input type="checkbox" {% if "بلامانع" in exam.final_opinion_text %}checked{% endif %} disabled> بلامانع
-                                </div>
-                                <div class="checkbox-option">
-                                    <input type="checkbox" {% if "مشروط" in exam.final_opinion_text %}checked{% endif %} disabled> مشروط
-                                </div>
-                                <div class="checkbox-option">
-                                    <input type="checkbox" {% if "عدم صلاحیت" in exam.final_opinion_text %}checked{% endif %} disabled> عدم صلاحیت
-                                </div>
-                            {% else %}
-                                <div class="checkbox-option">
-                                    <input type="checkbox" disabled> بلامانع
-                                </div>
-                                <div class="checkbox-option">
-                                    <input type="checkbox" disabled> مشروط
-                                </div>
-                                <div class="checkbox-option">
-                                    <input type="checkbox" disabled> عدم صلاحیت
-                                </div>
-                            {% endif %}
-                        </td>
-                        <td>
-                            {% if 'physician' in opinion_source_departments %}
-                                <div class="opinion-text-area">{% if "بلامانع" in exam.final_opinion_text %}با توجه به آزمایشات و معاینات طب کار اشتغال به کار نامبرده بلامانع است.{% else %}{{ exam.final_opinion_conditions|default:"" }}{% endif %}</div>
-                            {% else %}
-                                <div class="empty-signature-space"></div>
-                            {% endif %}
-                        </td>
-                        <td>
-                            <div style="text-align: center;">
-                                <div>{{ health_expert_name|default:"-" }}</div>
-                                {% if health_expert_signature_url %}
-                                    <img src="{{ health_expert_signature_url }}" alt="امضاء پزشک" class="signature-image">
-                                {% else %}
-                                    <div class="empty-signature-space"></div>
-                                {% endif %}
-                            </div>
-                        </td>
-                    </tr>
-                    
-                    <tr>
-                        <td>مشاور HSE</td>
-                        <td>
-                            {% if 'hse' in opinion_source_departments %}
-                                <div class="checkbox-option">
-                                    <input type="checkbox" {% if "بلامانع" in exam.final_opinion_text %}checked{% endif %} disabled> بلامانع
-                                </div>
-                                <div class="checkbox-option">
-                                    <input type="checkbox" {% if "مشروط" in exam.final_opinion_text %}checked{% endif %} disabled> مشروط
-                                </div>
-                                <div class="checkbox-option">
-                                    <input type="checkbox" {% if "عدم صلاحیت" in exam.final_opinion_text %}checked{% endif %} disabled> عدم صلاحیت
-                                </div>
-                            {% else %}
-                                <div class="checkbox-option">
-                                    <input type="checkbox" disabled> بلامانع
-                                </div>
-                                <div class="checkbox-option">
-                                    <input type="checkbox" disabled> مشروط
-                                </div>
-                                <div class="checkbox-option">
-                                    <input type="checkbox" disabled> عدم صلاحیت
-                                </div>
-                            {% endif %}
-                        </td>
-                        <td>
-                            {% if 'hse' in opinion_source_departments %}
-                                <div class="opinion-text-area">{{ exam.final_opinion_conditions|default:"" }}</div>
-                            {% else %}
-                                <div class="empty-signature-space"></div>
-                            {% endif %}
-                        </td>
-                        <td>
-                            <div style="text-align: center;">
-                                <div>{{ safety_expert_name|default:"-" }}</div>
-                                {% if safety_expert_signature_url %}
-                                    <img src="{{ safety_expert_signature_url }}" alt="امضاء مشاور HSE" class="signature-image">
-                                {% else %}
-                                    <div class="empty-signature-space"></div>
-                                {% endif %}
-                            </div>
-                        </td>
-                    </tr>
-                    
-                    <tr>
-                        <td>مدیریت کارخانه</td>
-                        <td>
-                            {% if 'manager' in opinion_source_departments %}
-                                <div class="checkbox-option">
-                                    <input type="checkbox" {% if "بلامانع" in exam.final_opinion_text %}checked{% endif %} disabled> بلامانع
-                                </div>
-                                <div class="checkbox-option">
-                                    <input type="checkbox" {% if "مشروط" in exam.final_opinion_text %}checked{% endif %} disabled> مشروط
-                                </div>
-                                <div class="checkbox-option">
-                                    <input type="checkbox" {% if "عدم صلاحیت" in exam.final_opinion_text %}checked{% endif %} disabled> عدم صلاحیت
-                                </div>
-                            {% else %}
-                                <div class="checkbox-option">
-                                    <input type="checkbox" disabled> بلامانع
-                                </div>
-                                <div class="checkbox-option">
-                                    <input type="checkbox" disabled> مشروط
-                                </div>
-                                <div class="checkbox-option">
-                                    <input type="checkbox" disabled> عدم صلاحیت
-                                </div>
-                            {% endif %}
-                        </td>
-                        <td>
-                            {% if 'manager' in opinion_source_departments %}
-                                <div class="opinion-text-area">{{ exam.final_opinion_conditions|default:"" }}</div>
-                            {% else %}
-                                <div class="empty-signature-space"></div>
-                            {% endif %}
-                        </td>
-                        <td>
-                            <div style="text-align: center;">
-                                <div>{{ factory_manager_name|default:"-" }}</div>
-                                {% if factory_manager_signature_url %}
-                                    <img src="{{ factory_manager_signature_url }}" alt="امضاء مدیریت کارخانه" class="signature-image">
-                                {% else %}
-                                    <div class="empty-signature-space"></div>
-                                {% endif %}
-                            </div>
-                        </td>
-                    </tr>
-                </tbody>
-            </table>
-        </div>
-        {% endfor %}
-    {% endif %}
-
+        <tr>
+            <td style="text-align:center;"><b>مدیریت  بهره برداری شرکت برنا</b></td>
+            <td>
+                <div class="option-group"><span class="sq-box">{% if 'factory' in selected_depts and exam.status_type == 'fit' %}✓{% endif %}</span>بلامانع</div>
+                <div class="option-group"><span class="sq-box">{% if 'factory' in selected_depts and exam.status_type == 'conditional' %}✓{% endif %}</span>مشروط</div>
+                <div class="option-group"><span class="sq-box">{% if 'factory' in selected_depts and exam.status_type == 'unfit' %}✓{% endif %}</span>عدم صلاحیت</div>
+            </td>
+            <td>
+                <small>{% if 'factory' in selected_depts %}{{ exam.final_opinion_conditions|default:"---" }}{% endif %}</small>
+            </td>
+            <td style="text-align:center; font-size:11px;">{{ factory_manager_name }}</td>
+        </tr>
+    </table>
 </div>
+{% endfor %}
 
 <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
 <script src="https://unpkg.com/persian-date@1.1.0/dist/persian-date.min.js"></script>
 <script src="https://unpkg.com/persian-datepicker@1.2.0/dist/js/persian-datepicker.min.js"></script>
 <script>
-    document.addEventListener('DOMContentLoaded', function() {
-        $(".persian-datepicker").pDatepicker({
-            format: 'YYYY/MM/DD',
-            initialValueType: 'persian',
-            autoClose: true
-        });
-
-        // JavaScript for single report printing
-        document.querySelectorAll('.print-single-report-btn').forEach(button => {
-            button.addEventListener('click', function() {
-                const reportId = this.dataset.reportId;
-                const reportToPrint = document.getElementById(`report-${reportId}`);
-                
-                // Add a class to body to activate single print mode CSS
-                document.body.classList.add('single-print-mode');
-                // Add a class to the specific report to make it visible during print
-                reportToPrint.classList.add('is-printing');
-
-                // Trigger print dialog
-                window.print();
-
-                // Clean up after print dialog closes (or user cancels)
-                const cleanup = () => {
-                    document.body.classList.remove('single-print-mode');
-                    reportToPrint.classList.remove('is-printing');
-                    window.removeEventListener('afterprint', cleanup); // Remove listener to prevent memory leaks
-                };
-                // Listen for the 'afterprint' event to ensure cleanup happens after print job is done/cancelled
-                window.addEventListener('afterprint', cleanup);
-            });
-        });
-    });
+    $(document).ready(function() { $(".pdate").pDatepicker({ format: 'YYYY/MM/DD', autoClose: true }); });
+    function printSingle(id) {
+        $('body').addClass('single-print-mode');
+        $('.page').removeClass('is-printing');
+        $('#' + id).addClass('is-printing');
+        window.print();
+    }
+    window.addEventListener('afterprint', function() { $('body').removeClass('single-print-mode'); });
 </script>
-
 </body>
 </html>

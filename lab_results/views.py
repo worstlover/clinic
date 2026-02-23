@@ -1,5 +1,12 @@
 # D:\final\lab_results\views.py
-
+from django.shortcuts import render
+from django.db.models import Q
+from django.db.models.functions import Trim
+from .models import PeriodicExamination
+from core.serializers import PatientSearchSerializer
+# استفاده از مستنداتی که فرستادی
+from persiantools.jdatetime import JalaliDate, JalaliDateTime
+import datetime
 from django.shortcuts import render, get_object_or_404
 import pandas as pd
 import jdatetime
@@ -17,6 +24,8 @@ from django.db.models.functions import Trim
 from django.core.files.storage import FileSystemStorage
 from django.conf import settings
 import os
+from django.db.models import Q
+from django.db.models.functions import Trim
 from jalali_date import date2jalali
 from core.models import Patient 
 from .models import (
@@ -127,6 +136,15 @@ patient_column_map = {
     'آدرس': 'address',
     'شغل': 'occupation', 
     'گروه خونی': 'blood_type',
+}
+
+
+medical_history_columns = {
+    'سابقه شخصی - 16. سابقه معرفی به کمیسیون پزشکی': 'کمیسیون پزشکی',
+    'سابقه شخصی - 13. سابقه حادثه شغلی': 'حادثه شغلی',
+    'سابقه شخصی - 9. مصرف دارو': 'مصرف دارو',
+    'سابقه شخصی - 7. سابقه عمل جراحی': 'عمل جراحی',
+    'سابقه شخصی - 6. سابقه بستری': 'سابقه بستری',
 }
 
 periodic_exam_column_map = {
@@ -300,6 +318,15 @@ def process_import(request):
     errors, success_count, updated_count = [], 0, 0
     current_user = request.user
 
+    # تعریف ستون‌های سوابق برای تجمیع (طبق درخواست شما)
+    medical_history_columns = {
+        'سابقه شخصی - 16. سابقه معرفی به کمیسیون پزشکی': 'کمیسیون پزشکی',
+        'سابقه شخصی - 13. سابقه حادثه شغلی': 'حادثه شغلی',
+        'سابقه شخصی - 9. مصرف دارو': 'مصرف دارو',
+        'سابقه شخصی - 7. سابقه عمل جراحی': 'عمل جراحی',
+        'سابقه شخصی - 6. سابقه بستری': 'سابقه بستری',
+    }
+
     try:
         df = pd.read_excel(excel_file)
         
@@ -321,6 +348,20 @@ def process_import(request):
                             else: 
                                 patient_data[field] = val
                     
+                    # --- بخش جدید: تجمیع سوابق پزشکی از ستون‌های Z تا AE ---
+                    history_parts = []
+                    for col_name, label in medical_history_columns.items():
+                        if col_name in row and pd.notna(row[col_name]):
+                            val = str(row[col_name]).strip()
+                            if val and val.lower() != 'nan' and val != '-':
+                                history_parts.append(f"{label}: {val}")
+                    
+                    if history_parts:
+                        patient_data['medical_history'] = " | ".join(history_parts)
+                    else:
+                        patient_data['medical_history'] = "فاقد سابقه بیماری خاص"
+                    # -------------------------------------------------------
+
                     # --- CHANGE START: فرمت کردن کد ملی ---
                     national_code_raw = patient_data.get('national_code')
                     if not national_code_raw: 
@@ -353,7 +394,6 @@ def process_import(request):
                         defaults={k: v for k, v in exam_data.items() if v is not None}
                     )
                     
-                    # --- پردازش سایر مدل‌ها (بدون تغییر) ---
                     # ۴. پردازش اندازه‌گیری‌های بالینی (ClinicalMeasurement)
                     clinical_data = {}
                     for col, field in clinical_measurement_column_map.items():
@@ -423,7 +463,6 @@ def process_import(request):
                 print(f"خطا در ردیف {row_num}: {e}")
                 traceback.print_exc()
 
-        # نمایش پیام نهایی
         if errors:
             messages.warning(request, f"فایل با {len(errors)} خطا پردازش شد.")
             for err in errors[:5]: messages.error(request, err)
@@ -468,116 +507,62 @@ def handle_uploaded_file(f, directory="signatures"):
     filename = fs.save(f.name, f)
     return fs.url(filename)
 
+
+
+
+
+
 def bulk_print_page(request):
-    examinations_query = PeriodicExamination.objects.select_related('patient').order_by('patient__personnel_number', 'exam_date')
-    final_opinions = PeriodicExamination.objects.annotate(
-        opinion_clean=Trim('final_opinion_text')
-    ).values_list('opinion_clean', flat=True).distinct().exclude(opinion_clean__exact='')
+    # لیست نظریات برای دراپ‌دان فیلتر
+    final_opinions_list = PeriodicExamination.objects.values_list('final_opinion_text', flat=True).distinct().exclude(final_opinion_text='')
     
-    health_expert_name = ''
-    safety_expert_name = ''
-    factory_manager_name = ''
-    health_expert_signature_url = None
-    safety_expert_signature_url = None
-    factory_manager_signature_url = None
+    # کوئری اصلی
+    examinations_query = PeriodicExamination.objects.select_related('patient').all()
+    
+    context = {
+        'final_opinions': final_opinions_list,
+        'form_values': request.POST if request.method == 'POST' else {},
+    }
 
-    if request.method == 'POST' and 'filter' in request.POST:
-        health_expert_name = request.POST.get('health_expert_name', '')
-        safety_expert_name = request.POST.get('safety_expert_name', '')
-        factory_manager_name = request.POST.get('factory_manager_name', '')
-
-        health_expert_signature_file = request.FILES.get('health_expert_signature')
-        safety_expert_signature_file = request.FILES.get('safety_expert_signature')
-        factory_manager_signature_file = request.FILES.get('factory_manager_signature')
-        health_expert_signature_url = handle_uploaded_file(health_expert_signature_file)
-        safety_expert_signature_url = handle_uploaded_file(safety_expert_signature_file)
-        factory_manager_signature_url = handle_uploaded_file(factory_manager_signature_file)
-
-        opinion_filter = request.POST.get('final_opinion', '')
-        opinion_source_departments = request.POST.getlist('opinion_source_department') 
-        start_date_jalali = request.POST.get('start_date', '')
-        end_date_jalali = request.POST.get('end_date', '')
-        start_pid = request.POST.get('start_pid', '')
-        end_pid = request.POST.get('end_pid', '')
-        job = request.POST.get('job_title', '')
-        nid = request.POST.get('national_id', '')
-
-        start_date_gregorian = None
-        end_date_gregorian = None
+    if request.method == 'POST':
+        data = request.POST
+        
+        # ۱. فیلتر حذف فاقدین کد پرسنلی (اصلاح شده)
+        if data.get('exclude_empty_pid'):
+            # استفاده از regex برای اطمینان از اینکه فیلد فقط شامل اعداد 0-9 است
+            examinations_query = examinations_query.filter(
+                patient__personnel_number__regex=r'^\d+$'
+            )
+        # ۲. فیلترهای متنی
+        if data.get('national_id'):
+            examinations_query = examinations_query.filter(patient__national_code__icontains=data.get('national_id'))
+        
+        # ۳. فیلتر تاریخ معاینه (از و تا) - با استفاده از persiantools
+        sd = data.get('start_date')
+        ed = data.get('end_date')
         try:
-            if start_date_jalali:
-                start_date_gregorian = convert_jalali_to_gregorian(start_date_jalali)
-            if end_date_jalali:
-                end_date_gregorian = convert_jalali_to_gregorian(end_date_jalali)
-            
-            if (start_date_jalali and not start_date_gregorian) or (end_date_jalali and not end_date_gregorian):
-                raise ValueError("Invalid date format")
+            if sd:
+                y, m, d = map(int, sd.split('/'))
+                examinations_query = examinations_query.filter(exam_date__gte=JalaliDate(y, m, d).to_gregorian())
+            if ed:
+                y, m, d = map(int, ed.split('/'))
+                examinations_query = examinations_query.filter(exam_date__lte=JalaliDate(y, m, d).to_gregorian())
+        except:
+            pass
 
-        except ValueError:
-            messages.error(request, "فرمت تاریخ نامعتبر است. لطفاً از فرمت YYYY/MM/DD استفاده کنید.")
-            examinations_query = PeriodicExamination.objects.none()
-        
-        if opinion_filter:
-            examinations_query = examinations_query.filter(final_opinion_text__exact=opinion_filter)
-
-        # ------------------- START OF NEW CODE -------------------
-        if opinion_source_departments:
-            examinations_query = examinations_query.filter(opinion_source_department__in=opinion_source_departments)
-        # ------------------- END OF NEW CODE -------------------
-        
-        if start_date_gregorian and end_date_gregorian:
-            examinations_query = examinations_query.filter(exam_date__range=[start_date_gregorian, end_date_gregorian])
-        elif start_date_gregorian:
-            examinations_query = examinations_query.filter(exam_date__gte=start_date_gregorian)
-        elif end_date_gregorian:
-            examinations_query = examinations_query.filter(exam_date__lte=end_date_gregorian)
-
-        if start_pid:
-            start_pid_en = convert_persian_to_english_nums(start_pid)
-            if start_pid_en:
-                examinations_query = examinations_query.filter(patient__personnel_number__gte=start_pid_en)
-        if end_pid:
-            end_pid_en = convert_persian_to_english_nums(end_pid)
-            if end_pid_en:
-                examinations_query = examinations_query.filter(patient__personnel_number__lte=end_pid_en)
-        
-        if job:
-            examinations_query = examinations_query.filter(patient__occupation__icontains=job)
-        
-        if nid:
-            nid_en = convert_persian_to_english_nums(nid)
-            if nid_en:
-                examinations_query = examinations_query.filter(patient__national_code__exact=format_national_id(nid_en))
-        print(f"تعداد نتایج یافت شده: {examinations_query.count()}")
+        # ۴. آماده‌سازی داده‌ها برای نمایش
         for exam in examinations_query:
-            if exam.exam_date:
-                exam.jalali_exam_date = date2jalali(exam.exam_date).strftime('%Y/%m/%d')
-            else:
-                exam.jalali_exam_date = '-'
-            
-            if exam.patient and exam.patient.date_of_birth:
-                exam.patient.jalali_date_of_birth = date2jalali(exam.patient.date_of_birth).strftime('%Y/%m/%d')
-            else:
-                exam.patient.jalali_date_of_birth = '-'
-            
-        context = {
+            exam.jalali_exam_date = JalaliDate(exam.exam_date).strftime("%Y/%m/%d") if exam.exam_date else "-"
+            # تشخیص وضعیت برای تیک خودکار
+            text = (exam.final_opinion_text or "").strip()
+            exam.status_type = "unfit" if "عدم صلاحیت" in text else "conditional" if "مشروط" in text else "fit" if "بلامانع" in text else "none"
+
+        context.update({
             'examinations': examinations_query,
-            'final_opinions': final_opinions,
-            'health_expert_name': health_expert_name,
-            'safety_expert_name': safety_expert_name,
-            'factory_manager_name': factory_manager_name,
-            'health_expert_signature_url': health_expert_signature_url,
-            'safety_expert_signature_url': safety_expert_signature_url,
-            'factory_manager_signature_url': factory_manager_signature_url,
-            'opinion_source_departments': opinion_source_departments,
-            'form_values': request.POST 
-        }
-    else:
-        context = {
-            'examinations': None, 
-            'final_opinions': final_opinions,
-            'opinion_source_departments': ['physician'],
-            'form_values': {}
-        }
-        
+            'selected_depts': data.getlist('opinion_source_department'),
+            'health_expert_name': data.get('health_expert_name', ''),
+            'safety_expert_name': data.get('safety_expert_name', ''),
+            'factory_manager_name': data.get('factory_manager_name', ''),
+        })
+
     return render(request, 'lab_results/bulk_print_page.html', context)

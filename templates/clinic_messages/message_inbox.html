@@ -1,74 +1,141 @@
-{% extends 'base.html' %}
-{% load jformat %}.
+{% extends main_base %}
+{% load jformat %}
 {% load static %}
 {% load crispy_forms_tags %}
 
-{% block content %}
-<div class="container-fluid">
-    <h1 class="h3 mb-4 text-gray-800">{{ page_title }}</h1>
+{% block extra_head %}
+<style>
+    /* Mobile-friendly styles for message list */
+    .message-list-item {
+        padding: 12px 10px;
+        border-bottom: 1px solid #eee;
+        transition: background-color 0.2s;
+    }
+    .message-list-item:active {
+        background-color: #f8f9fa;
+    }
+    .message-list-item:last-child {
+        border-bottom: none;
+    }
+    .message-subject {
+        font-weight: 600;
+        color: #333;
+        font-size: 0.95rem;
+        margin-bottom: 4px;
+    }
+    .message-sender {
+        color: #666;
+        font-size: 0.85rem;
+    }
+    .message-preview {
+        color: #888;
+        font-size: 0.8rem;
+        margin-top: 4px;
+    }
+    .message-date {
+        color: #999;
+        font-size: 0.75rem;
+        white-space: nowrap;
+    }
+    .new-badge {
+        font-size: 0.7rem;
+        padding: 3px 8px;
+        border-radius: 10px;
+    }
+    /* Mobile pagination */
+    .pagination-mobile {
+        display: flex;
+        justify-content: center;
+        gap: 5px;
+        flex-wrap: wrap;
+    }
+    .pagination-mobile .page-link {
+        padding: 6px 10px;
+        font-size: 0.85rem;
+        border-radius: 8px;
+    }
+    @media (max-width: 576px) {
+        .message-list-item .row {
+            flex-direction: column;
+        }
+        .message-info {
+            order: 2;
+        }
+        .message-date {
+            order: 1;
+            margin-bottom: 5px;
+        }
+    }
+</style>
+{% endblock %}
 
-    <div class="card shadow mb-4">
-        <div class="card-header py-3">
+{% block content %}
+<div class="container-fluid py-3">
+    <div class="d-flex justify-content-between align-items-center mb-3">
+        <h5 class="m-0 fw-bold text-primary">{{ page_title }}</h5>
+        <a href="{% url 'clinic_messages:message_create' %}" class="btn btn-primary btn-sm rounded-pill px-3">
+            <i class="fas fa-plus me-1"></i> پیام جدید
+        </a>
+    </div>
+
+    <div class="card shadow-sm mb-3">
+        <div class="card-header py-2 bg-light">
             <h6 class="m-0 font-weight-bold text-primary">فیلتر پیام‌ها</h6>
         </div>
-        <div class="card-body">
-            <form method="get">
-                {% csrf_token %}
+        <div class="card-body py-2">
+            <form method="get" class="row g-2">
                 {{ filter_form|crispy }}
             </form>
         </div>
     </div>
 
-    <div class="card shadow mb-4">
-        <div class="card-header py-3">
+    <div class="card shadow-sm">
+        <div class="card-header py-2 bg-white border-bottom">
             <h6 class="m-0 font-weight-bold text-primary">پیام‌های دریافتی</h6>
         </div>
-        <div class="card-body">
+        <div class="card-body p-0">
             {% if page_obj %}
-            <div class="list-group">
+            <div class="list-group list-group-flush">
                 {% for msg_status in page_obj %}
-                <a href="{% url 'clinic_messages:message_detail' msg_status.message.pk %}" class="list-group-item list-group-item-action">
-                    <div class="row align-items-center"> {# اضافه کردن row و align-items-center برای تراز عمودی #}
-                        <div class="col-md-4 col-sm-6 text-truncate"> {# ستون برای موضوع #}
-                            <h5 class="mb-0 {% if not msg_status.is_read %}fw-bold{% endif %}">
+                <a href="{% url 'clinic_messages:message_detail' msg_status.message.pk %}" class="list-group-item list-group-item-action message-list-item">
+                    <div class="row align-items-center">
+                        <div class="col-12 col-sm-8">
+                            <div class="message-subject {% if not msg_status.is_read %}fw-bold text-primary{% endif %}">
                                 {% if msg_status.message.subject %}
                                     {{ msg_status.message.subject }}
                                 {% else %}
                                     (بدون موضوع)
                                 {% endif %}
-                            </h5>
+                                {% if not msg_status.is_read %}
+                                    <span class="badge bg-warning text-dark new-badge ms-1">جدید</span>
+                                {% endif %}
+                            </div>
+                            <div class="message-sender">
+                                <i class="fas fa-user-circle me-1 text-muted"></i>
+                                {{ msg_status.message.sender.get_full_name|default:msg_status.message.sender.username }}
+                            </div>
+                            <div class="message-preview d-none d-md-block">
+                                {{ msg_status.message.body|striptags|truncatechars:50 }}
+                            </div>
                         </div>
-                        <div class="col-md-3 col-sm-6 text-truncate"> {# ستون برای فرستنده #}
-                            <small class="text-muted {% if not msg_status.is_read %}fw-bold{% endif %}">
-                                <i class="fas fa-user me-1"></i>
-                                فرستنده: {{ msg_status.message.sender.get_full_name|default:msg_status.message.sender.username }}
-                            </small>
-                        </div>
-                        <div class="col-md-3 d-none d-md-block text-truncate"> {# ستون برای متن پیام، در صفحات کوچک‌تر پنهان شود #}
-                            <p class="mb-0 text-muted {% if not msg_status.is_read %}fw-bold{% endif %}">
-                                {{ msg_status.message.body|striptags|truncatechars:70 }} {# متن کوتاه شده #}
-                            </p>
-                        </div>
-                        <div class="col-md-2 col-sm-12 text-end"> {# ستون برای تاریخ و وضعیت #}
-                            <small class="text-muted {% if not msg_status.is_read %}fw-bold{% endif %}">
+                        <div class="col-6 col-sm-4 text-end mt-2 mt-sm-0">
+                            <div class="message-date">
                                 <i class="far fa-clock me-1"></i>
                                 {{ msg_status.message.created_at|jformat }}
-                                {% if not msg_status.is_read %}
-                                    <span class="badge bg-warning text-dark ms-2">جدید</span>
-                                {% endif %}
-                            </small>
+                            </div>
                         </div>
                     </div>
                 </a>
                 {% endfor %}
             </div>
 
-            <nav aria-label="Page navigation" class="mt-4">
-                <ul class="pagination justify-content-center">
+            {% if page_obj.paginator.num_pages > 1 %}
+            <nav aria-label="Page navigation" class="mt-3 px-2">
+                <ul class="pagination pagination-mobile justify-content-center m-0">
                     {% if page_obj.has_previous %}
                     <li class="page-item">
                         <a class="page-link" href="?page={{ page_obj.previous_page_number }}{% for key, value in request.GET.items %}{% if key != 'page' %}&{{ key }}={{ value }}{% endif %}{% endfor %}" aria-label="Previous">
-                            <span aria-hidden="true">&laquo;</span>
+                            <i class="fas fa-chevron-right"></i>
                         </a>
                     </li>
                     {% endif %}
@@ -76,7 +143,7 @@
                     {% for i in page_obj.paginator.page_range %}
                     {% if page_obj.number == i %}
                     <li class="page-item active"><a class="page-link" href="#">{{ i }}</a></li>
-                    {% else %}
+                    {% elif i >= page_obj.number|add:'-2' and i <= page_obj.number|add:'2' %}
                     <li class="page-item">
                         <a class="page-link" href="?page={{ i }}{% for key, value in request.GET.items %}{% if key != 'page' %}&{{ key }}={{ value }}{% endif %}{% endfor %}">{{ i }}</a>
                     </li>
@@ -86,51 +153,45 @@
                     {% if page_obj.has_next %}
                     <li class="page-item">
                         <a class="page-link" href="?page={{ page_obj.next_page_number }}{% for key, value in request.GET.items %}{% if key != 'page' %}&{{ key }}={{ value }}{% endif %}{% endfor %}" aria-label="Next">
-                            <span aria-hidden="true">&raquo;</span>
+                            <i class="fas fa-chevron-left"></i>
                         </a>
                     </li>
                     {% endif %}
                 </ul>
             </nav>
+            {% endif %}
 
             {% else %}
-            <p class="text-center">صندوق ورودی شما خالی است.</p>
+            <div class="text-center py-5 text-muted">
+                <i class="fas fa-inbox fa-3x mb-3"></i>
+                <p>صندوق ورودی شما خالی است.</p>
+            </div>
             {% endif %}
         </div>
-    </div>
-
-    <div class="text-center mt-3"> {# اضافه کردن mt-3 برای فاصله از بالا #}
-        <a href="{% url 'clinic_messages:message_create' %}" class="btn btn-primary btn-icon-split">
-            <span class="icon text-white-50">
-                <i class="fas fa-plus"></i>
-            </span>
-            <span class="text">ایجاد پیام جدید</span>
-        </a>
     </div>
 </div>
 {% endblock %}
 
 {% block extra_js %}
-    {# این قسمت را برای Persian Datepicker اضافه کنید #}
-    <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.7.1/jquery.min.js"></script>
-    <script src="{% static 'js/persian-date.min.js' %}"></script>
-    <script src="{% static 'js/persian-datepicker.min.js' %}"></script>
-    <script>
-        $(document).ready(function() {
-            $('.persian-date-picker').persianDatepicker({
-                format: 'YYYY/MM/DD',
-                initialValue: false,
-                altField: '.persian-date-picker',
-                altFormat: 'YYYY/MM/DD',
-                calendar:{
-                    persian: {
-                        locale: 'fa'
-                    }
-                },
-                timePicker: {
-                    enabled: false
+<script src="https://ajax.googleapis.com/ajax/libs/jquery/3.7.1/jquery.min.js"></script>
+<script src="{% static 'js/persian-date.min.js' %}"></script>
+<script src="{% static 'js/persian-datepicker.min.js' %}"></script>
+<script>
+    $(document).ready(function() {
+        $('.persian-date-picker').persianDatepicker({
+            format: 'YYYY/MM/DD',
+            initialValue: false,
+            altField: '.persian-date-picker',
+            altFormat: 'YYYY/MM/DD',
+            calendar:{
+                persian: {
+                    locale: 'fa'
                 }
-            });
+            },
+            timePicker: {
+                enabled: false
+            }
         });
-    </script>
+    });
+</script>
 {% endblock %}

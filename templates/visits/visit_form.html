@@ -1,398 +1,298 @@
-{% extends 'base.html' %}
-{% load crispy_forms_tags %}
-{% load static %}
-{% load jformat %}
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ثبت ویزیت هوشمند | پنل پزشک</title>
+    
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@4.6.2/dist/css/bootstrap.min.css">
+    <link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet" />
+    <link href="https://cdn.jsdelivr.net/gh/rastikerdar/vazir-font@v30.1.0/dist/font-face.css" rel="stylesheet" type="text/css" />
 
-{% block extra_head %}
-    {{ form.media.css }}
-    <link href="{% static 'css/select2.min.css' %}" rel="stylesheet" />
     <style>
-        .item-row {
-            border: 1px solid #e9ecef;
-            padding: 1rem;
-            margin-bottom: 1rem;
-            border-radius: .375rem;
-            background-color: #f8f9fa;
-        }
-        .select2-container .select2-selection--single {
-            height: calc(2.25rem + 2px) !important;
-            display: flex;
-            align-items: center;
-        }
-        .select2-container--default .select2-selection--single .select2-selection__rendered {
-            line-height: inherit;
-            padding-left: 0.75rem;
-            padding-right: 0.75rem;
-        }
-        .select2-container--default .select2-selection--single .select2-selection__arrow {
-            height: calc(2.25rem + 2px) !important;
-        }
-        #bmi-result {
-            font-weight: bold;
-            transition: border-color .15s ease-in-out;
-        }
-        #bmi-status {
-            font-weight: bold;
-        }
-        /* Style for readonly patient info fields */
-        #patient-age, 
-        #patient-allergies, 
-        #patient-medical-history,
-        #patient-visit-count,
-        #patient-last-visit-date,
-        #patient-last-visit-reason {
-            color: #495057; /* Darker text for readability */
-            font-weight: 500;
-        }
-        #patient-medical-history {
-            resize: vertical; /* Allow vertical resizing for textarea */
-            min-height: calc(2.25rem + 2px); /* Ensure minimum height even if empty */
-            overflow: auto; /* Add scroll if content exceeds height */
-        }
-    </style>
-{% endblock %}
+        :root { --primary: #0056b3; --success: #198754; --danger: #dc3545; --warning: #fd7e14; }
+        body { background-color: #f4f7f6; font-family: 'Vazir', sans-serif; direction: rtl; text-align: right; padding: 15px; }
+        
+        /* کارت‌های اصلی */
+        .main-card { background: #fff; border-radius: 15px; padding: 25px; margin-bottom: 20px; box-shadow: 0 4px 12px rgba(0,0,0,0.08); border: none; }
+        .section-title { color: var(--primary); font-weight: bold; border-right: 5px solid var(--primary); padding-right: 15px; margin-bottom: 25px; }
 
-{% block content %}
+        /* بخش سوابق بیمار */
+        #patient-history { display: none; background: #fff; border-right: 8px solid var(--danger); border-radius: 12px; padding: 20px; margin-bottom: 25px; box-shadow: 0 2px 8px rgba(0,0,0,0.05); }
+        .history-label { font-weight: bold; color: #666; font-size: 0.85rem; }
+        .history-value { color: #000; font-weight: 500; }
+
+        /* سطرهای دارو */
+        .item-row { background: #f8f9fa; border-radius: 12px; padding: 15px; margin-bottom: 12px; border: 1px solid #e9ecef; }
+        .drug-notes { height: 42px !important; resize: none; }
+        .highlight-qty { border: 2px solid var(--success) !important; background-color: #e8f5e9 !important; }
+
+        .form-control { height: 45px; border-radius: 10px; }
+        .select2-container--default .select2-selection--single { height: 45px !important; border-radius: 10px !important; padding-top: 8px !important; }
+        
+        #main-form-content { display: none; }
+        .btn-new-patient { height: 48px; border-radius: 10px; font-weight: bold; background-color: var(--success); color: #fff !important; display: flex; align-items: center; justify-content: center; }
+        
+        .fa-num-fix { font-family: sans-serif; text-align: center; font-weight: bold; }
+        .required-label::after { content: " *"; color: red; font-weight: bold; }
+
+        /* استایل اختصاصی دراپ‌داون وضعیت انبار و انقضا */
+        .s2-drug-wrapper { display: flex; justify-content: space-between; align-items: center; width: 100%; }
+        .badge-stock-info { font-size: 10px; padding: 3px 6px; border-radius: 5px; margin-right: 4px; font-weight: bold; }
+        .expired-text { color: var(--danger) !important; text-decoration: line-through; opacity: 0.7; }
+        .near-expiry-text { color: #856404 !important; }
+    </style>
+</head>
+<body>
+
 <div class="container-fluid">
     <div class="d-flex justify-content-between align-items-center mb-4">
-        <h1 class="mb-0">{{ page_title }}</h1>
-        <a href="{% url 'core:patient_create' %}" class="btn btn-info"><i class="fas fa-user-plus me-2"></i> افزودن بیمار جدید</a>
+        <h4 class="font-weight-bold">🏥 پنل ثبت ویزیت و تجویز دارو</h4>
+        <a href="javascript:history.back()" class="btn btn-outline-secondary btn-sm">بازگشت به لیست</a>
     </div>
 
-    {% include 'snippets/messages.html' %}
+    <form method="post" id="visit-form">
+        {% csrf_token %}
+        {{ formset.management_form }}
 
-    <div class="card shadow border-0">
-        <div class="card-body p-4">
-            <form method="post" id="visit-form">
-                {% csrf_token %}
-                {{ formset.management_form }}
-
-                <h5 class="mb-3 border-bottom pb-2">اطلاعات اصلی ویزیت</h5>
-                <div class="row">
-                    <div class="col-12 col-sm-6 col-lg-3 col-xl-2 mb-3">{{ form.patient|as_crispy_field }}</div>
-                    <div class="col-12 col-sm-6 col-lg-3 col-xl-2 mb-3">{{ form.visit_date_jalali|as_crispy_field }}</div>
-                    <div class="col-12 col-sm-6 col-lg-3 col-xl-2 mb-3">
-                        <label for="patient-age" class="form-label">سن</label>
-                        <input type="text" id="patient-age" class="form-control" readonly style="background-color: #e9ecef;">
-                    </div>
-                    <div class="col-12 col-sm-6 col-lg-3 col-xl-2 mb-3">
-                        <label for="patient-allergies" class="form-label">حساسیت‌ها</label>
-                        <input type="text" id="patient-allergies" class="form-control" readonly style="background-color: #e9ecef;">
-                    </div>
-                    <div class="col-12 col-sm-6 col-lg-3 col-xl-2 mb-3">
-                        <label for="patient-visit-count" class="form-label">تعداد ویزیت</label>
-                        <input type="text" id="patient-visit-count" class="form-control" readonly style="background-color: #e9ecef;">
-                    </div>
-                    <div class="col-12 col-sm-6 col-lg-3 col-xl-2 mb-3">
-                        <label for="patient-last-visit-date" class="form-label">تاریخ آخرین مراجعه</label>
-                        <input type="text" id="patient-last-visit-date" class="form-control" readonly style="background-color: #e9ecef;">
-                    </div>
-                    <div class="col-12 col-sm-6 col-lg-3 col-xl-2 mb-3">
-                        <label for="patient-last-visit-reason" class="form-label">علت آخرین مراجعه</label>
-                        <input type="text" id="patient-last-visit-reason" class="form-control" readonly style="background-color: #e9ecef;">
-                    </div>
-                    <div class="col-12 col-sm-6 col-lg-3 col-xl-2 mb-3">{{ form.reason_for_visit|as_crispy_field }}</div>
-                    <div class="col-12 col-sm-6 col-lg-3 col-xl-2 mb-3">{{ form.incident_type|as_crispy_field }}</div>
-                    <div class="col-12 col-sm-6 col-lg-3 col-xl-2 mb-3">{{ form.height_cm|as_crispy_field }}</div>
-                    <div class="col-12 col-sm-6 col-lg-3 col-xl-2 mb-3">{{ form.weight_kg|as_crispy_field }}</div>
-                    <div class="col-12 col-sm-6 col-lg-3 col-xl-2 mb-3">{{ form.blood_pressure|as_crispy_field }}</div>
-                    <div class="col-12 col-sm-6 col-lg-3 col-xl-2 mb-3">{{ form.heart_rate|as_crispy_field }}</div>
-                    <div class="col-12 col-sm-6 col-lg-3 col-xl-2 mb-3">{{ form.temperature|as_crispy_field }}</div>
-                    <div class="col-12 col-sm-6 col-lg-3 col-xl-2 mb-3">{{ form.blood_sugar|as_crispy_field }}</div>
+        <div class="main-card">
+            <h5 class="section-title">اطلاعات پایه بیمار</h5>
+            <div class="row align-items-end">
+                <div class="col-md-9 col-12">
+                    <label class="small font-weight-bold">نام، کد ملی یا شماره موبایل:</label>
+                    {{ form.patient }}
                 </div>
-
-                <div class="row">
-                    <h5 class="mb-3 border-bottom pb-2">سوابق و تفسیر</h5>
-                    <div class="col-md-6 mb-3">
-                        <label for="patient-medical-history" class="form-label">سوابق پزشکی</label>
-                        <textarea id="patient-medical-history" class="form-control" rows="3" readonly style="background-color: #e9ecef;"></textarea>
-                    </div>
-                    <div class="col-md-6 mb-3">
-                        <label for="bmi-result" class="form-label">شاخص توده بدنی (BMI)</label>
-                        <div id="bmi-result" class="form-control" style="background-color: #e9ecef;">---</div>
-                        <small id="bmi-status" class="form-text"></small>
-                    </div>
+                <div class="col-md-3 col-12">
+                    <a href="{% url 'core:patient_create' %}" class="btn btn-new-patient shadow-sm w-100">➕ تعریف بیمار جدید</a>
                 </div>
-                
-                <hr><h4 class="mb-3">داروهای تجویز شده</h4>
+            </div>
+        </div>
 
-                <div id="formset-container" class="mb-3">
-                    {% for item_form in formset %}
-                        <div class="item-row" id="item-row-{{ forloop.counter0 }}">
-                            {{ item_form.id }}
-                            <div class="row align-items-end g-3">
-                                <div class="col-md-5">{{ item_form.drug|as_crispy_field }}</div>
-                                <div class="col-md-2">{{ item_form.quantity|as_crispy_field }}</div>
-                                <div class="col-md-4">{{ item_form.notes|as_crispy_field }}</div>
-                                <div class="col-md-1 text-center">
-                                    {% if item_form.instance.pk %}
-                                        <div class="d-none">{{ item_form.DELETE }}</div>
-                                    {% endif %}
-                                    <button type="button" class="btn btn-sm btn-outline-danger delete-row-btn" title="حذف آیتم"><i class="fas fa-trash"></i></button>
-                                </div>
-                            </div>
+        <div id="patient-history">
+            <div class="row">
+                <div class="col-md-2 col-6 mb-3"><span class="history-label">🎂 سن:</span> <span id="h-age" class="history-value">---</span></div>
+                <div class="col-md-3 col-6 mb-3"><span class="history-label">💼 شغل:</span> <span id="h-occupation" class="history-value">---</span></div>
+                <div class="col-md-2 col-6 mb-3"><span class="history-label">🔢 ویزیت‌های قبلی:</span> <span id="h-count" class="badge badge-primary">-</span></div>
+                <div class="col-md-5 col-12 mb-3"><span class="history-label">⚠️ حساسیت‌های دارویی:</span> <span id="h-allergies" class="text-danger font-weight-bold">---</span></div>
+            </div>
+            <div class="row border-top pt-3">
+                <div class="col-12 mb-3"><span class="history-label">🩺 بیماری‌های زمینه‌ای:</span> <span id="h-medical" class="history-value">---</span></div>
+                <div class="col-md-4 col-12"><span class="history-label">🗓 آخرین مراجعه:</span> <span id="h-date" class="font-weight-bold">---</span></div>
+                <div class="col-md-8 col-12"><span class="history-label">❓ علت آخرین ویزیت:</span> <span id="h-last-reason" class="text-primary">---</span></div>
+            </div>
+        </div>
+
+        <div id="main-form-content">
+            <div class="main-card">
+                <h5 class="section-title">ارزیابی و علائم حیاتی</h5>
+                <div class="row">
+                    <div class="col-md-3 col-12 form-group"><label>تاریخ ویزیت:</label>{{ form.visit_date_jalali }}</div>
+                    <div class="col-md-6 col-12 form-group"><label class="required-label">علت مراجعه فعلی:</label>{{ form.reason_for_visit }}</div>
+                    <div class="col-md-3 col-12 form-group"><label>نوع حادثه:</label>{{ form.incident_type }}</div>
+                </div>
+                <div class="row mt-2 border-top pt-3">
+                    <div class="col-md-2 col-4 form-group"><label>قد (cm)</label><input type="tel" name="height_cm" id="id_height_cm" class="form-control fa-num-fix"></div>
+                    <div class="col-md-2 col-4 form-group"><label>وزن (kg)</label><input type="tel" name="weight_kg" id="id_weight_kg" class="form-control fa-num-fix"></div>
+                    <div class="col-md-2 col-4 form-group"><label>تب (C°)</label><input type="tel" name="temperature" id="id_temperature" class="form-control fa-num-fix"></div>
+                    <div class="col-md-3 col-6 form-group">
+                        <label>فشار خون</label>
+                        {{ form.blood_pressure }}
+                    </div>
+                    <div class="col-md-3 col-6"><label>شاخص BMI</label><div id="bmi-val" class="form-control bg-light text-center font-weight-bold">---</div></div>
+                </div>
+            </div>
+
+            <div class="main-card">
+                <div class="d-flex justify-content-between align-items-center mb-3">
+                    <h5 class="section-title mb-0">نسخه و تجویز دارو</h5>
+                    <button type="button" id="add-drug" class="btn btn-success btn-sm px-3">＋ افزودن قلم جدید</button>
+                </div>
+                <div id="drug-container">
+                    {% for f in formset %}
+                    <div class="item-row">
+                        {{ f.id }}
+                        <div class="row align-items-end">
+                            <div class="col-md-5 col-12"><label class="small">جستجوی دارو:</label>{{ f.drug }}</div>
+                            <div class="col-md-1 col-4"><label class="small">تعداد:</label><input type="tel" name="{{ f.prefix }}-quantity" class="form-control fa-num-fix text-center"></div>
+                            <div class="col-md-5 col-6"><label class="small">دستور مصرف:</label>{{ f.notes }}</div>
+                            <div class="col-md-1 col-2"><button type="button" class="btn btn-link text-danger remove-row">حذف</button></div>
                         </div>
+                    </div>
                     {% endfor %}
                 </div>
+            </div>
 
-                <div id="empty-form" class="d-none">
-                    <div class="item-row" id="item-row-__prefix__">
-                        <div class="row align-items-end g-3">
-                            <div class="col-md-5">{{ formset.empty_form.drug|as_crispy_field }}</div>
-                            <div class="col-md-2">{{ formset.empty_form.quantity|as_crispy_field }}</div>
-                            <div class="col-md-4">{{ formset.empty_form.notes|as_crispy_field }}</div>
-                            <div class="col-md-1 text-center">
-                                <button type="button" class="btn btn-sm btn-outline-danger delete-row-btn" title="حذف آیتم"><i class="fas fa-trash"></i></button>
-                            </div>
-                        </div>
+            <div class="main-card bg-light">
+                <h5 class="section-title">گزارش و تشخیص</h5>
+                <div class="row">
+                    <div class="col-md-6 col-12 form-group">
+                        <label class="font-weight-bold">📈 یافته‌های ECG (در صورت وجود):</label>
+                        <textarea name="ecg_interpretation" class="form-control" style="height: 60px !important;"></textarea>
+                    </div>
+                    <div class="col-md-6 col-12 form-group">
+                        <label class="font-weight-bold">📝 شرح حال و معاینات فیزیکی:</label>
+                        <textarea name="notes" class="form-control" style="height: 100px !important;"></textarea>
                     </div>
                 </div>
-
-                <button type="button" id="add-item-btn" class="btn btn-primary mb-4"><i class="fas fa-plus"></i> افزودن دارو</button>
-
-                <div class="row">
-                    <div class="col-md-12 mb-3">{{ form.ecg_interpretation|as_crispy_field }}</div>
-                    <div class="col-md-12 mb-3">{{ form.treatment_result|as_crispy_field }}</div>
-                    <div class="col-12 mb-3">{{ form.notes|as_crispy_field }}</div>
+                <div class="form-group mt-3">
+                    <label class="font-weight-bold required-label">✅ تشخیص نهایی و طرح درمان:</label>
+                    {{ form.treatment_result }}
                 </div>
+            </div>
 
-                <div class="d-flex justify-content-end mt-4 border-top pt-3">
-                    <button type="submit" class="btn btn-success me-2 px-4"><i class="fas fa-save me-2"></i> ذخیره</button>
-                    <a href="{% if form.instance.pk %}{% url 'visits:visit_detail' form.instance.pk %}{% else %}{% url 'visits:visit_list' %}{% endif %}" class="btn btn-secondary"><i class="fas fa-times-circle me-2"></i> انصراف</a>
-                </div>
-            </form>
+            <button type="submit" class="btn btn-primary btn-block btn-lg py-3 shadow-lg mb-5">💾 ثبت نهایی اطلاعات و ویزیت</button>
         </div>
-    </div>
+    </form>
 </div>
-{% endblock %}
 
-{% block extra_js %}
-    {{ form.media.js }}
-    <script src="{% static 'js/select2.min.js' %}"></script>
-    <script src="{% static 'js/i18n/fa.js' %}"></script>
-    
-    <script>
-    $(document).ready(function() {
-        // =========================================================
-        // تابع مقداردهی اولیه Select2 برای فیلد بیمار
-        // =========================================================
-        function initializeSelect2Patient(element) {
-            element.select2({
-                placeholder: element.data('placeholder') || 'جستجو...',
-                minimumInputLength: 2,
-                allowClear: true,
-                language: "fa",
-                ajax: {
-                    url: "{% url 'visits:patient_search_api' %}",
-                    dataType: 'json',
-                    delay: 250,
-                    data: function (params) {
-                        return { q: params.term, page: params.page };
-                    },
-                    processResults: function (data) {
-                        return { results: data };
-                    },
-                    cache: true
-                },
-                templateResult: function(data) {
-                    if (data.loading) {
-                        return data.text;
-                    }
-                    return $(
-                        '<div>' + data.text +
-                        '<br><small class="text-muted">' +
-                        (data.national_code ? 'کد ملی: ' + data.national_code : '') +
-                        (data.phone_number ? ' | موبایل: ' + data.phone_number : '') +
-                        '</small></div>'
-                    );
-                },
-                templateSelection: function(data) {
-                    if (!data.id) { return data.text; }
-                    if (data.text) {
-                        return data.text;
-                    }
-                    var option = element.find('option[value="' + data.id + '"]');
-                    return option.text();
+<script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
+
+<script>
+$(document).ready(function() {
+    // مبدل اعداد فارسی به انگلیسی
+    const p2e = s => String(s).replace(/[۰-۹]/g, d => '۰۱۲۳۴۵۶۷۸۹'.indexOf(d)).replace(/[٠-٩]/g, d => '٠١٢٣٤٥٦٧٨٩'.indexOf(d));
+
+    $(document).on('input', '.fa-num-fix', function() {
+        let val = p2e($(this).val());
+        $(this).val(val);
+        if ($(this).attr('id') === 'id_height_cm' || $(this).attr('id') === 'id_weight_kg') calcBMI();
+    });
+
+    function applyStyles() {
+        $('input, textarea, select').addClass('form-control');
+        $('textarea[id$="-notes"]').addClass('drug-notes').attr('rows', '1');
+    }
+    applyStyles();
+
+    // تابع اصلی Select2 با منطق دقیق انقضا و موجودی
+    function initS2(selector, url, ph, isDrug = false) {
+        $(selector).select2({
+            placeholder: ph, width: '100%', dir: 'rtl', minimumInputLength: 1,
+            ajax: {
+                url: url, dataType: 'json', delay: 250,
+                data: p => ({ q: p2e(p.term || '') }),
+                processResults: data => ({
+                    results: $.map(data, item => ({
+                        id: item.id || item.pk,
+                        text: item.text || item.name,
+                        stock: item.total_stock,
+                        low: item.is_low_stock,
+                        is_expired: item.is_expired, // دریافت از بک‌ند
+                        near_expiry: item.near_expiry // دریافت از بک‌ند
+                    }))
+                })
+            },
+            templateResult: function(item) {
+                if (!item.id || !isDrug) return item.text;
+
+                let badgeClass = "badge-success";
+                let statusText = "دارای اعتبار";
+                let textClass = "";
+                let extraBadge = "";
+
+                // ۱. بررسی انقضا (اولویت اول)
+                if (item.is_expired) {
+                    badgeClass = "badge-danger";
+                    statusText = "🔴 منقضی شده";
+                    textClass = "expired-text";
+                    extraBadge = '<span class="badge badge-dark badge-stock-info">غیرقابل مصرف</span>';
+                } 
+                else if (item.near_expiry) {
+                    badgeClass = "badge-warning text-dark";
+                    statusText = "نزدیک انقضا";
+                    textClass = "near-expiry-text";
+                    extraBadge = '<span class="badge badge-secondary badge-stock-info">⚠️ اولویت مصرف</span>';
                 }
-            });
-        }
-        
-        $('#id_patient').on('select2:select', function (e) {
-            const data = e.params.data;
-            if (data && data.id) {
-                $.ajax({
-                    url: "{% url 'visits:patient_detail_api' %}",
-                    data: { patient_id: data.id },
-                    dataType: 'json',
-                    success: function(patientData) {
-                        if (patientData) {
-                            $('#patient-age').val(patientData.age || 'نامشخص');
-                            $('#patient-allergies').val(patientData.allergies || 'ندارد');
-                            $('#patient-medical-history').val(patientData.medical_history || 'ندارد');
-                            $('#patient-visit-count').val(patientData.visit_count || '0');
-                            $('#patient-last-visit-date').val(patientData.last_visit_date || 'ندارد');
-                            $('#patient-last-visit-reason').val(patientData.last_visit_reason || 'ندارد');
-                        }
-                    },
-                    error: function(xhr, status, error) {
-                        console.error("Error fetching patient details:", status, error);
+
+                // ۲. بررسی موجودی (اگر منقضی نبود)
+                if (!item.is_expired) {
+                    if (item.stock <= 0) {
+                        badgeClass = "badge-danger";
+                        statusText = "ناموجود";
+                    } else if (item.low && !item.near_expiry) {
+                        badgeClass = "badge-warning text-dark";
+                        statusText = "کمبود انبار";
                     }
-                });
+                }
+
+                return $(`
+                    <div class="s2-drug-wrapper">
+                        <span class="${textClass}" style="font-weight:bold;">${item.text}</span>
+                        <div>
+                            <span class="badge badge-light border badge-stock-info">موجودی: ${item.stock || 0}</span>
+                            <span class="badge ${badgeClass} badge-stock-info">${statusText}</span>
+                            ${extraBadge}
+                        </div>
+                    </div>
+                `);
             }
+        }).on('select2:select', function() {
+            let row = $(this).closest('.item-row');
+            let qty = row.find('.fa-num-fix');
+            if(qty.length) { qty.addClass('highlight-qty').focus(); setTimeout(() => qty.removeClass('highlight-qty'), 800); }
         });
+    }
 
-        $('#id_patient').on('select2:unselect', function (e) {
-            $('#patient-age').val('');
-            $('#patient-allergies').val('');
-            $('#patient-medical-history').val('');
-            $('#patient-visit-count').val('');
-            $('#patient-last-visit-date').val('');
-            $('#patient-last-visit-reason').val('');
-        });
-        
-        // =========================================================
-        // تابع مقداردهی اولیه Select2 برای فیلد دارو
-        // =========================================================
-        function initializeSelect2Drug(element) {
-            element.select2({
-                placeholder: "جستجوی دارو...",
-                minimumInputLength: 2,
-                allowClear: true,
-                language: "fa",
-                ajax: {
-                    url: "{% url 'visits:api_drug_search' %}",
-                    dataType: 'json',
-                    delay: 250,
-                    data: function (params) {
-                        return { q: params.term, page: params.page };
-                    },
-                    processResults: function (data, params) {
-                        params.page = params.page || 1;
-                        const results = data || [];
-                        return {
-                            results: $.map(results, function (item) {
-                                return { id: item.id, text: item.text };
-                            }),
-                            pagination: { more: false }
-                        };
-                    },
-                    cache: true
-                }
-            });
-        }
+    // مقداردهی اولیه
+    initS2('#id_patient', "{% url 'visits:patient_search_api' %}", "انتخاب بیمار...");
+    initS2('#id_reason_for_visit', "{% url 'visits:api_reason_search' %}", "جستجوی علت مراجعه...");
+    $('select[id$="-drug"]').each(function() { initS2(this, "{% url 'visits:api_drug_search' %}", "انتخاب دارو...", true); });
 
-        // =========================================================
-        // تابع محاسبه‌گر BMI
-        // =========================================================
-        const heightInput = $('#id_height_cm');
-        const weightInput = $('#id_weight_kg');
-        const bmiResultEl = $('#bmi-result');
-        const bmiStatusEl = $('#bmi-status');
-
-        function calculateBmi() {
-            const height = parseFloat(heightInput.val());
-            const weight = parseFloat(weightInput.val());
-
-            if (height > 0 && weight > 0) {
-                const heightInMeters = height / 100;
-                const bmi = (weight / (heightInMeters * heightInMeters)).toFixed(1);
-                bmiResultEl.text(bmi);
-
-                let statusText = '';
-                let statusColor = '';
-                let borderColor = '';
-
-                if (bmi < 18.5) {
-                    statusText = 'کمبود وزن'; statusColor = '#0dcaf0'; borderColor = '#0dcaf0';
-                } else if (bmi >= 18.5 && bmi < 25) {
-                    statusText = 'نرمال'; statusColor = '#198754'; borderColor = '#198754';
-                } else if (bmi >= 25 && bmi < 30) {
-                    statusText = 'اضافه‌وزن'; statusColor = '#ffc107'; borderColor = '#ffc107';
-                } else {
-                    statusText = 'چاقی'; statusColor = '#dc3545'; borderColor = '#dc3545';
-                }
-                bmiStatusEl.text(statusText).css('color', statusColor);
-                bmiResultEl.css('border', `2px solid ${borderColor}`);
-            } else {
-                bmiResultEl.text('---');
-                bmiStatusEl.text('');
-                bmiResultEl.css('border', '');
-            }
-        }
-
-        // =========================================================
-        // اجرای توابع در زمان بارگذاری صفحه
-        // =========================================================
-        initializeSelect2Patient($('#id_patient'));
-
-        const initialPatientId = $('#id_patient').val();
-        if (initialPatientId) {
-            $.ajax({
-                url: "{% url 'visits:patient_detail_api' %}",
-                data: { patient_id: initialPatientId },
-                dataType: 'json',
-                success: function(data) {
-                    if (data) {
-                        $('#patient-age').val(data.age || 'نامشخص');
-                        $('#patient-allergies').val(data.allergies || 'ندارد');
-                        $('#patient-medical-history').val(data.medical_history || 'ندارد');
-                        $('#patient-visit-count').val(data.visit_count || '0');
-                        $('#patient-last-visit-date').val(data.last_visit_date || 'ندارد');
-                        $('#patient-last-visit-reason').val(data.last_visit_reason || 'ندارد');
-                    }
-                },
-                error: function(xhr, status, error) {
-                    console.error("Error fetching patient details:", status, error);
-                    $('#patient-age').val('');
-                    $('#patient-allergies').val('');
-                    $('#patient-medical-history').val('');
-                    $('#patient-visit-count').val('');
-                    $('#patient-last-visit-date').val('');
-                    $('#patient-last-visit-reason').val('');
-                }
-            });
-        }
-
-        // انتخاب فیلدهای دارو با شناسه (ID) به جای کلاس
-        $('#formset-container').find('select[id$="-drug"]').each(function() {
-            initializeSelect2Drug($(this));
-        });
-
-        calculateBmi(); 
-        heightInput.on('input', calculateBmi);
-        weightInput.on('input', calculateBmi);
-
-        // =========================================================
-        // مدیریت افزودن ردیف جدید در فرم‌ست (داروها)
-        // =========================================================
-        $('#add-item-btn').click(function() {
-            const totalForms = $('#id_items-TOTAL_FORMS');
-            const index = parseInt(totalForms.val());
-            const newFormHtml = $('#empty-form').html().replace(/__prefix__/g, index);
-            const newFormRow = $(newFormHtml);
-            
-            $('#formset-container').append(newFormRow);
-            totalForms.val(index + 1);
-
-            initializeSelect2Drug(newFormRow.find('select[id$="-drug"]'));
-
-            $('html, body').animate({ scrollTop: newFormRow.offset().top - 100 }, 500);
-        });
-
-        // =========================================================
-        // مدیریت حذف ردیف در فرم‌ست (داروها)
-        // =========================================================
-        $('#formset-container').on('click', '.delete-row-btn', function() {
-            const row = $(this).closest('.item-row');
-            const deleteCheckbox = row.find('input[id$="-DELETE"]');
-
-            if (deleteCheckbox.length) {
-                deleteCheckbox.prop('checked', true);
-                row.hide();
-            } else {
-                row.remove();
+    // بارگذاری سوابق بیمار
+    $('#id_patient').on('select2:select', function(e) {
+        $.ajax({
+            url: "{% url 'visits:patient_detail_api' %}",
+            data: { 'patient_id': e.params.data.id },
+            success: function(res) {
+                $('#h-age').text(res.age || "---"); 
+                $('#h-occupation').text(res.occupation || "ثبت نشده");
+                $('#h-allergies').text(res.allergies || "موردی ندارد");
+                $('#h-medical').text(res.medical_history || "فاقد سابقه");
+                $('#h-count').text(res.visit_count || "0");
+                $('#h-date').text(res.last_visit_date || "---");
+                $('#h-last-reason').text(res.last_visit_reason || "ویزیت اول");
+                $('#patient-history').slideDown();
+                $('#main-form-content').fadeIn();
             }
         });
     });
-    </script>
-{% endblock %}
+
+    function calcBMI() {
+        let h = parseFloat($('#id_height_cm').val()) / 100;
+        let w = parseFloat($('#id_weight_kg').val());
+        if (h > 0 && w > 0) $('#bmi-val').text((w / (h * h)).toFixed(1));
+    }
+
+    // مدیریت افزودن سطر دارو
+    $('#add-drug').click(function() {
+        let total = $('#id_items-TOTAL_FORMS');
+        let idx = parseInt(total.val());
+        let tpl = `
+            <div class="item-row">
+                <div class="row align-items-end">
+                    <div class="col-md-5 col-12"><label class="small">جستجوی دارو:</label><select name="items-${idx}-drug" id="id_items-${idx}-drug"></select></div>
+                    <div class="col-md-1 col-4"><label class="small">تعداد:</label><input type="tel" name="items-${idx}-quantity" class="form-control fa-num-fix text-center"></div>
+                    <div class="col-md-5 col-6"><label class="small">دستور مصرف:</label><textarea name="items-${idx}-notes" class="form-control drug-notes"></textarea></div>
+                    <div class="col-md-1 col-2"><button type="button" class="btn btn-link text-danger remove-row">حذف</button></div>
+                </div>
+            </div>`;
+        $('#drug-container').append(tpl);
+        total.val(idx + 1);
+        initS2(`#id_items-${idx}-drug`, "{% url 'visits:api_drug_search' %}", "انتخاب دارو...", true);
+        applyStyles();
+    });
+
+    $(document).on('click', '.remove-row', function() { $(this).closest('.item-row').remove(); });
+
+    // اعتبارسنجی فرم
+    $('#visit-form').on('submit', function(e) {
+        if (!$('#id_reason_for_visit').val() || !$('#id_treatment_result').val()) {
+            e.preventDefault();
+            alert("⚠️ تکمیل فیلدهای 'علت مراجعه' و 'نتیجه درمان' الزامی است.");
+        }
+    });
+});
+</script>
+</body>
+</html>

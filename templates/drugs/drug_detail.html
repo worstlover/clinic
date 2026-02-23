@@ -1,14 +1,13 @@
-{# D:\final\drugs\templates\drugs\drug_detail.html #}
-{% extends 'base.html' %}
+{% extends main_base %}
 {% load static %}
-{% load persian_dates %}
+{% load jformat %}
 
 {% block title %}
     جزئیات دارو: {{ drug.name }}
 {% endblock %}
 
 {% block content %}
-    <h1 class="content-header-padding">جزئیات دارو: {{ drug.name }}</h1>
+    <h1 class="content-header-padding text-end">جزئیات دارو: {{ drug.name }}</h1>
 
     <div class="card shadow-sm border-0 mb-4 mx-3">
         <div class="card-body">
@@ -24,31 +23,31 @@
             {% endif %}
 
             <div class="row mb-3">
-                <div class="col-md-6 text-end">
+                <div class="col-12 col-md-6 text-end">
                     <strong>نام دارو:</strong> {{ drug.name }}
                 </div>
-                <div class="col-md-6 text-end">
+                <div class="col-12 col-md-6 text-end">
                     <strong>نام ژنریک:</strong> {{ drug.generic_name|default:"-" }}
                 </div>
-                <div class="col-md-6 text-end">
+                <div class="col-12 col-md-6 text-end">
                     <strong>کد دارو:</strong> {{ drug.drug_code|default:"-" }}
                 </div>
-                <div class="col-md-6 text-end">
+                <div class="col-12 col-md-6 text-end">
                     <strong>فرم دارو:</strong> {{ drug.get_drug_form_display }}
                 </div>
-                <div class="col-md-6 text-end">
+                <div class="col-12 col-md-6 text-end">
                     <strong>موجودی فعلی:</strong>
                     <span class="badge {% if drug.is_low_stock %}bg-danger{% elif drug.current_stock < drug.reorder_point %}bg-warning{% else %}bg-success{% endif %}">
                         {{ drug.total_quantity }}
                     </span>
                 </div>
-                <div class="col-md-6 text-end">
+                <div class="col-12 col-md-6 text-end">
                     <strong>حداقل موجودی هشدار:</strong> {{ drug.min_stock_alert }}
                 </div>
-                <div class="col-md-6 text-end">
+                <div class="col-12 col-md-6 text-end">
                     <strong>نقطه سفارش مجدد:</strong> {{ drug.reorder_point }}
                 </div>
-                <div class="col-md-12 text-end">
+                <div class="col-12 text-end">
                     <strong>توضیحات:</strong> {{ drug.description|default:"-" }}
                 </div>
             </div>
@@ -72,7 +71,7 @@
                                 <tr>
                                     <td>{{ batch.batch_number|default:"-" }}</td>
                                     <td>{{ batch.quantity }}</td>
-                                    <td>{{ batch.expiry_date|to_persian_date:"%Y/%m/%d" }}</td>
+                                    <td>{{ batch.expiry_date|jformat:"%Y/%m/%d" }}</td>
                                     <td>
                                         {% if batch.is_expired %}
                                             <span class="badge bg-danger">منقضی شده</span>

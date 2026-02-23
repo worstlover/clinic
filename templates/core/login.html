@@ -1,104 +1,73 @@
-{% csrf_token %} 
 <!DOCTYPE html>
 <html lang="fa" dir="rtl">
-   
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>ورود به سیستم مدیریت درمانگاه</title>
+    
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.rtl.min.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    
     <style>
-        /* استایل های CSS ساده برای فرم لاگین */
-        body {
-            font-family: Arial, sans-serif;
-            background-color: #f4f4f4;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            min-height: 100vh;
-            margin: 0;
-        }
-        .login-container {
-            background-color: #fff;
-            padding: 30px;
-            border-radius: 8px;
-            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
-            width: 350px;
-            text-align: center;
-        }
-        .login-container h2 {
-            margin-bottom: 20px;
-            color: #333;
-        }
-        .form-group {
-            margin-bottom: 15px;
-            text-align: right; /* برای RTL */
-        }
-        .form-group label {
-            display: block;
-            margin-bottom: 5px;
-            color: #555;
-        }
-        .form-group input[type="text"],
-        .form-group input[type="password"] {
-            width: calc(100% - 20px); /* عرض منهای padding */
-            padding: 10px;
-            border: 1px solid #ddd;
-            border-radius: 4px;
-            box-sizing: border-box; /* شامل padding و border در عرض */
-        }
-        .form-group button {
-            width: 100%;
-            padding: 10px;
-            background-color: #007bff;
-            color: white;
-            border: none;
-            border-radius: 4px;
-            cursor: pointer;
-            font-size: 16px;
-            margin-top: 10px;
-        }
-        .form-group button:hover {
-            background-color: #0056b3;
-        }
-        .errorlist {
-            color: red;
-            text-align: right;
-            list-style-type: none;
-            padding: 0;
-            margin-top: -10px;
-            margin-bottom: 10px;
-        }
+        @import url('https://cdn.jsdelivr.net/gh/rastikerdar/sahel-font@v3.4.0/dist/font-face.css');
+        body { font-family: 'Sahel', sans-serif; background: linear-gradient(45deg, #1a2a6c, #b21f1f, #fdbb2d); background-size: 400% 400%; animation: gradient 15s ease infinite; height: 100vh; display: flex; align-items: center; justify-content: center; margin: 0; }
+        @keyframes gradient { 0% {background-position: 0% 50%;} 50% {background-position: 100% 50%;} 100% {background-position: 0% 50%;} }
+        .login-card { background: rgba(255, 255, 255, 0.95); border-radius: 25px; box-shadow: 0 20px 60px rgba(0,0,0,0.3); width: 100%; max-width: 400px; padding: 40px; border: 1px solid rgba(255,255,255,0.2); }
+        .btn-primary { background: #1a2a6c; border: none; border-radius: 12px; padding: 12px; transition: 0.3s; }
+        .btn-biometric { border: 2px solid #1a2a6c; color: #1a2a6c; border-radius: 12px; padding: 10px; font-weight: bold; background: transparent; transition: 0.3s; display: flex; align-items: center; justify-content: center; gap: 10px; width: 100%; }
+        .btn-biometric:hover { background: #1a2a6c; color: white; }
+        .errorlist { color: #d9534f; list-style: none; padding: 0; font-size: 0.85rem; text-align: center; margin-bottom: 15px; }
     </style>
 </head>
 <body>
-    <div class="login-container">
-        <h2>ورود به سیستم</h2>
-        {% if form.errors %}
-            <ul class="errorlist">
-                {% for field in form %}
-                    {% for error in field.errors %}
-                        <li>{{ error }}</li>
-                    {% endfor %}
-                {% endfor %}
-                {% for error in form.non_field_errors %}
-                    <li>{{ error }}</li>
-                {% endfor %}
-            </ul>
-        {% endif %}
-        <form method="post">
-            {% csrf_token %} {# این تگ برای امنیت Django ضروری است #}
-            <div class="form-group">
-                <label for="{{ form.username.id_for_label }}">نام کاربری:</label>
-                <input type="text" name="{{ form.username.name }}" id="{{ form.username.id_for_label }}" required>
-            </div>
-            <div class="form-group">
-                <label for="{{ form.password.id_for_label }}">رمز عبور:</label>
-                <input type="password" name="{{ form.password.name }}" id="{{ form.password.id_for_label }}" required>
-            </div>
-            <div class="form-group">
-                <button type="submit">ورود</button>
-            </div>
-        </form>
+
+<div class="login-card">
+    <div class="text-center mb-4">
+        <i class="fas fa-hospital-user fa-3x text-primary mb-3"></i>
+        <h4 class="fw-bold">سامانه هوشمند درمانگاه</h4>
+        <p class="text-muted small">لطفاً جهت دسترسی وارد شوید</p>
     </div>
+
+    {% if form.errors %}
+        <div class="alert alert-danger p-2">
+            <ul class="errorlist m-0">
+                {% for field in form %}{% for error in field.errors %}<li>{{ error }}</li>{% endfor %}{% endfor %}
+                {% for error in form.non_field_errors %}<li>{{ error }}</li>{% endfor %}
+            </ul>
+        </div>
+    {% endif %}
+
+    <form method="post" id="main-login-form">
+        {% csrf_token %}
+        <div class="mb-3">
+            <label class="form-label small fw-bold">نام کاربری</label>
+            <input type="text" name="username" class="form-control" style="border-radius:10px" required>
+        </div>
+        
+        <div class="mb-4">
+            <label class="form-label small fw-bold">رمز عبور</label>
+            <input type="password" name="password" class="form-control" style="border-radius:10px" required>
+        </div>
+
+        <button type="submit" class="btn btn-primary w-100 mb-3 fw-bold">ورود به پنل</button>
+
+        
+    </form>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+<script>
+    function handleBiometric() {
+        // آدرس صحیح برای احراز هویت بیومتریک در پکیج django-mfa2
+        window.location.href = "/mfa/fido2/auth";
+    }
+
+    // جلوگیری از اجرای اسکریپت‌های پیام قبل از لاگین برای رفع خطای ۴۰۳
+    window.onerror = function(msg, url, line) {
+        if (msg.includes("unread_count")) return true; // نادیده گرفتن خطای پیام‌ها در صفحه لاگین
+    };
+</script>
 </body>
 </html>

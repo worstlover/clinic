@@ -1,185 +1,293 @@
-{% extends 'base.html' %}
+{% extends main_base %}
 {% load static %}
+{% load jformat %}
 
 {% block content %}
-    <h1 class="content-header-padding">{{ page_title }}</h1>
-    <p class="mx-3">{% if welcome_message %}{{ welcome_message }}{% endif %}</p>
-
-    <div class="row mx-3">
-        {# کارت ویزیت‌های ارجاعی جدید #}
-        {# این کارت احتمالا برای تمام کادر پزشکی و پرستاری قابل مشاهده است #}
-        {% if request.user.is_authenticated and is_medical_staff %}
-        <div class="col-md-4 mb-4">
-            <div class="card shadow-sm border-0">
-                <div class="card-body">
-                    <h5 class="card-title text-primary">
-                        <i class="fas fa-bell me-2"></i>ویزیت‌های ارجاعی جدید
-                        <span class="badge bg-danger ms-2" id="unreadVisitsBadge" style="display: none;">
-                            <span id="unreadVisitsCount">0</span>
-                        </span>
-                    </h5>
-                    <p class="card-text">ویزیت‌هایی که اخیراً به شما ارجاع داده شده‌اند.</p>
-                    <a href="{% url 'visits:visit_list' %}?view=referred_to_me" class="btn btn-outline-primary">مشاهده ویزیت‌ها</a>
-                </div>
-            </div>
+<div class="container-fluid py-3 py-md-4">
+    <div class="d-flex flex-column flex-md-row justify-content-between align-items-md-center mb-4 px-2">
+        <div class="mb-3 mb-md-0">
+            <h1 class="h4 mb-1 text-gray-800 fw-bold">{{ page_title }}</h1>
+            <p class="text-muted small mb-0">{{ welcome_message }}</p>
         </div>
-        {% endif %}
-
-        {# کارت بیماران - مثلاً فقط برای پزشکان، سرپرست‌ها (Supervisor) و پرسنل پذیرش #}
-        {% if request.user.is_superuser or is_doctor or is_supervisor or is_personnel %}
-        <div class="col-md-4 mb-4">
-            <div class="card shadow-sm border-0">
-                <div class="card-body">
-                    <h5 class="card-title text-primary"><i class="fas fa-hospital-user me-2"></i>بیماران</h5>
-                    <p class="card-text">مدیریت اطلاعات بیماران، افزودن، ویرایش و حذف.</p>
-                    <a href="{% url 'core:patient_list' %}" class="btn btn-outline-primary">مشاهده بیماران</a>
-                </div>
-            </div>
-        </div>
-        {% endif %}
-
-        {# کارت داروها - مثلاً فقط برای داروسازان یا کادر انبار #}
-        {# در Context Processor شما نقش Pharmacist یا Warehouse Manager تعریف نشده است. #}
-        {# اگر این گروه‌ها را دارید، باید به user_groups_processor اضافه شوند. #}
-        {# فعلا فرض می‌کنیم فقط Supervisor یا Medical Staff دسترسی دارند. #}
-        {% if request.user.is_superuser or is_supervisor or is_medical_staff %}
-        <div class="col-md-4 mb-4">
-            <div class="card shadow-sm border-0">
-                <div class="card-body">
-                    <h5 class="card-title text-success"><i class="fas fa-pills me-2"></i>داروها</h5>
-                    <p class="card-text">مدیریت موجودی داروها، ثبت خرید و درخواست.</p>
-                    <a href="{% url 'drugs:drug_list' %}" class="btn btn-outline-success">مشاهده داروها</a>
-                </div>
-            </div>
-        </div>
-        {% endif %}
-
-        {# کارت ویزیت‌ها - مثلاً برای پزشکان، سرپرست‌ها (Supervisor) و پرستاران #}
-        {% if request.user.is_superuser or is_doctor or is_supervisor or is_nurse %}
-        <div class="col-md-4 mb-4">
-            <div class="card shadow-sm border-0">
-                <div class="card-body">
-                    <h5 class="card-title text-info"><i class="fas fa-clipboard-list me-2"></i>ویزیت‌ها</h5>
-                    <p class="card-text">ثبت و مدیریت اطلاعات ویزیت‌های بیماران.</p>
-                    <a href="{% url 'visits:visit_list' %}" class="btn btn-outline-info">مشاهده ویزیت‌ها</a>
-                </div>
-            </div>
-        </div>
-        {% endif %}
-
-        {# کارت پیام‌ها - برای همه کاربران لاگین کرده #}
-        {% if request.user.is_authenticated %}
-        <div class="col-md-4 mb-4">
-            <div class="card shadow-sm border-0">
-                <div class="card-body">
-                    <h5 class="card-title text-danger"><i class="fas fa-inbox me-2"></i>پیام‌ها</h5>
-                    <p class="card-text">ارسال و دریافت پیام‌های داخلی سیستم.</p>
-                    <a href="{% url 'clinic_messages:message_inbox' %}" class="btn btn-outline-danger">مشاهده پیام‌ها</a>
-                </div>
-            </div>
-        </div>
-        {% endif %}
-
-        {# کارت درخواست‌های دارو - مثلاً برای پزشکان و پرستاران و سرپرست‌ها #}
-        {% if request.user.is_superuser or is_doctor or is_nurse or is_supervisor %}
-        <div class="col-md-4 mb-4">
-            <div class="card shadow-sm border-0">
-                <div class="card-body">
-                    <h5 class="card-title text-purple"><i class="fas fa-notes-medical me-2"></i>درخواست‌های دارو</h5>
-                    <p class="card-text">مدیریت درخواست‌های دارو از انبار.</p>
-                    <a href="{% url 'drugs:drug_request_list' %}" class="btn btn-outline-purple">مشاهده درخواست‌ها</a>
-                </div>
-            </div>
-        </div>
-        {% endif %}
-
-        {# کارت فاکتورهای خرید - مثلاً برای حسابداران یا سرپرست‌ها #}
-        {% if request.user.is_superuser or is_accountant or is_supervisor %}
-        <div class="col-md-4 mb-4">
-            <div class="card shadow-sm border-0">
-                <div class="card-body">
-                    <h5 class="card-title text-dark"><i class="fas fa-file-invoice-dollar me-2"></i>فاکتورهای خرید</h5>
-                    <p class="card-text">ثبت و پیگیری فاکتورهای خرید دارو و تجهیزات.</p>
-                    <a href="{% url 'drugs:purchase_invoice_list' %}" class="btn btn-outline-dark">مشاهده فاکتورها</a>
-                </div>
-            </div>
-        </div>
-        {% endif %}
         
-        {# کارت تامین‌کنندگان - مثلاً برای سرپرست‌ها، حسابداران یا تامین‌کنندگان (اگر تامین‌کنندگان هم لاگین می‌کنند) #}
-        {% if request.user.is_superuser or is_supervisor or is_accountant or is_supplier %}
-        <div class="col-md-4 mb-4">
-            <div class="card shadow-sm border-0">
+        <div class="d-flex flex-column align-items-end gap-2">
+            <div class="btn-group btn-group-sm shadow-sm" role="group">
+                <a href="?shift_mode=12" class="btn {% if shift_mode == '12' %}btn-primary{% else %}btn-outline-primary bg-white{% endif %}">
+                    <i class="fas fa-history me-1"></i> ۱۲ ساعته
+                </a>
+                <a href="?shift_mode=24" class="btn {% if shift_mode == '24' %}btn-primary{% else %}btn-outline-primary bg-white{% endif %}">
+                    <i class="fas fa-clock me-1"></i> ۲۴ ساعته
+                </a>
+            </div>
+            
+            <div class="text-muted x-small">
+                <span class="badge bg-light text-dark border">
+                    {{ current_shift_label }}
+                </span>
+                <span class="ms-1">
+                     (از <span dir="ltr" class="fw-bold">{{ shift_start|date:"H:i" }}</span> تا <span dir="ltr" class="fw-bold">{{ shift_end|date:"H:i" }}</span>)
+                </span>
+            </div>
+        </div>
+    </div>
+    
+    <a href="{% url 'core:manage_daily_report' %}" class="btn btn-primary shadow-sm mb-4">
+        <i class="fas fa-file-medical me-2"></i> ثبت و چاپ گزارش روزانه
+    </a>
+
+    <div class="row g-3 px-2 mb-4">
+        <div class="col-12 col-lg-4">
+            <div class="card shadow-sm border-0 bg-dark text-white h-100">
                 <div class="card-body">
-                    <h5 class="card-title text-info"><i class="fas fa-truck-loading me-2"></i>تامین‌کنندگان</h5>
-                    <p class="card-text">مدیریت اطلاعات تامین‌کنندگان داروها و لوازم.</p>
-                    <a href="{% url 'drugs:supplier_list' %}" class="btn btn-outline-info">مشاهده تامین‌کنندگان</a>
+                    <div class="d-flex justify-content-between align-items-center mb-3">
+                        <h6 class="card-title text-white-50 small mb-0">ویزیت‌های لحظه‌ای</h6>
+                        <span class="badge bg-warning text-dark" style="font-size: 0.7rem;">{{ total_visits_shift }} نفر</span>
+                    </div>
+                    
+                    <div class="list-container" style="max-height: 350px; overflow-y: auto; padding-right: 5px;">
+                        {% for v in shift_visits %}
+                        <div class="d-flex flex-column small border-bottom border-secondary py-2 mb-1">
+                            <div class="d-flex justify-content-between align-items-center mb-1">
+                                <span class="fw-bold text-white">{{ v.patient.full_name }}</span>
+                                <span class="text-white-50 x-small" dir="ltr">{{ v.visit_date|jformat:"%H:%M" }}</span>
+                            </div>
+
+                            <div class="d-flex justify-content-between align-items-center">
+                                <span class="x-small {% if v.status == 'pending' %}text-warning{% elif v.status == 'completed' %}text-success{% else %}text-info{% endif %}">
+                                    <i class="fas fa-circle-notch {% if v.status == 'pending' %}fa-spin{% endif %} me-1" style="font-size: 0.6rem;"></i>
+                                    {{ v.get_status_display }}
+                                </span>
+
+                                {% if v.assigned_to %}
+                                <div class="d-flex align-items-center bg-secondary bg-opacity-50 px-2 py-1 rounded-pill" title="پزشک معالج">
+                                    <i class="fas fa-user-md text-info me-1" style="font-size: 0.7rem;"></i>
+                                    <span class="text-light x-small">{{ v.assigned_to.get_full_name|default:v.assigned_to.username }}</span>
+                                </div>
+                                {% else %}
+                                <span class="text-white-50 x-small fst-italic">-- بدون ارجاع --</span>
+                                {% endif %}
+                            </div>
+                        </div>
+                        {% empty %}
+                        <div class="text-center py-4">
+                            <i class="fas fa-clipboard-check fa-2x text-white-50 mb-2"></i>
+                            <p class="text-white-50 small mb-0">هیچ ویزیتی در این بازه ثبت نشده است.</p>
+                        </div>
+                        {% endfor %}
+                    </div>
                 </div>
             </div>
         </div>
-        {% endif %}
+
+        <div class="col-12 col-lg-8">
+            <div class="card shadow-sm border-0 h-100">
+                <div class="card-header bg-white py-3 border-bottom-0">
+                    <h6 class="m-0 font-weight-bold text-primary small"><i class="fas fa-chart-pie me-2"></i>عملکرد پرسنل ({{ current_month_name }})</h6>
+                </div>
+                <div class="card-body p-0">
+                    <div class="table-responsive">
+                        <table class="table table-hover align-middle mb-0" style="font-size: 0.85rem;">
+                            <thead class="bg-light text-secondary">
+                                <tr>
+                                    <th class="ps-3 border-0">نام پزشک/پرستار</th>
+                                    <th class="text-center border-0">تعداد ویزیت</th>
+                                    <th class="d-none d-md-table-cell border-0">سهم از کل ({{ total_month_visits }})</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for u in user_stats %}
+                                <tr>
+                                    <td class="ps-3">
+                                        <div class="d-flex align-items-center">
+                                            <div class="bg-primary-subtle text-primary rounded-circle d-flex align-items-center justify-content-center me-2" style="width: 30px; height: 30px; font-size: 0.7rem;">
+                                                {{ u.first_name|first|default:u.username|first|upper }}
+                                            </div>
+                                            <strong>{{ u.get_full_name|default:u.username }}</strong>
+                                        </div>
+                                    </td>
+                                    <td class="text-center"><span class="badge bg-primary rounded-pill px-3">{{ u.visit_count }}</span></td>
+                                    <td class="pe-3 d-none d-md-table-cell">
+                                        <div class="d-flex align-items-center" style="gap: 10px;">
+                                            <div class="progress flex-grow-1" style="height: 6px;">
+                                                <div class="progress-bar bg-info" role="progressbar" style="width: {{ u.share_percent }}%"></div>
+                                            </div>
+                                            <span class="fw-bold text-muted x-small" style="min-width: 35px;">{{ u.share_percent }}%</span>
+                                        </div>
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
     </div>
-{% endblock %}
 
-{% block extra_js %}
-<script>
-    const csrftoken = "{{ csrf_token }}"; 
+    <div class="row g-3 px-2 mb-4">
+        <div class="col-12 col-md-6">
+            <div class="card shadow-sm border-0 h-100">
+                <div class="card-header bg-white pb-0 pt-3">
+                    <div class="d-flex justify-content-between align-items-center mb-2">
+                        <h6 class="font-weight-bold text-dark small mb-0">علل مراجعه</h6>
+                    </div>
+                    <ul class="nav nav-tabs nav-justified card-header-tabs" id="reasonTab" role="tablist">
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link active small py-2" data-bs-toggle="tab" data-bs-target="#reason-shift" type="button">شیفت جاری</button>
+                        </li>
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link small py-2" data-bs-toggle="tab" data-bs-target="#reason-month" type="button">کل ماه</button>
+                        </li>
+                    </ul>
+                </div>
+                <div class="tab-content card-body p-3" style="min-height: 200px;">
+                    <div class="tab-pane fade show active" id="reason-shift">
+                        {% for item in reasons_shift %}
+                        <div class="d-flex justify-content-between mb-2 small border-bottom pb-1 border-light">
+                            <span>{{ item.reason_for_visit__name|default:"سایر" }}</span>
+                            <span class="fw-bold">{{ item.count }}</span>
+                        </div>
+                        {% empty %}<p class="text-center text-muted small mt-4">داده‌ای یافت نشد</p>{% endfor %}
+                    </div>
+                    <div class="tab-pane fade" id="reason-month">
+                        {% for item in reasons_month %}
+                        <div class="d-flex justify-content-between mb-2 small border-bottom pb-1 border-light">
+                            <span>{{ item.reason_for_visit__name|default:"سایر" }}</span>
+                            <span class="badge bg-secondary-subtle text-dark rounded-pill">{{ item.count }}</span>
+                        </div>
+                        {% endfor %}
+                    </div>
+                </div>
+            </div>
+        </div>
 
-    function fetchUnreadVisitsCount() {
-        // ✅ این خط اصلاح شد: حالا به API صحیح ویزیت‌های ارجاعی اشاره می‌کند.
-        fetch('{% url "visits:api_unread_referred_visits_count" %}', { 
-            method: 'GET',
-            headers: {
-                'X-CSRFToken': csrftoken,
-                'Content-Type': 'application/json'
-            }
-        })
-        .then(response => {
-            if (!response.ok) {
-                if (response.status === 401) {
-                    console.warn("User not authenticated for unread count. Redirecting to login.");
-                    window.location.href = "{% url 'login' %}";
-                }
-                console.error('Network response was not ok', response.statusText); // ✅ اضافه کردن لاگ
-                throw new Error('Network response was not ok');
-            }
-            return response.json();
-        })
-        .then(data => {
-            console.log('Received unread visits count:', data.count); // ✅ اضافه کردن لاگ برای دیباگ
-            const unreadCount = data.count;
-            const unreadVisitsCountElement = document.getElementById('unreadVisitsCount');
-            const unreadVisitsBadge = document.getElementById('unreadVisitsBadge');
+        <div class="col-12 col-md-6">
+            <div class="card shadow-sm border-0 h-100">
+                <div class="card-header bg-white pb-0 pt-3">
+                    <div class="d-flex justify-content-between align-items-center mb-2">
+                        <h6 class="font-weight-bold text-success small mb-0">نتایج درمان</h6>
+                    </div>
+                    <ul class="nav nav-tabs nav-justified card-header-tabs" id="resultTab" role="tablist">
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link active small py-2" data-bs-toggle="tab" data-bs-target="#result-shift" type="button">شیفت جاری</button>
+                        </li>
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link small py-2" data-bs-toggle="tab" data-bs-target="#result-month" type="button">کل ماه</button>
+                        </li>
+                    </ul>
+                </div>
+                <div class="tab-content card-body p-3" style="min-height: 200px;">
+                    <div class="tab-pane fade show active" id="result-shift">
+                        {% for item in results_shift %}
+                        <div class="d-flex justify-content-between mb-2 small border-bottom pb-1 border-light">
+                            <span>{{ item.treatment_result__name|default:"نامشخص" }}</span>
+                            <span class="fw-bold text-success">{{ item.count }}</span>
+                        </div>
+                        {% empty %}<p class="text-center text-muted small mt-4">داده‌ای یافت نشد</p>{% endfor %}
+                    </div>
+                    <div class="tab-pane fade" id="result-month">
+                        {% for item in results_month %}
+                        <div class="d-flex justify-content-between mb-2 small border-bottom pb-1 border-light">
+                            <span>{{ item.treatment_result__name|default:"نامشخص" }}</span>
+                            <span class="badge bg-success-subtle text-success rounded-pill">{{ item.count }}</span>
+                        </div>
+                        {% endfor %}
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
 
-            if (unreadVisitsCountElement) {
-                unreadVisitsCountElement.innerText = unreadCount;
-            } else {
-                console.error('Element with ID "unreadVisitsCount" not found.');
-            }
+    <div class="row g-3 px-2 mb-4">
+        <div class="col-12">
+            <div class="card shadow-sm border-0 border-start border-warning border-4">
+                <div class="card-header bg-white d-flex justify-content-between align-items-center py-3">
+                    <h6 class="m-0 font-weight-bold text-warning small">
+                        <i class="fas fa-exclamation-triangle me-2"></i>داروهای با موجودی کم (هشدار انبار)
+                    </h6>
+                </div>
+                <div class="card-body p-0">
+                    <div class="table-responsive">
+                        <table class="table table-hover mb-0 small align-middle text-center">
+                            <thead class="table-light">
+                                <tr>
+                                    <th class="ps-3 text-end">نام دارو</th>
+                                    <th>حداقل هشدار</th>
+                                    <th>موجودی کل</th>
+                                    <th>وضعیت</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for drug in low_stock_drugs %}
+                                <tr>
+                                    <td class="ps-3 text-end fw-bold">{{ drug.name }}</td>
+                                    <td>{{ drug.min_stock_alert }}</td>
+                                    <td class="text-danger fw-bold">{{ drug.total_qty }}</td>
+                                    <td><span class="badge bg-warning text-dark">نیاز به سفارش</span></td>
+                                </tr>
+                                {% empty %}
+                                <tr><td colspan="4" class="py-3 text-muted text-center">موجودی انبار مطلوب است.</td></tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
 
-            if (unreadVisitsBadge) {
-                if (unreadCount > 0) {
-                    unreadVisitsBadge.style.display = 'inline-block';
-                } else {
-                    unreadVisitsBadge.style.display = 'none';
-                }
-            } else {
-                console.error('Element with ID "unreadVisitsBadge" not found.');
-            }
-        })
-        .catch(error => {
-            console.error('Error fetching unread visits count:', error);
-        });
-    }
+    <div class="row g-3 px-2 mb-4">
+        <div class="col-12">
+            <div class="card shadow-sm border-0 border-start border-danger border-4">
+                <div class="card-header bg-white d-flex justify-content-between align-items-center py-3">
+                    <h6 class="m-0 font-weight-bold text-danger small">
+                        <i class="fas fa-prescription-bottle-alt me-2"></i>داروهای در آستانه انقضا (۶۰ روز آینده)
+                    </h6>
+                </div>
+                <div class="card-body p-0">
+                    <div class="table-responsive">
+                        <table class="table table-hover mb-0 small align-middle">
+                            <thead class="table-light">
+                                <tr>
+                                    <th class="ps-3">نام دارو</th>
+                                    <th class="text-center">سری ساخت</th>
+                                    <th class="text-center">تاریخ انقضا</th>
+                                    <th class="text-end pe-3">موجودی</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for drug in expiring_drugs %}
+                                <tr>
+                                    <td class="ps-3 fw-bold text-dark">{{ drug.drug.name }}</td>
+                                    <td class="text-center text-muted font-monospace">{{ drug.batch_number }}</td>
+                                    <td class="text-center">
+                                        <span class="badge bg-danger bg-opacity-10 text-danger border border-danger border-opacity-25">
+                                            {{ drug.expiry_date|jformat:"%Y/%m/%d" }}
+                                        </span>
+                                    </td>
+                                    <td class="pe-3 text-end fw-bold">{{ drug.quantity }}</td>
+                                </tr>
+                                {% empty %}
+                                <tr><td colspan="4" class="text-center py-4 text-muted">مورد بحرانی یافت نشد.</td></tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
 
-    document.addEventListener('DOMContentLoaded', function() {
-        // مطمئن شوید که کاربر لاگین کرده و عضو کادر پزشکی است تا درخواست فرستاده شود.
-        // این منطق قبلاً در تمپلیت جنگو وجود داشت.
-        const unreadVisitsBadge = document.getElementById('unreadVisitsBadge');
-        if (unreadVisitsBadge) { // فقط در صورتی که کارت وجود دارد، API را فراخوانی کنید
-            fetchUnreadVisitsCount();
-            setInterval(fetchUnreadVisitsCount, 10000);
-        }
-    });
-</script>
+<style>
+    .x-small { font-size: 0.75rem; }
+    .nav-tabs .nav-link { color: #6c757d; border: none; border-bottom: 2px solid transparent; font-weight: 500; }
+    .nav-tabs .nav-link.active { color: #0d6efd; border-bottom: 2px solid #0d6efd; background: transparent; }
+    .nav-tabs .nav-link:hover:not(.active) { color: #495057; background-color: #f8f9fa; }
+    
+    .list-container::-webkit-scrollbar { width: 4px; }
+    .list-container::-webkit-scrollbar-track { background: rgba(255,255,255,0.1); }
+    .list-container::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.3); border-radius: 4px; }
+    .list-container::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.5); }
+</style>
 {% endblock %}

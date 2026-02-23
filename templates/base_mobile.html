@@ -1,0 +1,223 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>{% block title %}{{ page_title }}{% endblock %} - کلینیک بهاباد</title>
+    
+    <link rel="manifest" href="{% static 'manifest.json' %}">
+    <meta name="theme-color" content="#212529">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+
+    <link rel="stylesheet" href="{% static 'css/bootstrap.rtl.min.css' %}">
+    <link rel="stylesheet" href="{% static 'fontawesome/css/all.min.css' %}">
+    <link rel="stylesheet" href="{% static 'css/fonts.css' %}">
+    <link rel="stylesheet" href="{% static 'css/select2.min.css' %}">
+    <link rel="stylesheet" href="{% static 'css/select2-bootstrap-5-theme.min.css' %}">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/sweetalert2@11/dist/sweetalert2.min.css">
+
+    <style>
+        :root { 
+            --main-bg: #f4f6f9; 
+            --glass: rgba(255, 255, 255, 0.96); 
+            --accent: #007bff; 
+            --success-color: #28a745;
+            --danger-color: #dc3545;
+        }
+        body { 
+            background-color: var(--main-bg); 
+            font-family: 'Vazirmatn', sans-serif; 
+            padding-bottom: 110px; 
+            overflow-x: hidden;
+            -webkit-tap-highlight-color: transparent;
+        }
+        
+        /* هدر اپلیکیشن */
+        .mobile-header {
+            background: white; padding: 12px 15px; border-bottom: 1px solid #eee;
+            position: sticky; top: 0; z-index: 1000; display: flex; justify-content: space-between; align-items: center;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.05);
+        }
+        .header-actions { display: flex; align-items: center; gap: 15px; }
+        .header-icon-btn { position: relative; color: #444; font-size: 20px; text-decoration: none; }
+        
+        .badge-counter {
+            position: absolute; top: -5px; right: -8px; background: var(--danger-color); color: white;
+            font-size: 10px; min-width: 18px; height: 18px; border-radius: 50%;
+            display: none; align-items: center; justify-content: center; border: 2px solid white;
+            font-weight: bold;
+        }
+
+        .user-profile-img { width: 36px; height: 36px; border-radius: 50%; object-fit: cover; border: 2px solid #ddd; }
+
+        /* نوار ناوبری پایین */
+        .bottom-nav {
+            position: fixed; bottom: 15px; left: 15px; right: 15px; height: 70px;
+            background: var(--glass); backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
+            border-radius: 22px; display: flex; justify-content: space-around; align-items: center;
+            box-shadow: 0 8px 30px rgba(0,0,0,0.1); border: 1px solid rgba(255,255,255,0.4); z-index: 2000;
+        }
+        .nav-item { color: #777; text-decoration: none; font-size: 11px; text-align: center; flex: 1; transition: 0.3s; }
+        .nav-item.active { color: var(--accent); font-weight: bold; }
+        .nav-item i { font-size: 22px; display: block; margin-bottom: 2px; }
+
+        .center-btn {
+            background: #212529; color: #fff !important; width: 58px; height: 58px;
+            border-radius: 20px; margin-top: -40px; display: flex; align-items: center; justify-content: center;
+            box-shadow: 0 8px 20px rgba(0,0,0,0.25); flex: none; transition: 0.3s;
+        }
+        .center-btn:active { transform: scale(0.9); }
+
+        /* منوی کشویی */
+        .offcanvas-menu {
+            position: fixed; bottom: -100%; left: 0; width: 100%; height: auto;
+            background: white; z-index: 3000; transition: 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+            border-radius: 30px 30px 0 0; padding: 20px 20px 40px;
+            box-shadow: 0 -10px 40px rgba(0,0,0,0.1);
+        }
+        .offcanvas-menu.active { bottom: 0; }
+        .menu-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.6); z-index: 2999; display: none; }
+        .drag-handle { width: 50px; height: 5px; background: #e0e0e0; border-radius: 10px; margin: 0 auto 20px; cursor: pointer; }
+
+        .menu-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 15px; }
+        .menu-card {
+            background: #f8f9fa; border-radius: 18px; padding: 20px 10px;
+            text-align: center; text-decoration: none; color: #333; border: 1px solid #f0f0f0; transition: 0.2s;
+        }
+        .menu-card:active { background: #f0f0f0; transform: scale(0.97); }
+        .menu-card i { font-size: 26px; display: block; margin-bottom: 12px; color: var(--accent); }
+    </style>
+</head>
+<body>
+
+    <header class="mobile-header">
+        <h6 class="m-0 fw-bold">کلینیک گندله‌سازی بهاباد</h6>
+        <div class="header-actions">
+            <a href="{% url 'visits:visit_list' %}?view=referred_to_me" class="header-icon-btn">
+                <i class="far fa-bell"></i>
+                <span id="unread-referred-visits-count" class="badge-counter"></span>
+            </a>
+            <a href="{% url 'clinic_messages:message_inbox' %}" class="header-icon-btn">
+                <i class="far fa-envelope"></i>
+                <span id="unread-messages-count" class="badge-counter" style="background: var(--success-color);"></span>
+            </a>
+            <a href="{% url 'core:user_profile' %}">
+                <img src="{% if request.user.profile.image %}{{ request.user.profile.image.url }}{% else %}{% static 'img/undraw_profile.svg' %}{% endif %}" class="user-profile-img">
+            </a>
+        </div>
+    </header>
+
+    <main class="p-3">
+        {% if messages %}
+            {% for message in messages %}
+                <div class="alert alert-{{ message.tags }} alert-dismissible fade show py-2 small shadow-sm">
+                    {{ message }}
+                    <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                </div>
+            {% endfor %}
+        {% endif %}
+        {% block content %}{% endblock %}
+    </main>
+
+    <nav class="bottom-nav">
+        <a href="{% url 'dashboard' %}" class="nav-item {% if request.resolver_match.url_name == 'dashboard' %}active{% endif %}">
+            <i class="fas fa-home"></i>خانه
+        </a>
+        <a href="{% url 'core:patient_list' %}" class="nav-item {% if 'patient' in request.path %}active{% endif %}">
+            <i class="fas fa-users"></i>بیماران
+        </a>
+        <a href="{% url 'visits:visit_create' %}" class="nav-item center-btn"><i class="fas fa-plus"></i></a>
+        <a href="{% url 'core:daily_report_list' %}" class="nav-item {% if 'report' in request.path %}active{% endif %}">
+            <i class="fas fa-file-signature"></i>گزارش
+        </a>
+        <a href="javascript:void(0)" class="nav-item" id="openMenu"><i class="fas fa-th-large"></i>منو</a>
+    </nav>
+
+    <div class="menu-overlay" id="overlay"></div>
+    <div class="offcanvas-menu" id="sideMenu">
+        <div class="drag-handle" id="closeHandle"></div>
+        <div class="menu-grid">
+            <a href="{% url 'drugs:drug_list' %}" class="menu-card"><i class="fas fa-pills"></i><span>داروها</span></a>
+            <a href="{% url 'drugs:purchase_invoice_list' %}" class="menu-card"><i class="fas fa-file-invoice-dollar"></i><span>فاکتورها</span></a>
+            <a href="{% url 'core:requirement_tracking' %}" class="menu-card"><i class="fas fa-list-check"></i><span>پیگیری نیازها</span></a>
+            <a href="javascript:void(0)" onclick="confirmLogout()" class="menu-card text-danger" style="grid-column: span 2;">
+                <i class="fas fa-power-off"></i><span>خروج از حساب</span>
+            </a>
+        </div>
+    </div>
+
+    <form id="logout-form" action="{% url 'logout' %}" method="post" style="display: none;">
+        {% csrf_token %}
+    </form>
+
+    <script src="{% static 'js/jquery-3.6.0.min.js' %}"></script>
+    <script src="{% static 'js/bootstrap.bundle.min.js' %}"></script>
+    <script src="{% static 'admin/js/vendor/select2/select2.full.min.js' %}"></script>
+    <script src="{% static 'admin/js/vendor/select2/i18n/fa.js' %}"></script>
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+
+    <script>
+        // جلوگیری از نمایش خطاهای AJAX بعد از لاگ‌اوت
+        $.ajaxSetup({ error: function(xhr) { if(xhr.status === 403) console.log("Login required"); } });
+
+        // تاییدیه خروج
+        function confirmLogout() {
+            closeMenu();
+            Swal.fire({
+                title: 'خروج',
+                text: "آیا از خروج مطمئن هستید؟",
+                icon: 'question',
+                showCancelButton: true,
+                confirmButtonColor: '#d33',
+                cancelButtonColor: '#3085d6',
+                confirmButtonText: 'بله، خارج شو',
+                cancelButtonText: 'لغو',
+                reverseButtons: true
+            }).then((result) => {
+                if (result.isConfirmed) {
+                    document.getElementById('logout-form').submit();
+                }
+            });
+        }
+
+        function closeMenu() {
+            $('#sideMenu').removeClass('active');
+            $('#overlay').fadeOut(300);
+        }
+
+        // آپدیت اعلان‌ها
+        function updateCounts() {
+            if (!navigator.onLine) return;
+            $.get("{% url 'visits:api_unread_referred_visits_count' %}", function(data) {
+                if (data.unread_count > 0) $('#unread-referred-visits-count').text(data.unread_count).css('display', 'flex');
+                else $('#unread-referred-visits-count').hide();
+            });
+            $.get("{% url 'clinic_messages:api_unread_count' %}", function(data) {
+                if (data.unread_count > 0) $('#unread-messages-count').text(data.unread_count).css('display', 'flex');
+                else $('#unread-messages-count').hide();
+            });
+        }
+
+        $(document).ready(function() {
+            updateCounts();
+            setInterval(updateCounts, 15000);
+
+            $('#openMenu').click(function() {
+                $('#sideMenu').addClass('active');
+                $('#overlay').fadeIn(300);
+            });
+
+            $('#overlay, #closeHandle').click(closeMenu);
+        });
+
+        // ثبت سرویس ورکر PWA
+        if ('serviceWorker' in navigator) {
+            navigator.serviceWorker.register("{% static 'sw.js' %}")
+            .then(() => console.log("SW Registered"));
+        }
+    </script>
+    {% block scripts %}{% endblock %}
+</body>
+</html>

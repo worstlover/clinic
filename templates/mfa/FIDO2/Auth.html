@@ -1,0 +1,34 @@
+{% extends "base.html" %} {% block content %}
+<div class="container mt-5">
+    <div class="card shadow-lg border-0 text-center p-5" style="border-radius: 20px;">
+        <div class="mb-4 text-primary">
+            <i class="fas fa-fingerprint fa-4x"></i>
+        </div>
+        <h3 class="fw-bold mb-3">تایید هویت بیومتریک</h3>
+        <p class="text-muted">لطفاً انگشت خود را روی سنسور قرار دهید یا مقابل دوربین گوشی بگیرید</p>
+        
+        <div id="mfa_status" class="alert alert-info py-3">
+            در حال آماده‌سازی سنسور...
+        </div>
+
+        <div style="display:none">
+            {{ fido2_data|safe }}
+        </div>
+        
+        <button onclick="window.location.reload()" class="btn btn-outline-primary mt-3">
+            تلاش مجدد
+        </button>
+    </div>
+</div>
+
+<script>
+    // تغییر پیام‌های انگلیسی به فارسی به صورت زنده
+    setInterval(function() {
+        let msg = document.body.innerText;
+        if (msg.includes("please press the button")) {
+            document.getElementById('mfa_status').innerHTML = "<b>منتظر لمس سنسور اثر انگشت...</b>";
+            document.getElementById('mfa_status').className = "alert alert-warning py-3";
+        }
+    }, 500);
+</script>
+{% endblock %}

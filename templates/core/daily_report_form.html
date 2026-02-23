@@ -1,0 +1,107 @@
+{% extends main_base %}
+{% load static %}
+
+{% block content %}
+<div class="container mt-4" style="direction: rtl;">
+    <div class="card shadow">
+        <div class="card-header bg-primary text-white">
+            <h4 class="mb-0">ثبت گزارش روزانه واحد بهداری</h4>
+        </div>
+        <div class="card-body">
+            <form method="post" id="reportForm">
+                {% csrf_token %}
+                
+                <div class="row mb-4 bg-light p-3 border rounded">
+                    <div class="col-md-4">
+                        <label class="form-label fw-bold">تاریخ گزارش:</label>
+                        <input type="text" class="form-control" value="{{ j_date }}" readonly>
+                    </div>
+                    <div class="col-md-4">
+                        <label class="form-label fw-bold">انتخاب شیفت کاری:</label>
+                        <select name="shift_selection" class="form-select border-primary" required>
+                            <option value="12_morning">۱۲ ساعته (روز - ۰۷:۰۰ تا ۱۹:۰۰)</option>
+                            <option value="12_night">۱۲ ساعته (شب - ۱۹:۰۰ تا ۰۷:۰۰)</option>
+                            <option value="24">۲۴ ساعته (۰۷:۰۰ تا ۰۷:۰۰ فردا)</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="row mb-3">
+                    <div class="col-md-6">
+                        <label class="form-label">پزشک شیفت:</label>
+                        <select name="doctor" class="form-select" required>
+                            <option value="">انتخاب کنید...</option>
+                            {% for doc in doctors %}
+                                <option value="{{ doc.id }}">{{ doc.get_full_name|default:doc.username }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label">راننده / آمبولانس:</label>
+                        <select name="driver" class="form-select">
+                            <option value="">انتخاب کنید...</option>
+                            {% for driver in drivers %}
+                                <option value="{{ driver.id }}">{{ driver.get_full_name|default:driver.username }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                </div>
+
+                <hr>
+
+                <div class="mb-3">
+                    <label class="form-label fw-bold">شرح اقدامات درمانی و اعزام:</label>
+                    <textarea name="dispatched_action" class="form-control" rows="3" placeholder="موارد اعزامی و اقدامات مهم را اینجا بنویسید..."></textarea>
+                </div>
+
+                <div class="row mb-3">
+                    <div class="col-md-6">
+                        <label class="form-label fw-bold">وضعیت آمبولانس:</label>
+                        <input type="text" name="ambulance_status" class="form-control" placeholder="مثلاً: آماده به کار، سوخت‌گیری شده">
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label fw-bold">وضعیت تجهیزات و دارو:</label>
+                        <input type="text" name="equipment_status" class="form-control" placeholder="مثلاً: چک شد، کمبود دارو ندارد">
+                    </div>
+                </div>
+
+                <div class="mb-3">
+                    <label class="form-label fw-bold">بازدیدهای بهداشت حرفه‌ای (Occupational Health):</label>
+                    <textarea name="occupational_health" class="form-control" rows="2"></textarea>
+                </div>
+
+                <div class="mb-3">
+                    <label class="form-label fw-bold">بازرسی‌های محیطی (Environmental Inspections):</label>
+                    <textarea name="environmental_inspections" class="form-control" rows="2"></textarea>
+                </div>
+
+                <div class="mb-3 bg-light p-3 border rounded">
+                    <label class="form-label fw-bold">نیازمندی‌های جدید:</label>
+                    <div id="req-container">
+                        <div class="input-group mb-2">
+                            <input type="text" name="new_requirements[]" class="form-control" placeholder="مثلاً: گاز استریل، کپسول اکسیژن">
+                            <button type="button" class="btn btn-outline-success" onclick="addReq()">+</button>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="text-center mt-4">
+                    <button type="submit" class="btn btn-primary btn-lg px-5">ثبت و مشاهده پیش‌نمایش چاپ</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<script>
+    function addReq() {
+        const div = document.createElement('div');
+        div.className = 'input-group mb-2';
+        div.innerHTML = `
+            <input type="text" name="new_requirements[]" class="form-control">
+            <button type="button" class="btn btn-outline-danger" onclick="this.parentElement.remove()">-</button>
+        `;
+        document.getElementById('req-container').appendChild(div);
+    }
+</script>
+{% endblock %}

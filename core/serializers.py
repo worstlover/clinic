@@ -205,17 +205,63 @@ class PatientAuthSerializer(serializers.ModelSerializer):
 class DrugSerializer(serializers.ModelSerializer):
     # این 'text' ضروری است تا Select2 آن را نمایش دهد
     text = serializers.SerializerMethodField()
+    total_stock = serializers.SerializerMethodField()
+    is_expired = serializers.SerializerMethodField()
+    near_expiry = serializers.SerializerMethodField()
+    is_low_stock = serializers.SerializerMethodField()
+    nearest_expiry = serializers.SerializerMethodField()
 
     class Meta:
         model = Drug
         # مطمئن شوید 'id' و 'name' و 'generic_name' و 'drug_code' در اینجا باشند
-        fields = ['id', 'name', 'generic_name', 'drug_code', 'text']
+        fields = ['id', 'name', 'generic_name', 'drug_code', 'text', 'total_stock', 'is_expired', 'near_expiry', 'is_low_stock', 'nearest_expiry']
 
     def get_text(self, obj):
         # این تابع فرمت نمایشی دارو را در Select2 مشخص می‌کند
         if obj.generic_name:
             return f"{obj.name} ({obj.generic_name}) - کد: {obj.drug_code or 'نامشخص'}"
         return f"{obj.name} - کد: {obj.drug_code or 'نامشخص'}"
+
+    def get_total_stock(self, obj):
+        # محاسبه پایتونی روی دیتای لود شده
+        return sum(batch.quantity for batch in obj.batches.all())
+
+    def get_is_expired(self, obj):
+        from django.utils import timezone
+        today = timezone.now().date()
+        for batch in obj.batches.all():
+            # اگر حتی یک بچ تاریخ گذشته و دارای موجودی باشد، هشدار می‌دهد
+            if batch.quantity > 0 and batch.expiry_date and batch.expiry_date < today:
+                return True
+        return False
+
+    def get_near_expiry(self, obj):
+        from django.utils import timezone
+        from datetime import timedelta
+        today = timezone.now().date()
+        future_limit = today + timedelta(days=90)
+        for batch in obj.batches.all():
+            if batch.quantity > 0 and batch.expiry_date:
+                if today <= batch.expiry_date <= future_limit:
+                    return True
+        return False
+
+    def get_is_low_stock(self, obj):
+        # منطق کمبود موجودی: مثلا اگر زیر حداقل موجودی بود
+        total = self.get_total_stock(obj)
+        return total > 0 and total < obj.min_stock_alert
+
+    def get_nearest_expiry(self, obj):
+        from django.utils import timezone
+        from persiantools.jdatetime import JalaliDate
+        today = timezone.now().date()
+        # پیدا کردن نزدیک‌ترین بچ معتبر (با موجودی و تاریخ انقضای آینده)
+        valid_batches = [batch for batch in obj.batches.all() 
+                        if batch.quantity > 0 and batch.expiry_date and batch.expiry_date >= today]
+        if valid_batches:
+            nearest = min(valid_batches, key=lambda b: b.expiry_date)
+            return JalaliDate.to_jalali(nearest.expiry_date).strftime('%Y/%m/%d')
+        return None
 class UserSerializer(serializers.ModelSerializer):
     """
     سریالایزر برای مدل کاربر.

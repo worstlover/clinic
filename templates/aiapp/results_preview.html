@@ -1,0 +1,81 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block content %}
+<div class="container-fluid py-4" style="direction: rtl; text-align: right; background-color: #f8f9fa; min-height: 100vh;">
+    
+    <div class="card shadow-sm border-0 mb-4" style="border-radius: 15px;">
+        <div class="card-body bg-primary text-white" style="border-radius: 15px;">
+            <h5 class="mb-2"><i class="fas fa-microchip ml-2"></i> گزارش تحلیل هوشمند</h5>
+            <div class="d-flex justify-content-around text-center mt-3">
+                <div><h4 class="mb-0">{{ summary.total }}</h4><small>کل ردیف‌ها</small></div>
+                <div><h4 class="mb-0">{{ summary.found }}</h4><small>بیمار موجود</small></div>
+                <div><h4 class="mb-0 text-warning">{{ summary.new }}</h4><small>بیمار جدید</small></div>
+            </div>
+        </div>
+    </div>
+
+    <form method="post" action="{% url 'aiapp:final_confirm' %}">
+        {% csrf_token %}
+
+        {% for item in results %}
+        <div class="card mb-3 shadow-sm border-0" style="border-radius: 15px; overflow: hidden;">
+            <div class="card-header {% if item.patient_obj %}bg-white text-success{% else %}bg-warning-light text-dark{% endif %} d-flex justify-content-between align-items-center" style="border-bottom: 1px solid #eee;">
+                <span class="font-weight-bold">
+                    {% if item.patient_obj %}
+                        <i class="fas fa-check-circle"></i> {{ item.patient_obj.first_name }} {{ item.patient_obj.last_name }}
+                    {% else %}
+                        <i class="fas fa-user-plus text-warning"></i> {{ item.extracted_name }} (بیمار جدید)
+                    {% endif %}
+                </span>
+                <span class="badge badge-light shadow-sm">{{ item.national_id }}</span>
+            </div>
+
+            <input type="hidden" name="national_code" value="{{ item.national_id }}">
+            <input type="hidden" name="patient_name" value="{{ item.extracted_name }}">
+            <input type="hidden" name="personnel_number" value="{{ item.personnel_number|default:'' }}">
+            <input type="hidden" name="drugs_json" value="{{ item.drugs_json_string }}">
+
+            <div class="card-body p-3">
+                <p class="small text-muted mb-2"><i class="fas fa-capsules ml-1"></i> لیست داروهای شناسایی شده:</p>
+                
+                {% for drug in item.drugs %}
+                <div class="p-2 mb-2 rounded {% if drug.exists and drug.in_stock %}bg-light{% else %}bg-danger-light{% endif %}" style="border: 1px solid #eee;">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <span class="font-weight-bold text-dark">{{ drug.name }}</span>
+                            <span class="small text-muted d-block">دوز: {{ drug.dosage }}</span>
+                        </div>
+                        <div class="text-left">
+                            <span class="badge badge-primary px-3 py-2">تعداد: {{ drug.qty }}</span>
+                            {% if not drug.exists %}
+                                <div class="text-danger x-small mt-1"><i class="fas fa-exclamation-triangle"></i> دارو در سیستم یافت نشد</div>
+                            {% elif not drug.in_stock %}
+                                <div class="text-danger x-small mt-1"><i class="fas fa-warehouse"></i> کمبود موجودی (کل: {{ drug.total_stock }})</div>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+        {% endfor %}
+
+        <div class="fixed-bottom p-3 bg-white shadow-lg border-top" style="z-index: 1030;">
+            <div class="container-fluid">
+                <button type="submit" class="btn btn-success btn-block btn-lg py-3 shadow" style="border-radius: 15px; font-weight: bold;">
+                    <i class="fas fa-save ml-2"></i> تایید و ثبت ویزیت‌های "در حال بررسی"
+                </button>
+            </div>
+        </div>
+    </form>
+</div>
+
+<style>
+    body { padding-bottom: 100px; font-family: 'Tahoma', sans-serif; }
+    .bg-warning-light { background-color: #fff9e6; }
+    .bg-danger-light { background-color: #fff5f5; }
+    .x-small { font-size: 0.75rem; }
+    .border-right-lg { border-right: 5px solid; }
+</style>
+{% endblock %}

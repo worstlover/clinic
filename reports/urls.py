@@ -11,7 +11,9 @@ urlpatterns = [
     
     # گزارش بیماران
     path('patients/', views.patient_report_view, name='patient_report'),
-
+    path('report/print/', views.drug_print_report_view, name='drug_print_report'),
+    path('reports/drug-summary/', views.drug_summary_report_view, name='drug_summary_report'),
+    path('reports/drug-transactions/', views.drug_transaction_report_view, name='drug_transaction_report'),
     # گزارش عمومی ویزیت‌ها
     path('visits/all/', views.generic_visit_report_view, name='generic_visit_report'),
 

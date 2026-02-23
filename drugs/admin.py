@@ -7,11 +7,15 @@ from django.db import models
 from jalali_date.admin import ModelAdminJalaliMixin
 import jdatetime # اضافه کردن برای استفاده از تاریخ شمسی
 
+from django.contrib import admin
+from .models import Drug
+
 @admin.register(Drug)
 class DrugAdmin(admin.ModelAdmin):
-    list_display = ('name', 'generic_name', 'total_quantity', 'min_stock_alert', 'is_low_stock')
-    search_fields = ('name', 'generic_name', 'drug_code')
-    ordering = ('name',)
+    list_display = ('name', 'drug_code', 'package_type', 'package_size', 'min_stock_alert')
+    search_fields = ('name', 'drug_code', 'package_type', 'package_size', 'min_stock_alert')
+
+
 
 @admin.register(DrugBatch)
 class DrugBatchAdmin(ModelAdminJalaliMixin, admin.ModelAdmin): # اضافه کردن ModelAdminJalaliMixin

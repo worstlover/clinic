@@ -25,7 +25,7 @@ from django.utils import timezone
 import datetime
 from math import ceil
 from django_select2.views import AutoResponseView
-# مدل‌ها و فرم‌های اپ drugs
+from .forms import DrugForm, DrugBarcodeFormSet
 from .models import Drug, DrugRequest, DrugRequestItem, DrugRequestWorkflowLog
 from .forms import DrugRequestAnalysisForm, DrugRequestForm, DrugRequestItemForm
 from django.contrib.auth.models import User
@@ -53,6 +53,258 @@ from .filters import DrugFilter
 import django.forms as forms
 from .forms import PurchaseInvoiceForm, PurchaseInvoiceItemForm
 from persiantools import digits 
+from django.http import JsonResponse
+from django.views.decorators.csrf import csrf_exempt
+import re
+from datetime import datetime
+from .models import Drug
+from .utils import get_drug_info_from_ttac
+import re
+import datetime
+from django.shortcuts import render
+from django.views.decorators.csrf import csrf_exempt
+from django.utils import timezone
+from .models import Drug, DrugBatch
+from .forms import DrugReceiveForm
+from didrug.views import process_drug_info 
+from .models import DrugBarcode
+from .serializers import SupplierSerializer, DrugSerializer
+from django.db import transaction
+from django.db.models import F
+import jdatetime
+from django.db.models import Sum, Count, Case, When, Value, IntegerField
+@login_required
+def find_drug_by_barcode_api(request):
+    barcode = request.GET.get('barcode', None)
+    if not barcode:
+        return JsonResponse({'status': 'error', 'message': 'بارکد ارسال نشده است.'}, status=400)
+
+    try:
+        # جستجو در مدل بارکدها - استفاده از select_related برای سرعت بیشتر
+        barcode_mapping = DrugBarcode.objects.select_related('drug').get(gtin=barcode)
+        drug = barcode_mapping.drug
+        
+        return JsonResponse({
+            'status': 'found',
+            'drug_id': drug.pk,  # اسکنر به این نیاز دارد
+            'drug_name': drug.name, # اسکنر به این نیاز دارد
+            'message': f'داروی "{drug.name}" پیدا شد.'
+        })
+    except DrugBarcode.DoesNotExist:
+        # برای اسکنر بهتر است 404 برگردانیم تا جاوااسکریپت خطا ندهد و پیام را نشان دهد
+        return JsonResponse({
+            'status': 'not_found',
+            'drug_id': None,
+            'message': 'این بارکد در سیستم ثبت نشده است.'
+        }, status=404)
+
+
+def receive_drug_view(request):
+    if request.method == 'POST':
+        try:
+            supplier = Supplier.objects.get(pk=request.POST.get('supplier'))
+            is_temporary = request.POST.get('is_temporary') == 'true'
+            
+            rows_data = {}
+            for key, value in request.POST.items():
+                match = re.match(r'rows\[(\d+)\]\[(.*)\]', key)
+                if match:
+                    row_index, field_name = match.groups()
+                    if row_index not in rows_data:
+                        rows_data[row_index] = {}
+                    rows_data[row_index][field_name] = value
+            for key, file in request.FILES.items():
+                match = re.match(r'rows\[(\d+)\]\[(.*)\]', key)
+                if match:
+                    row_index, field_name = match.groups()
+                    if row_index not in rows_data:
+                        rows_data[row_index] = {}
+                    rows_data[row_index][field_name] = file
+
+            with transaction.atomic():
+                for row_index, row_data in rows_data.items():
+                    processed_data = process_drug_info(row_data)
+                    drug_name = processed_data.get('persian_name')
+                    expiry_date = processed_data.get('expiry_date')
+                    qr_code_content = processed_data.get('qr_code_content')
+                    quantity = int(row_data.get('quantity', 0))
+                    
+                    if not drug_name or not expiry_date:
+                        continue 
+                    
+                    drug, created = Drug.objects.get_or_create(
+                        name=drug_name,
+                        defaults={}
+                    )
+                    
+                    batch_number = qr_code_content # Assuming qr_code_content is the batch number
+                    
+                    try:
+                        drug_batch = DrugBatch.objects.get(
+                            drug=drug,
+                            batch_number=batch_number,
+                            is_temporary=is_temporary
+                        )
+                        drug_batch.add_stock(quantity)
+                    except DrugBatch.DoesNotExist:
+                        DrugBatch.objects.create(
+                            drug=drug,
+                            batch_number=batch_number,
+                            expiry_date=expiry_date,
+                            quantity=quantity,
+                            supplier=supplier,
+                            is_temporary=is_temporary,
+                        )
+                
+            messages.success(request, 'تمامی ردیف‌ها با موفقیت پردازش و ثبت شدند!')
+            return JsonResponse({'status': 'success', 'message': 'تمامی ردیف‌ها با موفقیت پردازش و ثبت شدند.'})
+        
+        except Exception as e:
+            return JsonResponse({'status': 'error', 'message': f'خطایی در ثبت دسته‌ای رخ داد: {e}'}, status=500)
+    
+    else:
+        suppliers = Supplier.objects.all()
+        context = {
+            'page_title': 'دریافت و ثبت دسته‌ای دارو',
+            'suppliers': suppliers,
+        }
+        return render(request, 'drugs/receive_drug_form.html', context)
+
+def load_drug_request(request):
+    """
+    loads drug items from a request and returns them as JSON.
+    """
+    if request.method == 'GET' and 'request_code' in request.GET:
+        request_code = request.GET.get('request_code')
+        try:
+            drug_request = DrugRequest.objects.get(request_code=request_code)
+            items = DrugRequestItem.objects.filter(drug_request=drug_request)
+            
+            # Format the data for a JSON response
+            items_data = []
+            for item in items:
+                items_data.append({
+                    'drug_name': item.drug.name,
+                    'requested_quantity': item.requested_quantity,
+                })
+            
+            return JsonResponse({
+                'status': 'success',
+                'items': items_data,
+                'message': f'درخواست با شماره {request_code} با موفقیت بارگذاری شد.'
+            })
+        except DrugRequest.DoesNotExist:
+            return JsonResponse({
+                'status': 'error',
+                'message': f'درخواستی با شماره {request_code} یافت نشد.'
+            }, status=404)
+    return JsonResponse({'status': 'error', 'message': 'درخواست نامعتبر.'}, status=400)
+@csrf_exempt
+def add_drug_from_qr(request):
+    context = {}
+
+    if request.method == "POST":
+        qr_code = request.POST.get("qr_code")
+        quantity = request.POST.get("quantity")
+
+        # --- مرحله دوم: ثبت نهایی با تعداد ---
+        if quantity:
+            try:
+                with transaction.atomic():
+                    drug_id = request.POST.get("drug_id")
+                    lot_number = request.POST.get("lot_number")
+                    expiry_date_str = request.POST.get("expiry_date")
+                    quantity = int(quantity)
+
+                    drug = Drug.objects.get(pk=drug_id)
+                    expiry_date = datetime.datetime.strptime(expiry_date_str, "%Y-%m-%d").date()
+
+                    batch, created = DrugBatch.objects.get_or_create(
+                        drug=drug,
+                        batch_number=lot_number,
+                        expiry_date=expiry_date,
+                        defaults={'quantity': quantity}
+                    )
+
+                    if not created:
+                        batch.quantity += quantity
+                        batch.save()
+                        messages.info(request, f"موجودی بچ موجود برای داروی '{drug.name}' به تعداد {quantity} عدد افزایش یافت.")
+                    else:
+                        messages.success(request, f"بچ جدید برای داروی '{drug.name}' با تعداد {quantity} با موفقیت ثبت شد.")
+                
+                # پس از ثبت موفق، به صفحه خالی ریدایرکت می‌کنیم تا برای اسکن بعدی آماده باشد
+                return redirect('drugs:add_drug_from_qr')
+
+            except Exception as e:
+                messages.error(request, f"خطا در ثبت نهایی بچ: {e}")
+            
+            return render(request, "drugs/add_drug_from_qr.html", {})
+
+        # --- مرحله اول: اسکن و استعلام اطلاعات ---
+        if qr_code:
+            # ⭐️⭐️⭐️ شروع بخش اصلاح شده ⭐️⭐️⭐️
+            match_gtin = re.search(r"01(\d{14})", qr_code)
+            match_exp = re.search(r"17(\d{6})", qr_code)
+            match_lot = re.search(r"10(\w+)", qr_code)
+
+            if not match_gtin or not match_lot or not match_exp:
+                context["error"] = "کد QR معتبر نیست یا فرمت آن پشتیبانی نمی‌شود. (GTIN, LOT, EXP مورد نیاز است)"
+                return render(request, "drugs/add_drug_from_qr.html", context)
+            
+            # **نکته کلیدی:** تعریف متغیر lot_number قبل از استفاده
+            lot_number = match_lot.group(1)
+            exp_raw = match_exp.group(1)
+            # ⭐️⭐️⭐️ پایان بخش اصلاح شده ⭐️⭐️⭐️
+            
+            try:
+                year = int(exp_raw[0:2])
+                year += 2000 if year < 70 else 1900
+                day = int(exp_raw[4:6])
+                if day == 0:
+                    import calendar
+                    month = int(exp_raw[2:4])
+                    day = calendar.monthrange(year, month)[1]
+                    expiration_date = datetime.date(year, month, day)
+                else:
+                    expiration_date = datetime.datetime.strptime(f"{year}{exp_raw[2:]}", "%Y%m%d").date()
+            except ValueError:
+                context["error"] = "فرمت تاریخ انقضا در QR کد نامعتبر است."
+                return render(request, "drugs/add_drug_from_qr.html", context)
+
+            drug_info_response = get_drug_info_from_ttac(qr_code)
+            
+            if drug_info_response.get("status") != "success":
+                context["error"] = drug_info_response.get("message", "خطا در استعلام اطلاعات دارو از سامانه TTAC.")
+                return render(request, "drugs/add_drug_from_qr.html", context)
+
+            gtin_from_api = drug_info_response.get("gtin")
+            if not gtin_from_api:
+                context["error"] = "پاسخ دریافت شده از TTAC فاقد کد GTIN است."
+                return render(request, "drugs/add_drug_from_qr.html", context)
+
+            drug, created = Drug.objects.update_or_create(
+                drug_code=gtin_from_api,
+                defaults={
+                    "name": drug_info_response.get("persianName", "نام نامشخص"),
+                    "generic_name": drug_info_response.get("genericCode"),
+                }
+            )
+
+            if created:
+                messages.info(request, f"داروی جدید '{drug.name}' بر اساس اطلاعات سامانه TTAC در سیستم ثبت شد.")
+
+            # حالا این خط بدون خطا اجرا می‌شود چون lot_number به عنوان مقدار پیش‌فرض وجود دارد
+            lot_number_from_api = drug_info_response.get("batchCode", lot_number)
+
+            context["scanned_data"] = {
+                "drug": drug,
+                "lot_number": lot_number_from_api,
+                "expiry_date": expiration_date,
+            }
+            context["success_scan"] = "اطلاعات با موفقیت از سامانه مرکزی استعلام شد. لطفاً تعداد را وارد و ثبت کنید."
+
+    return render(request, "drugs/add_drug_from_qr.html", context)
 # from clinic_messages.models import Message, MessageRecipient # اینها مربوط به اپ clinic_messages هستند، اینجا لازم نیستند
 DRUG_FORM_CHOICES = [
     ('tablet', 'قرص'),
@@ -74,73 +326,146 @@ DRUG_FORM_CHOICES = [
 # توابع مربوط به مدیریت داروها (Drug Management)
 # --------------------------------------------------
 
-@login_required(login_url=reverse_lazy('login'))
-def drug_list(request):
-    today = timezone.now().date()
-    three_months_from_now = today + datetime.timedelta(days=90)
 
-    base_queryset = Drug.objects.all().annotate(
+
+@login_required
+def drug_list(request):
+    today = datetime.date.today()
+    three_months_later = today + datetime.timedelta(days=90)
+
+    # کوئری کامل برای نمایش در وب
+    base_queryset = Drug.objects.annotate(
         total_stock=Sum('batches__quantity', default=0),
-        # اضافه کردن تعداد بچ‌های منقضی شده
-        expired_batches_count=Count(
-            Case(
-                When(batches__expiry_date__lt=today, then=Value(1)),
-                output_field=BooleanField(),
-            ),
-            distinct=True # برای شمارش بچ‌های مختلف، نه فقط ردیف‌های تکراری
-        ),
-        # اضافه کردن تعداد بچ‌های در شرف انقضا (فعال و دارای موجودی)
-        expiring_soon_batches_count=Count(
-            Case(
-                When(
-                    batches__expiry_date__gte=today,
-                    batches__expiry_date__lte=three_months_from_now,
-                    batches__quantity__gt=0,
-                    then=Value(1)
-                ),
-                output_field=BooleanField(),
-            ),
+        # شمارش بچ‌های منقضی شده
+        expired_count=Count(
+            Case(When(batches__expiry_date__lt=today, batches__quantity__gt=0, then=Value(1))),
             distinct=True
+        ),
+        # شمارش بچ‌های نزدیک به انقضا (۳ ماه آینده)
+        expiring_soon_count=Count(
+            Case(When(batches__expiry_date__range=[today, three_months_later], batches__quantity__gt=0, then=Value(1))),
+            distinct=True
+        ),
+        # اولویت‌بندی نمایش (قرص و شربت اول)
+        form_priority=Case(
+            When(form__icontains='قرص', then=Value(1)),
+            When(form__icontains='شربت', then=Value(2)),
+            default=Value(3),
+            output_field=IntegerField(),
         )
     )
 
     drug_filter = DrugFilter(request.GET, queryset=base_queryset)
-    filtered_drugs = drug_filter.qs.order_by('name')
+    
+    # مرتب‌سازی برای وب: ابتدا موارد بحرانی، سپس اولویت شکل، سپس حروف الفبا
+    filtered_drugs = drug_filter.qs.order_by(
+        F('expired_count').desc(),
+        'form_priority',
+        'name'
+    )
 
-    paginator = Paginator(filtered_drugs, 10)
-    page_number = request.GET.get('page')
-    try:
-        page_obj = paginator.page(page_number)
-    except PageNotAnInteger:
-        page_obj = paginator.page(1)
-    except EmptyPage:
-        page_obj = paginator.page(paginator.num_pages)
+    # صفحه‌بندی ۱۵ تایی برای وب
+    paginator = Paginator(filtered_drugs, 15)
+    page_obj = paginator.get_page(request.GET.get('page'))
 
-    context = {
-        'page_title': 'لیست داروها',
+    return render(request, 'drugs/drug_list.html', {
         'page_obj': page_obj,
         'filter': drug_filter,
-    }
-    return render(request, 'drugs/drug_list.html', context)
-
-
-
+    })
 @login_required(login_url=reverse_lazy('login'))
 @permission_required('drugs.add_drug', raise_exception=True)
-def drug_create(request):
+
+
+@login_required
+def drug_print_report(request):
+    today = datetime.date.today()
+    today_jalali = jdatetime.date.today().strftime("%Y/%m/%d")
+
+    base_queryset = Drug.objects.annotate(
+        total_stock=Sum('batches__quantity', default=0),
+        expired_count=Count(
+            Case(When(batches__expiry_date__lt=today, batches__quantity__gt=0, then=Value(1))),
+            distinct=True
+        ),
+        form_priority=Case(
+            When(form__icontains='قرص', then=Value(1)),
+            When(form__icontains='شربت', then=Value(2)),
+            default=Value(3),
+            output_field=IntegerField(),
+        )
+    )
+
+    drug_filter = DrugFilter(request.GET, queryset=base_queryset)
+    drugs = drug_filter.qs.order_by(F('expired_count').desc(), 'form_priority', 'form', 'name')
+
+    # تبدیل نام فیلترها به فارسی برای نمایش در گزارش
+    active_filters = []
+    filter_labels = {
+        'name': 'نام دارو',
+        'drug_code': 'کد کالا',
+        'form': 'شکل دارویی',
+        'is_low_stock': 'کمبود موجودی',
+        'has_expiring_batches': 'نزدیک انقضا',
+        'no_barcode': 'بدون بارکد'
+    }
+
+    for key, value in request.GET.items():
+        if value and value != '' and key in filter_labels:
+            if value == 'on': # برای چک‌باکس‌ها
+                active_filters.append(filter_labels[key])
+            else:
+                active_filters.append(f"{filter_labels[key]}: {value}")
+
+    return render(request, 'drugs/drug_print_report.html', {
+        'drugs': drugs,
+        'today_jalali': today_jalali,
+        'active_filters': active_filters,
+    })
+
+def drug_create_or_update(request, pk=None):
+    drug_instance = get_object_or_404(Drug, pk=pk) if pk else None
+    page_title = f'ویرایش داروی {drug_instance.name}' if drug_instance else 'افزودن داروی جدید'
+    
     if request.method == 'POST':
-        form = DrugForm(request.POST)
-        if form.is_valid():
-            form.save()
-            messages.success(request, 'دارو با موفقیت اضافه شد!')
-            return redirect('drugs:drug_list')
+        # نکته: ModelForm استاندارد آرگومان request نمی‌پذیرد.
+        # اگر در فرم نیاز به user دارید، باید در save commit=False ست کنید.
+        form = DrugForm(request.POST, instance=drug_instance)
+        formset = DrugBarcodeFormSet(request.POST, instance=drug_instance)
+        
+        if form.is_valid() and formset.is_valid():
+            try:
+                with transaction.atomic():
+                    drug = form.save() # اگر فیلد drug_code اتوماتیک است، در مدل یا سیگنال هندل شود
+                    
+                    formset.instance = drug
+                    formset.save()
+                    
+                    messages.success(request, f'داروی "{drug.name}" با موفقیت ذخیره شد.')
+                    
+                    next_url = request.GET.get('next')
+                    if next_url and url_has_allowed_host_and_scheme(next_url, allowed_hosts={request.get_host()}):
+                        return redirect(next_url)
+                    
+                    # پیشنهاد: بعد از ذخیره جدید، برو به لیست. بعد از ویرایش، در همان صفحه بمان
+                    if pk:
+                        return redirect('drugs:drug_update', pk=drug.pk)
+                    return redirect('drugs:drug_list')
+                    
+            except Exception as e:
+                messages.error(request, f'خطا در تراکنش دیتابیس: {str(e)}')
         else:
-            messages.error(request, 'خطا در افزودن دارو. لطفا اطلاعات را بررسی کنید.')
+            messages.error(request, 'لطفاً خطاهای فرم را بررسی کنید.')
+    
     else:
-        form = DrugForm()
+        form = DrugForm(instance=drug_instance)
+        formset = DrugBarcodeFormSet(instance=drug_instance)
+
     context = {
-        'page_title': 'افزودن داروی جدید',
-        'form': form
+        'page_title': page_title,
+        'form': form,
+        'formset': formset,
+        'drug': drug_instance,
+        'is_new_drug': drug_instance is None
     }
     return render(request, 'drugs/drug_form.html', context)
 
@@ -149,11 +474,10 @@ def drug_create(request):
 @permission_required('drugs.view_drug', raise_exception=True)
 def drug_detail(request, pk):
     drug = get_object_or_404(Drug, pk=pk)
-    batches = drug.drugbatch_set.all().order_by('-expiry_date', '-created_at')
+    # اینجا drug.batches.all() را جایگزین drug.drugbatch_set.all() کنید
+    batches = drug.batches.all().order_by('-expiry_date', '-created_at')
     
     # Calculate drug requests related to this drug
-    # Here we might want to show items of drug requests where this drug is requested
-    # For simplicity, we are just counting for now
     drug_request_items = DrugRequestItem.objects.filter(drug=drug).order_by('-drug_request__request_date')
     
     context = {
@@ -615,6 +939,11 @@ def purchase_invoice_delete(request, pk):
 # --- Ajax View برای جستجوی دارو با Select2 ---
 @login_required
 def search_drugs_ajax(request):
+    from drugs.models import DrugBatch
+    from django.db.models import Min
+    from django.utils import timezone
+    import jdatetime
+    
     form = DrugSearchForm(request.GET)
     results = []
     count = 0
@@ -631,12 +960,11 @@ def search_drugs_ajax(request):
             drugs = drugs.filter(pk=drug_id)
         elif query:
             # جستجو بر اساس drug_code, name, form, generic_name
-            # فرض بر این است که این فیلدها در مدل Drug شما وجود دارند
             drugs = drugs.filter(
                 Q(name__icontains=query) | 
-                Q(drug_code__icontains=query) | # drug_code استفاده شد
-                Q(form__icontains=query) | # form استفاده شد
-                Q(generic_name__icontains=query) # generic_name استفاده شد
+                Q(drug_code__icontains=query) | 
+                Q(form__icontains=query) | 
+                Q(generic_name__icontains=query)
             ).distinct() 
 
         drugs = drugs.order_by('name')
@@ -645,23 +973,69 @@ def search_drugs_ajax(request):
         paginator = Paginator(drugs, per_page)
         page_obj = paginator.get_page(page)
 
+        today = timezone.now().date()
+        three_months_later = today + timezone.timedelta(days=90)
+
         for drug in page_obj:
+            # محاسبه موجودی کل
+            total_stock = sum(batch.quantity for batch in drug.batches.all())
+            
+            # بررسی تاریخ انقضای نزدیک‌ترین بچ معتبر
+            nearest_batch = drug.batches.filter(quantity__gt=0, expiry_date__gte=today).order_by('expiry_date').first()
+            
+            # وضعیت‌ها
+            is_expired = any(batch.quantity > 0 and batch.expiry_date and batch.expiry_date < today 
+                           for batch in drug.batches.all())
+            is_near_expiry = any(batch.quantity > 0 and batch.expiry_date and 
+                                today <= batch.expiry_date <= three_months_later 
+                                for batch in drug.batches.all())
+            is_low_stock = total_stock > 0 and total_stock < drug.min_stock_alert
+            
+            # ساخت نمایش متنی
             text_display = f"{drug.name}"
-            # اضافه کردن فرم دارویی (اگر وجود دارد)
-            if hasattr(drug, 'form') and drug.form: # چک کردن وجود فیلد form
+            if hasattr(drug, 'form') and drug.form:
                 text_display += f" ({drug.form})" 
-            # اضافه کردن نام ژنریک (اگر وجود دارد)
-            if hasattr(drug, 'generic_name') and drug.generic_name: # چک کردن وجود فیلد generic_name
+            if hasattr(drug, 'generic_name') and drug.generic_name:
                 text_display += f" - ژنریک: {drug.generic_name}"
-            # اضافه کردن کد دارو (اگر وجود دارد)
-            if hasattr(drug, 'drug_code') and drug.drug_code: # چک کردن وجود فیلد drug_code
+            if hasattr(drug, 'drug_code') and drug.drug_code:
                 text_display += f" - کد: {drug.drug_code}"
             else:
-                text_display += " - کد: ندارد" # اگر کد دارو خالی بود
+                text_display += " - کد: ندارد"
+
+            # ساخت badge برای نمایش در select2
+            stock_badge = ""
+            if total_stock == 0:
+                stock_badge = "<span class='badge badge-danger mr-1'>ناموجود</span>"
+            elif is_expired:
+                stock_badge = "<span class='badge badge-dark mr-1'>منقضی</span>"
+            elif is_low_stock:
+                stock_badge = f"<span class='badge badge-warning mr-1'>موجودی کم: {total_stock}</span>"
+            elif is_near_expiry:
+                stock_badge = f"<span class='badge badge-info mr-1'>موجودی: {total_stock} (نزدیک انقضا)</span>"
+            else:
+                stock_badge = f"<span class='badge badge-success mr-1'>موجودی: {total_stock}</span>"
+            
+            # اضافه کردن اطلاعات تاریخ انقضای نزدیک‌ترین بچ
+            expiry_info = ""
+            if nearest_batch:
+                jalali_expiry = jdatetime.date.fromgregorian(date=nearest_batch.expiry_date).strftime('%Y/%m/%d')
+                days_until_expiry = (nearest_batch.expiry_date - today).days
+                if days_until_expiry < 30:
+                    expiry_info = f"<span class='text-danger small mr-1'> (انقضا: {jalali_expiry})</span>"
+                elif days_until_expiry < 90:
+                    expiry_info = f"<span class='text-warning small mr-1'> (انقضا: {jalali_expiry})</span>"
+                else:
+                    expiry_info = f"<span class='text-muted small mr-1'> (انقضا: {jalali_expiry})</span>"
 
             results.append({
                 'id': drug.pk,
-                'text': text_display
+                'text': text_display,
+                'stock': total_stock,
+                'is_expired': is_expired,
+                'is_near_expiry': is_near_expiry,
+                'is_low_stock': is_low_stock,
+                'nearest_expiry': nearest_batch.get_jalali_expiry_date() if nearest_batch else None,
+                'html': text_display + stock_badge + expiry_info
             })
     
     return JsonResponse({
@@ -770,7 +1144,7 @@ def drug_request_create(request):
     initial_desc = request.session.pop('generation_notes', '')
 
     DrugRequestItemFormset = inlineformset_factory(
-        DrugRequest, DrugRequestItem, form=DrugRequestItemForm, extra=1, can_delete=True, min_num=1, validate_min=True,
+        DrugRequest, DrugRequestItem, form=DrugRequestItemForm, extra=0, can_delete=True, min_num=0, validate_min=True,
     )
 
     if request.method == 'POST':
@@ -812,41 +1186,25 @@ def drug_request_create(request):
 def drug_request_update(request, pk):
     drug_request = get_object_or_404(DrugRequest, pk=pk)
 
-    # برای ایجاد فرم‌ست آیتم‌ها
-    DrugRequestItemFormset = inlineformset_factory(
-        DrugRequest, DrugRequestItem, form=DrugRequestItemForm, extra=1, can_delete=True, min_num=1, validate_min=True,
-    )
-
     if request.method == 'POST':
         form = DrugRequestForm(request.POST, instance=drug_request)
         formset = DrugRequestItemFormset(request.POST, instance=drug_request, prefix='items')
 
         if form.is_valid() and formset.is_valid():
             with transaction.atomic():
-                # چون requested_by غیرفعال است، در POST وجود ندارد و form.save() آن را تغییر نمی‌دهد
-                # و مقدار اولیه شیء حفظ می‌شود. پس مشکلی نیست.
                 form.save()
                 formset.save()
-                
-                # منطق لاگ‌گیری برای تغییرات...
-                # می‌توانید لاگ تغییر وضعیت یا سایر تغییرات مهم را اینجا اضافه کنید.
-                
-                messages.success(request, 'درخواست دارو با موفقیت به‌روزرسانی شد.')
-                # ✅ 'return' اضافه شد
+                messages.success(request, 'تغییرات با موفقیت ذخیره شد.')
                 return redirect('drugs:drug_request_detail', pk=drug_request.pk)
-        else:
-            messages.error(request, "خطا در فرم. لطفاً موارد را بررسی کنید.")
     else:
-        # در متد GET، request را به فرم می‌دهیم تا فیلد کاربر را غیرفعال کند
-        form = DrugRequestForm(instance=drug_request, request=request)
+        form = DrugRequestForm(instance=drug_request)
         formset = DrugRequestItemFormset(instance=drug_request, prefix='items')
 
-    context = {
-        'form': form, 'formset': formset, 'drug_request': drug_request,
-        'page_title': f'ویرایش درخواست: {drug_request.request_code}'
-    }
-    return render(request, 'drugs/drug_request_update.html', context)
-
+    return render(request, 'drugs/drug_request_update.html', {
+        'form': form,
+        'formset': formset,
+        'drug_request': drug_request
+    })
 # --------------------------------------------------
 # ویوی جدید برای تبدیل درخواست به فاکتور خرید
 # --------------------------------------------------
@@ -944,7 +1302,7 @@ def drug_request_detail(request, pk):
     نمایش جزئیات یک درخواست دارو به همراه آیتم‌ها و لاگ گردش کار.
     """
     drug_request = get_object_or_404(
-        DrugRequest.objects.prefetch_related('items__drug', 'workflow_logs__user'),
+        DrugRequest.objects.prefetch_related('items__drug', 'workflow_logs__actor'),
         pk=pk
     )
 
@@ -1107,7 +1465,7 @@ class DrugSearchAPIView(generics.ListAPIView):
                 Q(generic_name__icontains=query) | 
                 Q(drug_code__icontains=query)
             )
-        return queryset.annotate(current_stock_val=Sum('drugbatch__quantity', filter=Q(drugbatch__expiry_date__gte=datetime.date.today())))
+        return queryset.annotate(current_stock_val=Sum('batches__quantity', filter=Q(batches__expiry_date__gte=datetime.date.today())))
 
 
 class DrugSelect2View(AutoResponseView):
@@ -1254,4 +1612,78 @@ def delete_temporary_inventory(request):
     context = {
         'page_title': "حذف موجودی موقت",
     }
-    return render(request, 'drugs/delete_temporary_inventory_confirm.html', context)    
+    return render(request, 'drugs/delete_temporary_inventory_confirm.html', context)  
+def search_suppliers_ajax(request):
+    query = request.GET.get('q', '')
+    page = int(request.GET.get('page', 1))
+    per_page = 10 
+
+    suppliers = Supplier.objects.all()
+
+    if query:
+        suppliers = suppliers.filter(
+            Q(name__icontains=query)
+        ).distinct() 
+
+    suppliers = suppliers.order_by('name')
+
+    count = suppliers.count()
+    paginator = Paginator(suppliers, per_page)
+    page_obj = paginator.get_page(page)
+    
+    # استفاده از سریالایزر برای تبدیل QuerySet به داده‌های JSON
+    serializer = SupplierSerializer(page_obj, many=True)
+    results = serializer.data
+    
+    return JsonResponse({
+        'results': results,
+        'count': count,
+        'pagination': {
+            'more': page_obj.has_next()
+        }
+    })
+# ... import های دیگر
+import re # ماژول regular expressions را برای استخراج کد اضافه کنید
+from django.db.models import Q
+
+# ... 
+# کلاس‌های دیگر
+# ...
+
+class DrugAutocompleteAPIView(generics.ListAPIView):
+    serializer_class = DrugSerializer
+    permission_classes = [IsAuthenticated]
+
+    def get_queryset(self):
+        query = self.request.query_params.get('q', '').strip()
+        print(f"\n[DEBUG] API received query: '{query}'") # --- دیباگ ۱
+
+        if not query:
+            return Drug.objects.none()
+
+        # تلاش برای استخراج GTIN از بارکد GS1
+        gtin_match = re.search(r'(?:01)(\d{14})', query)
+        
+        if gtin_match:
+            extracted_gtin = gtin_match.group(1)
+            print(f"[DEBUG] GS1 GTIN extracted: '{extracted_gtin}'") # --- دیباگ ۲
+            
+            barcode_query = Q(barcodes__gtin=extracted_gtin)
+            results = Drug.objects.filter(barcode_query).prefetch_related('barcodes').distinct()
+            
+            print(f"[DEBUG] Found {results.count()} drugs for this GTIN.") # --- دیباگ ۳
+            return results
+
+        # اگر GTIN پیدا نشد، به منطق جستجوی قبلی برمی‌گردیم
+        print("[DEBUG] No GS1 GTIN found. Falling back to general search.") # --- دیباگ ۴
+        
+        if query.isdigit():
+            return Drug.objects.filter(pk=query).prefetch_related('barcodes')
+
+        name_query = Q(name__icontains=query)
+        barcode_query = Q(barcodes__gtin__icontains=query)
+        combined_query = name_query | barcode_query
+        
+        results = Drug.objects.filter(combined_query).prefetch_related('barcodes').distinct()
+        print(f"[DEBUG] General search found {results.count()} results.") # --- دیباگ ۵
+        return results

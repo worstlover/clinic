@@ -1,0 +1,83 @@
+{% extends 'base.html' %}
+{% load jformat %}
+
+{% block content %}
+<div class="container mt-4" style="direction: rtl; text-align: right; font-family: Tahoma, Arial, sans-serif;">
+    <div class="d-flex justify-content-between align-items-center mb-4 border-bottom pb-3">
+        <h3 class="fw-bold"><i class="fas fa-search text-warning me-2"></i> {{ title_prefix }}</h3>
+        <a href="{% url 'core:daily_report_list' %}" class="btn btn-outline-secondary btn-sm">بازگشت</a>
+    </div>
+
+    <div class="row">
+        {% for req in requirements %}
+        <div class="col-md-6 mb-4">
+            <div class="card h-100 shadow-sm border-0 border-top border-4 {% if req.status == 'resolved' %}border-success{% else %}border-primary{% endif %}">
+                <div class="card-body">
+                    <h5 class="fw-bold text-primary mb-3">{{ req.title }}</h5>
+                    
+                    <div class="row g-2 mb-3">
+                        <div class="col-7">
+                            <label class="small fw-bold mb-1">تغییر وضعیت:</label>
+                            <select id="status-track-{{ req.id }}" class="form-select form-select-sm border-primary">
+                                {% for code, name in req.STATUS_CHOICES %}
+                                    <option value="{{ code }}" 
+                                        {% if req.status == code %}selected{% endif %}
+                                        {% if req.status != 'created' and code == 'created' %}disabled{% endif %}>
+                                        {{ name }}
+                                    </option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div class="col-5 d-flex align-items-end">
+                            <button onclick="updateRequirement({{ req.id }}, 'track')" class="btn btn-sm btn-success w-100 shadow-sm">بروزرسانی</button>
+                        </div>
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="small fw-bold mb-1">یادداشت مدیریت:</label>
+                        <input type="text" id="note-track-{{ req.id }}" class="form-control form-control-sm" value="{{ req.admin_note|default:'' }}">
+                    </div>
+
+                    <div class="border rounded p-2 bg-light">
+                        <h6 class="small fw-bold text-success border-bottom pb-1 mb-2">تاریخچه بازدید مدیران:</h6>
+                        {% for view in req.requirementview_set.all %}
+                            <div class="d-flex justify-content-between small mb-1 border-bottom border-white pb-1">
+                                <span><i class="fas fa-user-check text-success me-1"></i> {{ view.admin.get_full_name }}</span>
+                                <span class="text-muted" style="font-size: 0.7rem;">
+                                    {{ view.viewed_at|jformat:"%Y/%m/%d ساعت %H:i" }}
+                                </span>
+                            </div>
+                        {% empty %}
+                            <div class="text-center text-muted small py-1 italic">هنوز مشاهده نشده است</div>
+                        {% endfor %}
+                    </div>
+                </div>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+</div>
+
+<script>
+function updateRequirement(id, prefix) {
+    const status = document.getElementById(`status-${prefix}-${id}`).value;
+    const note = document.getElementById(`note-${prefix}-${id}`).value;
+    
+    fetch("{% url 'core:update_requirement_status' 0 %}".replace('0', id), {
+        method: 'POST',
+        headers: {
+            'X-CSRFToken': '{{ csrf_token }}',
+            'Content-Type': 'application/x-www-form-urlencoded'
+        },
+        body: `status=${status}&admin_note=${note}`
+    }).then(res => res.json()).then(data => {
+        if(data.status === 'success') {
+            alert('تغییرات با موفقیت ذخیره شد');
+            location.reload();
+        } else {
+            alert('خطایی رخ داد.');
+        }
+    });
+}
+</script>
+{% endblock %}

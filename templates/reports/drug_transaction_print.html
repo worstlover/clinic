@@ -1,0 +1,183 @@
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <title>گزارش کاردکس داروها</title>
+    <link href="https://cdn.jsdelivr.net/gh/rastikerdar/vazirmatn-font@v33.003/dist/font-face.css" rel="stylesheet" type="text/css" />
+    <style>
+        /* تنظیمات پایه */
+        body { 
+            font-family: 'Vazirmatn', sans-serif; 
+            font-size: 11px; 
+            margin: 0; 
+            padding: 0; 
+            background: #fff; 
+            color: #000;
+        }
+        
+        @page {
+            size: A4 portrait; 
+            margin: 2cm 1cm 1cm 1cm;
+            @top-left {
+                content: "صفحه " counter(page) " از " counter(pages);
+                font-size: 11px;
+                font-family: 'Vazirmatn', sans-serif;
+            }
+        }
+
+        /* تنظیمات مخصوص چاپ */
+        @media print {
+            .no-print { display: none !important; }
+            /* تکرار هدر در تمام صفحات */
+            thead { display: table-header-group; }
+            
+            /* جلوگیری از نصف شدن سطرها در انتهای صفحه */
+            tr { page-break-inside: avoid; }
+        }
+
+        /* کادر سربرگ رسمی */
+        .report-header-table {
+            width: 100%;
+            border: 2px solid #000 !important;
+            border-collapse: collapse;
+            margin-bottom: 10px;
+        }
+        
+        .header-cell {
+            border: none !important;
+            padding: 8px 12px !important;
+            vertical-align: middle;
+        }
+
+        /* تراز کردن محتوای سربرگ به گوشه‌ها */
+        .header-right { 
+            text-align: right; 
+            width: 30%; 
+            line-height: 1.8; 
+            font-size: 10px;
+        }
+        .header-center { 
+            text-align: center; 
+            width: 40%; 
+        }
+        .header-left { 
+            text-align: left; 
+            width: 30%; 
+            font-weight: bold;
+            font-size: 10px;
+        }
+        
+        .header-cell div {
+            font-weight: bold;
+        }
+
+        /* استایل جدول اصلی تراکنش‌ها */
+        .main-table { 
+            width: 100%; 
+            border-collapse: collapse; 
+            margin-top: 0;
+        }
+        
+        .main-table th, .main-table td {
+            border: 1px solid #000 !important;
+            padding: 6px 4px !important;
+            text-align: center;
+        }
+
+        .main-table th { 
+            background-color: #f2f2f2 !important; 
+            font-weight: bold; 
+            font-size: 11px;
+        }
+
+        .drug-name-cell {
+            text-align: right !important;
+            padding-right: 8px !important;
+            font-weight: bold;
+        }
+
+        .text-success { color: #006400 !important; }
+        .text-danger { color: #8b0000 !important; }
+        .balance-cell { background-color: #f9f9f9 !important; font-weight: bold; }
+
+    </style>
+</head>
+<body>
+
+    <!-- دیباگ: نمایش اطلاعات ارسال شده (فقط در محیط توسعه) -->
+    <!--
+    <div style="background: #f0f0f0; padding: 10px; margin: 10px; border: 1px solid #ccc; font-size: 12px;">
+        <strong>دیباگ:</strong><br>
+        تعداد تراکنش‌ها: {{ transactions|length }}<br>
+        آیا فیلتر اعمال شده: {{ is_filtered }}<br>
+        داروهای انتخاب شده: {{ selected_drugs|length }}<br>
+    </div>
+    -->
+
+    <div class="no-print" style="margin-top: 20px; text-align: center; margin-bottom: 20px;">
+        <button onclick="window.print()" style="padding: 10px 20px; cursor: pointer; margin-left: 10px;">🖨️ چاپ</button>
+        <a href="{% url 'reports:drug_transaction_report' %}" style="padding: 10px 20px; cursor: pointer; text-decoration: none; background: #6c757d; color: white; border-radius: 4px;">بازگشت به گزارش</a>
+    </div>
+
+    <table class="main-table">
+        <thead>
+            <tr>
+                <th colspan="7" style="border: none !important; background: white !important; padding: 0;">
+                    <table class="report-header-table">
+                        <tr>
+                            <td class="header-cell header-right">
+                                <div><b>تاریخ چاپ:</b> {{ today_jalali }}</div>
+                                <div><b>واحد سازمانی:</b> انبار دارویی کلینیک گندله سازی بهاباد</div>
+                            </td>
+                            
+                            <td class="header-cell header-center">
+                                <h2 style="margin: 0; font-size: 18px;">گزارش کاردکس داروها</h2>
+                                <div style="margin-top: 5px; font-size: 11px;">
+                                    بازه: {{ start_date|default:"ابتدا" }} تا {{ end_date|default:"امروز" }}
+                                </div>
+                            </td>
+
+                            <td class="header-cell header-left">
+                                <div class="page-number" style="font-size: 10px;"></div>
+                            </td>
+                        </tr>
+                    </table>
+                </th>
+            </tr>
+            <tr>
+                <th style="width: 5%;">ردیف</th>
+                <th style="width: 40%;">شرح کامل دارو / کالا</th>
+                <th style="width: 15%;">تاریخ و زمان</th>
+                <th style="width: 8%;">نوع</th>
+                <th style="width: 8%;">خرید (+)</th>
+                <th style="width: 8%;">خروج (-)</th>
+                <th style="width: 16%;">موجودی در لحظه</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for item in transactions %}
+            <tr>
+                <td>{{ forloop.counter }}</td>
+                <td class="drug-name-cell">{{ item.drug_name }}</td>
+                <td dir="ltr" style="font-size: 10px;">{{ item.date_jalali }}</td>
+                <td>
+                    {% if item.q_in > 0 %}خرید{% else %}خروج{% endif %}
+                </td>
+                <td class="text-success">
+                    {% if item.q_in > 0 %}{{ item.q_in }}{% else %}-{% endif %}
+                </td>
+                <td class="text-danger">
+                    {% if item.q_out > 0 %}{{ item.q_out }}{% else %}-{% endif %}
+                </td>
+                <td class="balance-cell">{{ item.balance_after }}</td>
+            </tr>
+            {% empty %}
+            <tr>
+                <td colspan="7">تراکنشی در بازه زمانی انتخاب شده یافت نشد.</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+
+</body>
+</html>

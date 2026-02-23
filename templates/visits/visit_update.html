@@ -1,0 +1,305 @@
+{% load static %}
+{% load crispy_forms_tags %}
+
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ویرایش ویزیت | {{ visit.patient.full_name }}</title>
+    
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@4.6.2/dist/css/bootstrap.min.css">
+    <link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet" />
+    <link href="https://cdn.jsdelivr.net/gh/rastikerdar/vazir-font@v30.1.0/dist/font-face.css" rel="stylesheet" />
+
+    <style>
+        :root { --primary: #0056b3; --success: #198754; --danger: #dc3545; --warning: #fd7e14; }
+        body { background-color: #f4f7f6; font-family: 'Vazir', sans-serif; direction: rtl; text-align: right; padding: 15px; }
+        
+        .main-card { background: #fff; border-radius: 12px; padding: 20px; margin-bottom: 20px; box-shadow: 0 4px 12px rgba(0,0,0,0.08); border: none; }
+        .section-title { color: var(--primary); font-weight: bold; border-right: 5px solid var(--primary); padding-right: 12px; margin-bottom: 20px; }
+
+        /* کادر زرد سوابق */
+        .history-card { background: #fff3cd; border: 1px solid #ffeeba; border-radius: 10px; padding: 15px; margin-bottom: 20px; font-size: 0.85rem; }
+        .history-label { font-weight: bold; color: #333; }
+
+        /* سطر دارو */
+        .drug-line { 
+            display: flex; align-items: center; background: #fff; border: 1px solid #ced4da; 
+            padding: 5px 10px; border-radius: 8px; margin-bottom: 8px; gap: 8px;
+        }
+        .drug-line .form-group { margin-bottom: 0 !important; width: 100%; }
+        
+        .col-d-name { flex: 4; min-width: 250px; } /* عرض بیشتر برای نمایش اطلاعات دارو */
+        .col-d-qty { flex: 0 0 70px; } 
+        .col-d-note { flex: 5; } 
+        .col-d-del { flex: 0 0 40px; text-align: center; }
+
+        /* استایل‌های اختصاصی دراپ‌داون داروی هوشمند (کپی شده از فرم ثبت) */
+        .s2-drug-wrapper { display: flex; justify-content: space-between; align-items: center; width: 100%; }
+        .badge-stock-info { font-size: 10px; padding: 3px 6px; border-radius: 5px; margin-right: 4px; font-weight: bold; }
+        .expired-text { color: var(--danger) !important; text-decoration: line-through; opacity: 0.7; }
+        .near-expiry-text { color: #856404 !important; }
+
+        .fa-num-fix { font-family: sans-serif; text-align: center; font-weight: bold; height: 38px !important; }
+        .form-control { border-radius: 8px !important; }
+        textarea { resize: none; border-radius: 8px !important; }
+        .select2-container--default .select2-selection--single { height: 38px !important; border-radius: 8px !important; padding-top: 5px; }
+    </style>
+</head>
+<body>
+
+<div class="container-fluid">
+    <div class="d-flex justify-content-between align-items-center mb-3">
+        <h4 class="font-weight-bold">📝 ویرایش پرونده ویزیت</h4>
+        <a href="{% url 'visits:visit_list' %}" class="btn btn-outline-secondary btn-sm">بازگشت به لیست</a>
+    </div>
+
+    <form method="post" id="edit-form">
+        {% csrf_token %}
+        {{ formset.management_form }}
+
+        <div class="main-card">
+            <h5 class="section-title">اطلاعات بیمار</h5>
+            <div class="row align-items-end">
+                <div class="col-md-9 col-12">
+                    <label class="small font-weight-bold">نام بیمار:</label>
+                    <input type="text" class="form-control bg-light" value="{{ visit.patient.full_name }}" readonly>
+                    <input type="hidden" name="patient" value="{{ visit.patient.id }}">
+                </div>
+                <div class="col-md-3 col-12">
+                    <a href="{% url 'core:patient_create' %}" class="btn btn-success btn-block" style="height: 38px;">➕ بیمار جدید</a>
+                </div>
+            </div>
+        </div>
+
+        <div class="history-card shadow-sm">
+            <div class="row">
+                <div class="col-md-2 col-4"><span class="history-label">سن:</span> {{ visit.patient.age }}</div>
+                <div class="col-md-3 col-8"><span class="history-label">شغل:</span> <span id="h-job">---</span></div>
+                <div class="col-md-2 col-4"><span class="history-label">ویزیت:</span> <span id="h-count" class="badge badge-primary">0</span></div>
+                <div class="col-md-5 col-8"><span class="history-label">آخرین:</span> <span id="h-last-date" class="text-primary font-weight-bold">---</span> (<span id="h-last-reason">---</span>)</div>
+                <div class="col-md-12 mt-2 border-top pt-2"><span class="history-label">⚠️ حساسیت:</span> <span id="h-allergy" class="text-danger">---</span></div>
+                <div class="col-md-12 mt-1"><span class="history-label">📂 سوابق:</span> <span id="h-medical">---</span></div>
+            </div>
+        </div>
+
+        <div class="main-card">
+            <h5 class="section-title">معاینات و علائم</h5>
+            <div class="row mb-3">
+                <div class="col-md-3 col-6">{{ form.visit_date_jalali|as_crispy_field }}</div>
+                <div class="col-md-6 col-12">{{ form.reason_for_visit|as_crispy_field }}</div>
+                <div class="col-md-3 col-6">{{ form.incident_type|as_crispy_field }}</div>
+            </div>
+
+            <div class="row bg-light p-2 rounded no-gutters">
+                <div class="col px-1"><label class="small font-weight-bold">قد (cm)</label><input type="tel" name="height_cm" id="id_height_cm" value="{{ form.height_cm.value|default:'' }}" class="form-control fa-num-fix"></div>
+                <div class="col px-1"><label class="small font-weight-bold">وزن (kg)</label><input type="tel" name="weight_kg" id="id_weight_kg" value="{{ form.weight_kg.value|default:'' }}" class="form-control fa-num-fix"></div>
+                <div class="col px-1"><label class="small font-weight-bold">دما</label><input type="tel" name="temperature" id="id_temperature" value="{{ form.temperature.value|default:'' }}" class="form-control fa-num-fix"></div>
+                <div class="col px-1"><label class="small font-weight-bold">فشار خون</label><input type="text" name="blood_pressure" id="id_blood_pressure" value="{{ form.blood_pressure.value|default:'' }}" class="form-control fa-num-fix"></div>
+                <div class="col px-1"><label class="small font-weight-bold">BMI</label><div id="bmi-val" class="form-control bg-white text-center font-weight-bold">---</div></div>
+            </div>
+        </div>
+
+        <div class="main-card">
+            <div class="d-flex justify-content-between align-items-center mb-3">
+                <h5 class="section-title mb-0">💊 لیست داروها</h5>
+                <button type="button" class="btn btn-sm btn-success" onclick="addRow()">＋ افزودن دارو</button>
+            </div>
+            <div id="drug-container">
+                {% for f in formset %}
+                <div class="drug-line">
+                    {{ f.id }}
+                    <div style="display:none;">{{ f.DELETE }}</div> 
+                    
+                    <div class="col-d-name">{{ f.drug }}</div>
+                    <div class="col-d-qty"><input type="tel" name="{{ f.prefix }}-quantity" value="{{ f.quantity.value|default:'' }}" class="form-control fa-num-fix" placeholder="تعداد"></div>
+                    <div class="col-d-note">{{ f.notes }}</div> 
+                    <div class="col-d-del"><button type="button" class="btn btn-link text-danger p-0 remove-existing-row" data-prefix="{{ f.prefix }}">✖</button></div>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+
+        <div class="main-card bg-white">
+            <h5 class="section-title">گزارش و تشخیص نهایی</h5>
+            <div class="row">
+                <div class="col-md-6 col-12">
+                    <label class="small font-weight-bold">📈 تفسیر نوار قلب (ECG):</label>
+                    <textarea name="ecg_interpretation" class="form-control" style="height: 65px !important;">{{ form.ecg_interpretation.value|default:'' }}</textarea>
+                </div>
+                <div class="col-md-6 col-12">
+                    <label class="small font-weight-bold">📝 ملاحظات و شرح حال:</label>
+                    <textarea name="notes" class="form-control" style="height: 120px !important;">{{ form.notes.value|default:'' }}</textarea>
+                </div>
+            </div>
+            <div class="mt-3">{{ form.treatment_result|as_crispy_field }}</div>
+        </div>
+
+        <button type="submit" class="btn btn-primary btn-block btn-lg py-3 shadow-lg mb-5">💾 ثبت نهایی تغییرات</button>
+    </form>
+</div>
+
+<div id="empty-row" style="display:none;">
+    <div class="drug-line" style="border-style: dashed; border-color: #28a745;">
+        <div class="col-d-name"><select name="items-__prefix__-drug" class="form-control"></select></div>
+        <div class="col-d-qty"><input type="tel" name="items-__prefix__-quantity" class="form-control fa-num-fix" placeholder="0"></div>
+        <div class="col-d-note"><input type="text" name="items-__prefix__-notes" class="form-control" style="height:38px;" placeholder="دستور مصرف..."></div>
+        <div class="col-d-del"><button type="button" class="btn btn-link text-danger p-0 remove-new-row">✖</button></div>
+    </div>
+</div>
+
+<script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
+
+<script>
+$(document).ready(function() {
+    const p2e = s => String(s).replace(/[۰-۹]/g, d => '۰۱۲۳۴۵۶۷۸۹'.indexOf(d)).replace(/[٠-٩]/g, d => '٠١٢٣٤٥٦٧٨٩'.indexOf(d));
+    
+    // --- محاسبات و تبدیل اعداد ---
+    $(document).on('input', '.fa-num-fix', function() {
+        let val = $(this).val();
+        let enVal = p2e(val);
+        if (val !== enVal) { $(this).val(enVal); }
+        if (this.id === 'id_height_cm' || this.id === 'id_weight_kg') { calcBMI(); }
+    });
+
+    function calcBMI() {
+        let h = parseFloat($('#id_height_cm').val()) / 100, w = parseFloat($('#id_weight_kg').val());
+        if (h > 0 && w > 0) $('#bmi-val').text((w / (h * h)).toFixed(1));
+    }
+    calcBMI();
+
+    // تنظیم استایل فیلدهای توضیحات دارو که توسط جنگو ساخته شده‌اند
+    $('textarea[name$="-notes"]').each(function() {
+        if ($(this).attr('name').includes('items')) {
+            $(this).attr('rows', '1').css('height', '38px').addClass('form-control').attr('placeholder', 'دستور مصرف...');
+        }
+    });
+
+    // --- بارگذاری اطلاعات سوابق بیمار ---
+    const pId = "{{ visit.patient.id }}", vId = "{{ visit.id }}";
+    if (pId) {
+        $.getJSON("{% url 'visits:patient_detail_api' %}", { 'patient_id': pId, 'current_visit_id': vId }, function(res) {
+            $('#h-job').text(res.occupation || "ثبت نشده");
+            $('#h-count').text(res.visit_count || "0");
+            $('#h-last-date').text(res.last_visit_date || "---");
+            $('#h-last-reason').text(res.last_visit_reason || "---");
+            $('#h-allergy').text(res.allergies || "موردی ندارد");
+            $('#h-medical').text(res.medical_history || "فاقد سابقه");
+        });
+    }
+
+    // --- تابع اصلی Select2 با قابلیت نمایش موجودی و انقضا ---
+    function initS2(selector, url, ph, isDrug = false) {
+        $(selector).select2({
+            placeholder: ph,
+            width: '100%',
+            dir: 'rtl',
+            minimumInputLength: 1,
+            ajax: {
+                url: url,
+                dataType: 'json',
+                delay: 250,
+                data: p => ({ q: p2e(p.term || '') }),
+                processResults: data => ({
+                    // نگاشت فیلدهای بک‌ند به آبجکت مورد نیاز Select2
+                    results: $.map(data, item => ({
+                        id: item.id || item.pk,
+                        text: item.text || item.name,
+                        stock: item.total_stock,      // دریافت از سریالایزر
+                        low: item.is_low_stock,       // دریافت از سریالایزر
+                        is_expired: item.is_expired,  // دریافت از سریالایزر
+                        near_expiry: item.near_expiry // دریافت از سریالایزر
+                    }))
+                })
+            },
+            // تابع رندر کردن آیتم‌های لیست (نمایش بج‌ها و رنگ‌ها)
+            templateResult: function(item) {
+                if (!item.id || !isDrug) return item.text;
+
+                let badgeClass = "badge-success";
+                let statusText = "دارای اعتبار";
+                let textClass = "";
+                let extraBadge = "";
+                let stockVal = (item.stock !== undefined && item.stock !== null) ? item.stock : 0;
+
+                // ۱. اولویت با انقضا
+                if (item.is_expired) {
+                    badgeClass = "badge-danger";
+                    statusText = "🔴 منقضی شده";
+                    textClass = "expired-text";
+                    extraBadge = '<span class="badge badge-dark badge-stock-info">غیرقابل مصرف</span>';
+                } 
+                else if (item.near_expiry) {
+                    badgeClass = "badge-warning text-dark";
+                    statusText = "نزدیک انقضا";
+                    textClass = "near-expiry-text";
+                    extraBadge = '<span class="badge badge-secondary badge-stock-info">⚠️ اولویت مصرف</span>';
+                }
+
+                // ۲. بررسی موجودی (اگر منقضی نبود)
+                if (!item.is_expired) {
+                    if (stockVal <= 0) {
+                        badgeClass = "badge-danger";
+                        statusText = "ناموجود";
+                    } else if (item.low && !item.near_expiry) {
+                        badgeClass = "badge-warning text-dark";
+                        statusText = "کمبود انبار";
+                    }
+                }
+
+                return $(`
+                    <div class="s2-drug-wrapper">
+                        <span class="${textClass}" style="font-weight:bold;">${item.text}</span>
+                        <div>
+                            <span class="badge badge-light border badge-stock-info">موجودی: ${stockVal}</span>
+                            <span class="badge ${badgeClass} badge-stock-info">${statusText}</span>
+                            ${extraBadge}
+                        </div>
+                    </div>
+                `);
+            }
+        });
+    }
+
+    // --- فعال‌سازی Select2 روی المان‌های موجود ---
+    initS2('#id_reason_for_visit', "{% url 'visits:api_reason_search' %}", "جستجوی علت...");
+    // فعال‌سازی روی دراپ‌داون‌های دارویی که از قبل در فرم (سمت سرور) رندر شده‌اند
+    $('select[name$="-drug"]').each(function() { 
+        initS2(this, "{% url 'visits:api_drug_search' %}", "نام دارو...", true); 
+    });
+
+    // --- مدیریت افزودن و حذف سطرها ---
+    window.addRow = function() {
+        let total = $('#id_items-TOTAL_FORMS');
+        let idx = parseInt(total.val());
+        // کپی کردن قالب سطر خالی و جایگذاری ایندکس
+        let html = $('#empty-row').html().replace(/__prefix__/g, idx);
+        $('#drug-container').append(html);
+        
+        // فعال‌سازی Select2 روی سطر جدید
+        initS2(`select[name="items-${idx}-drug"]`, "{% url 'visits:api_drug_search' %}", "نام دارو...", true);
+        
+        total.val(idx + 1);
+    };
+
+    // حذف سطرهای جدید (که هنوز در دیتابیس نیستند)
+    $(document).on('click', '.remove-new-row', function() {
+        $(this).closest('.drug-line').remove();
+        // نکته: در فرم‌ست‌های واقعی جنگو، بهتر است ایندکس‌ها را هم مدیریت کنید یا از پلاگین استفاده کنید، 
+        // اما برای سادگی فعلاً فقط سطر را حذف می‌کنیم.
+    });
+
+    // حذف سطرهای موجود (که در دیتابیس ذخیره شده‌اند)
+    $(document).on('click', '.remove-existing-row', function() {
+        let prefix = $(this).data('prefix');
+        // تیک زدن چک‌باکس DELETE مخفی جنگو
+        $(`input[name="${prefix}-DELETE"]`).prop('checked', true);
+        // مخفی کردن سطر از دید کاربر
+        $(this).closest('.drug-line').hide();
+    });
+});
+</script>
+</body>
+</html>

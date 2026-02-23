@@ -46,7 +46,7 @@ from core.serializers import PatientSearchSerializer
 # دریافت مدل User
 from django.contrib.auth import get_user_model
 User = get_user_model()
-
+from .models import ReasonForVisit
 
 # --- توابع کمکی برای نوتیفیکیشن ---
 def send_visit_referral_notification(visit_instance, recipient_user, sender_user):
@@ -122,37 +122,67 @@ class PatientSearchAPIView(generics.ListAPIView):
         
         return queryset[:10]
 
-@api_view(['GET'])
-@permission_classes([IsAuthenticated])
+from rest_framework.decorators import api_view, permission_classes
+from rest_framework.permissions import IsAuthenticated
+from rest_framework.response import Response
+from .models import Patient, Visit
+import jdatetime # برای تبدیل تاریخ به شمسی
+
 def patient_detail_api(request):
-    """
-    API View برای دریافت جزئیات کامل یک بیمار بر اساس شناسه.
-    این view همچنان از PatientSerializer کامل استفاده می‌کند که کار درستی است.
-    """
     patient_id = request.GET.get('patient_id')
+    current_visit_id = request.GET.get('current_visit_id')
+    
     if not patient_id:
-        return Response({}, status=404)
+        return JsonResponse({"error": "شناسه بیمار الزامی است"}, status=400)
+    
     try:
         patient = Patient.objects.get(pk=patient_id)
-        serializer = PatientSerializer(patient) # اینجا از سریالایزر کامل استفاده می‌شود
-        return Response(serializer.data)
-    except Patient.DoesNotExist:
-        return Response({}, status=404)
+        
+        # پیدا کردن ویزیت قبلی (غیر از ویزیت فعلی)
+        visits_query = patient.visits.all()
+        if current_visit_id:
+            visits_query = visits_query.exclude(pk=current_visit_id)
+        
+        last_visit = visits_query.order_by('-visit_date').first()
+        
+        shamsi_date = "---"
+        last_reason = "ویزیت اول (فاقد سابقه قبلی)"
+        
+        if last_visit:
+            if last_visit.visit_date:
+                shamsi_date = jdatetime.datetime.fromgregorian(datetime=last_visit.visit_date).strftime('%Y/%m/%d')
+            if last_visit.reason_for_visit:
+                # اگر مدل reason_for_visit داری .name بزن، اگر فیلد متنیه مستقیم خودش رو بفرست
+                last_reason = str(last_visit.reason_for_visit)
+
+        data = {
+            "age": patient.age,  # اضافه شدن سن از متد مدل Patient
+            "visit_count": patient.visits.count(),
+            "last_visit_date": shamsi_date,
+            "last_visit_reason": last_reason,
+            "allergies": patient.allergies or "موردی ندارد",
+            "medical_history": patient.medical_history or "فاقد سابقه قبلی",
+            "occupation": patient.occupation or "ثبت نشده",
+        }
+        return JsonResponse(data)
+    except Exception as e:
+        return JsonResponse({"error": str(e)}, status=500)
 
 class DrugSearchAPIView(generics.ListAPIView):
     serializer_class = DrugSerializer
-    # permission_classes = [IsAuthenticated]
 
     def get_queryset(self):
-        queryset = Drug.objects.all()
         query = self.request.query_params.get('q', None)
-        if query is not None:
+        # این خط حیاتی است برای نسخه دوم سریالایزر که دادم
+        queryset = Drug.objects.prefetch_related('batches').all()
+        
+        if query:
             queryset = queryset.filter(
                 Q(name__icontains=query) |
-                Q(generic_name__icontains=query)
+                Q(generic_name__icontains=query) |
+                Q(drug_code__icontains=query) # اضافه کردن جستجو با کد دارو
             ).distinct()
         return queryset
-
 
 
 
@@ -245,7 +275,7 @@ def visit_update(request, pk):
         form = VisitForm(instance=visit)
         formset = VisitItemFormSet(instance=visit, prefix='items')
 
-    return render(request, 'visits/visit_form.html', {
+    return render(request, 'visits/visit_update.html', {
         'page_title': f'ویرایش ویزیت: {visit.patient.full_name}',
         'form': form,
         'formset': formset,
@@ -401,8 +431,17 @@ def refer_visit(request, pk):
         # اگر می‌خواهید خطاهای فرم را نمایش دهید، باید مودال را به درستی هندل کنید.
         # می‌توانید به جای redirect، دوباره visit_detail را با form_referral_error به context رندر کنید.
     return redirect('visits:visit_detail', pk=visit.pk)
-
-
+# در فایل views.py
+def api_reason_search(request):
+    query = request.GET.get('q', '')
+    # تغییر title__icontains به name__icontains
+    reasons = ReasonForVisit.objects.filter(name__icontains=query, is_active=True)[:10]
+    
+    results = [
+        {'id': reason.id, 'text': reason.name} # اینجا هم name رو بفرست
+        for reason in reasons
+    ]
+    return JsonResponse(results, safe=False)
 
 @login_required
 @permission_required('visits.change_visit', raise_exception=True)

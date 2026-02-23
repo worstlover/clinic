@@ -19,25 +19,30 @@ DRUG_FORM_CHOICES = [
     ('tablet', 'قرص'),
     ('capsule', 'کپسول'),
     ('syrup', 'شربت'),
-    ('injection', 'آمپول/تزریقی'),
-    ('cream', 'کرم/پماد'),
-    ('gel', 'ژل'),
-    ('solution', 'محلول'),
-    ('suspension', 'سوسپانسیون'),
-    ('drops', 'قطره'),
-    ('suppository', 'شیاف'),
-    ('aerosol', 'اسپری/افشانه'),
-    ('powder', 'پودر'),
+    ('ampoule', 'آمپول'),
+    ('injection', 'تزریقی'), # Added 'injection' as a valid choice
     ('vial', 'ویال'),
-    ('other', 'سایر'),
+    ('inhaler', 'اسپری تنفسی'),
+    ('aerosol', 'آئروسل'),
+    ('solution', 'محلول'),
+    ('ointment', 'پماد'),
+    ('cream', 'کرم'),
+    ('gel', 'ژل'),
+    ('suspension', 'سوسپانسیون'),
+    ('drop', 'قطره'),
+    ('suppository', 'شیاف'),
+    ('patch', 'چسب ترانس درمال'),
+    ('granules', 'گرانول'),
+    ('other', 'سایر')
 ]
+
 
 DRUG_UNIT_CHOICES = [
     ('packet', 'بسته'),
     ('box', 'جعبه'),
     ('bottle', 'بطری'),
     ('blister', 'ورق'), # مثلا برای قرص
-    ('ampoule','عدد'),
+    ('number','عدد'),
     ('vial', 'عدد (ویال)'),
     ('tube', 'تیوب'), # برای کرم
     ('can', 'قوطی'),
@@ -70,46 +75,63 @@ INVOICE_STATUS_CHOICES = [
 #         return f"{self.action} برای درخواست {self.drug_request.pk} توسط {self.user.username if self.user else 'سیستم'} در {self.timestamp.strftime('%Y-%m-%d %H:%M')}"
 
 
+
 class Drug(models.Model):
-    name = models.CharField(max_length=255,unique=True, verbose_name="نام دارو")
-    drug_code = models.CharField(max_length=50, unique=True, blank=True, null=True, verbose_name="کد دارو")
+    # --- اطلاعات اصلی دارو ---
+    name = models.CharField(max_length=255, verbose_name="نام دارو")
     generic_name = models.CharField(max_length=255, blank=True, null=True, verbose_name="نام ژنریک")
-    form = models.CharField(max_length=50, choices=DRUG_FORM_CHOICES, default='tablet', verbose_name="شکل دارویی")
+    form = models.CharField(max_length=50, choices=DRUG_FORM_CHOICES, verbose_name="شکل دارو", default='قرص')
+    unit = models.CharField(max_length=50, choices=DRUG_UNIT_CHOICES, verbose_name="واحد بسته‌بندی", default='عدد')
     description = models.TextField(blank=True, null=True, verbose_name="توضیحات")
+    company_name = models.CharField(max_length=255, blank=True, null=True, verbose_name="نام شرکت")
+    # --- فیلدهای مرتبط با کد و بارکد ---
+    
+    drug_code = models.CharField(max_length=50, unique=True, blank=True, null=True, verbose_name="کد دارو")
+
+    # --- فیلدهای بسته‌بندی (DrugPackage) منتقل شده اینجا ---
+    package_size = models.IntegerField(default=1, verbose_name="تعداد در هر بسته")
+    package_type = models.CharField(max_length=100, blank=True, null=True, verbose_name="نوع بسته‌بندی")
+
+    # --- مدیریت انبار ---
     min_stock_alert = models.IntegerField(default=10, verbose_name="حداقل موجودی هشدار")
     reorder_point = models.IntegerField(default=20, verbose_name="نقطه سفارش مجدد")
+
+    # --- تاریخ‌ها ---
     updated_at = models.DateTimeField(auto_now=True, verbose_name="تاریخ آخرین بروزرسانی")
     created_at = models.DateTimeField(auto_now_add=True, verbose_name="تاریخ ایجاد")
-    unit = models.CharField(max_length=50, choices=DRUG_UNIT_CHOICES, verbose_name="واحد بسته‌بندی",default='عدد')
+
     class Meta:
         verbose_name = "دارو"
         verbose_name_plural = "داروها"
         ordering = ['name']
+        # ✅ این خط تضمین می‌کند که نام + شکل دارو تکراری نباشد
+        # یعنی نمی‌توان دو تا "آموکسی‌سیلین" با شکل "کپسول" داشت، اما "کپسول" و "شربت" مجاز است.
+        unique_together = ('name', 'form')
 
     def __str__(self):
-        return self.name
+        return f"{self.name} ({self.form})"
 
+    # محاسبه مجموع موجودی (اگر مدل Batch داری)
     @property
     def total_quantity(self):
-        # Calculates the total quantity of this drug across all batches
-        # Ensure 'batches' related_name is correct for DrugBatch model
         return self.batches.aggregate(total=Sum('quantity'))['total'] or 0
-    def is_low_stock(self):
-        """
-        بررسی می‌کند که آیا موجودی دارو کمتر یا مساوی با حداقل موجودی هشدار است.
-        """
-        return self.total_quantity <= self.min_stock_alert
+
     @property
     def is_low_stock(self):
         return self.total_quantity <= self.min_stock_alert
 
-    # ⭐ جدید: متد برای بررسی داروهای در شرف انقضا
     @property
     def has_expiring_batches(self):
-        # Check if any batches are expiring within 90 days from now
         future_date = timezone.now() + datetime.timedelta(days=90)
         return self.batches.filter(expiry_date__lte=future_date, quantity__gt=0).exists()
 
+class DrugBarcode(models.Model):
+    # این مدل هر بارکد را به یک دارو متصل می‌کند
+    drug = models.ForeignKey(Drug, on_delete=models.CASCADE, related_name='barcodes')
+    gtin = models.CharField(max_length=100, unique=True, db_index=True, verbose_name="کد GTIN")
+
+    def __str__(self):
+        return f"{self.gtin} -> {self.drug.name}"    
 # 2. مدل تامین‌کننده (Supplier)
 class Supplier(models.Model):
     name = models.CharField(max_length=255, unique=True, verbose_name="نام تامین‌کننده")
@@ -136,11 +158,11 @@ class Supplier(models.Model):
 
 class DrugBatch(models.Model):
     drug = models.ForeignKey('Drug', on_delete=models.CASCADE, related_name='batches', verbose_name="دارو")
-    batch_number = models.CharField(max_length=100, unique=True, verbose_name="شماره بچ")
+    batch_number = models.CharField(max_length=100,  verbose_name="شماره بچ")
     quantity = models.PositiveIntegerField(default=0, verbose_name="موجودی") 
     manufacturing_date = models.DateField(blank=True, null=True, verbose_name="تاریخ تولید")
     expiry_date = models.DateField(verbose_name="تاریخ انقضا")
-    purchase_price = models.DecimalField(max_digits=10, decimal_places=2, verbose_name="قیمت خرید")
+    purchase_price = models.DecimalField(max_digits=10, decimal_places=2,null=True, blank=True, verbose_name="قیمت خرید")
     selling_price = models.DecimalField(max_digits=10, decimal_places=2, blank=True, null=True, verbose_name="قیمت فروش")
     supplier = models.ForeignKey('Supplier', on_delete=models.SET_NULL, null=True, blank=True, verbose_name="تامین‌کننده")
     is_active = models.BooleanField(default=True, verbose_name="فعال")
@@ -158,12 +180,13 @@ class DrugBatch(models.Model):
     class Meta:
         verbose_name = "بچ دارو"
         verbose_name_plural = "بچ‌های دارو"
-        ordering = ['-expiry_date']
-        # unique_together = ('drug', 'batch_number') # ⚠️ این خط باید حذف شود چون batch_number خودش unique است.
+        unique_together = ('drug', 'batch_number')
+        ordering = ['expiry_date']
+        
 
 
     def __str__(self):
-        return f"{self.drug.name} ({self.batch_number}) - Exp: {self.expiry_date}"
+        return f"{self.drug.name} - {self.batch_number} (Exp: {self.expiry_date})"
 
     @property
     def is_expired(self):
@@ -295,11 +318,11 @@ class PurchaseInvoiceItem(models.Model):
         # 2. تولید batch_number (فقط در زمان ایجاد اگر خالی بود)
         # این منطق باید قبل از super().save() باشد تا batch_number در شیء موجود باشد.
         if self._state.adding and not self.batch_number:
-            drug_name_prefix = self.drug.name[:3].upper() if self.drug and self.drug.name else "UNK"
-            drug_form_prefix = self.drug.form[:3].upper() if self.drug and self.drug.form else "NFO" 
+            drug_name_prefix = self.drug.name[:6].upper() if self.drug and self.drug.name else "UNK"
+            drug_form_prefix = self.drug.form[:4].upper() if self.drug and self.drug.form else "NFO" 
             
             if self.expiry_date:
-                expiry_part = self.expiry_date.strftime('%Y%m') 
+                expiry_part = self.expiry_date.strftime('%Y%m%d') 
             else:
                 expiry_part = "UNKEXP"
 

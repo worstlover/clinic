@@ -1,0 +1,312 @@
+{% extends main_base %}
+{% load static %}
+
+{% block extra_head %}
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.rtl.min.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        body { font-family: 'Vazirmatn', sans-serif; background-color: #f8f9fa; }
+        .table th, .table td { vertical-align: middle; }
+        .form-control, .form-select { height: calc(2.25rem + 2px); }
+        .barcode-scanner-input { min-width: 150px; }
+        .scanner-feedback { transition: background-color 0.1s ease-in-out; }
+        .scanner-success { background-color: #d1e7dd !important; }
+        .scanner-fail { background-color: #f8d7da !important; }
+    </style>
+{% endblock %}
+
+{% block page_title %}دریافت و ثبت دسته‌ای دارو{% endblock %}
+
+{% block content %}
+<div class="container-fluid mt-4">
+    <div class="card shadow-sm">
+        <div class="card-header bg-primary text-white text-center">
+            <h4>دریافت و ثبت دسته‌ای دارو</h4>
+        </div>
+        <div class="card-body p-lg-4 p-3">
+            
+            <form id="receive-form" method="post">
+                {% csrf_token %}
+                <div class="row mb-3">
+                    <div class="col-12 col-md-6 mb-3">
+                        <label for="supplier" class="form-label">تامین‌کننده:</label>
+                        <select id="supplier" name="supplier" class="form-select" required>
+                            <option value="">انتخاب کنید...</option>
+                            {% for supplier in suppliers %}
+                                <option value="{{ supplier.pk }}">{{ supplier.name }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="col-12 col-md-6 mb-3">
+                        <label for="is_temporary" class="form-label">وضعیت ثبت:</label>
+                        <select id="is_temporary" name="is_temporary" class="form-select">
+                            <option value="false" selected>نهایی</option>
+                            <option value="true">موقت</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="table-responsive">
+                    <table class="table table-bordered" id="drug-table">
+                        <thead class="table-light">
+                            <tr>
+                                <th style="width: 50px;">#</th>
+                                <th style="min-width: 220px;">بارکد (QR)</th>
+                                <th style="min-width: 250px;">نام دارو</th>
+                                <th style="min-width: 150px;">تاریخ انقضا</th>
+                                <th style="min-width: 120px;">تعداد</th>
+                                <th style="min-width: 120px;">وضعیت</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                        </tbody>
+                    </table>
+                </div>
+                <div class="d-flex flex-column flex-md-row justify-content-between mt-3 gap-2">
+                    <button type="button" class="btn btn-success" id="add-row-btn"><i class="fas fa-plus"></i> افزودن ردیف</button>
+                    <button type="submit" class="btn btn-primary"><i class="fas fa-check-double"></i> پردازش دسته‌ای</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<div class="modal fade" id="scannerModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">اسکن بارکد</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body scanner-feedback">
+                <div id="qr-reader" style="width: 100%;"></div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">بستن</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="https://unpkg.com/html5-qrcode" type="text/javascript"></script>
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const drugTableBody = document.querySelector('#drug-table tbody');
+    const addRowBtn = document.getElementById('add-row-btn');
+    const scannerModal = new bootstrap.Modal(document.getElementById('scannerModal'));
+    let html5QrcodeScanner = null;
+    let rowCounter = 0;
+    let activeRowInput = null;
+    const FORM_STATE_KEY = 'receiveDrugFormState';
+
+    const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+
+    function playBeep(success = true) {
+        if (!audioContext) return;
+        const oscillator = audioContext.createOscillator();
+        const gainNode = audioContext.createGain();
+        oscillator.connect(gainNode);
+        gainNode.connect(audioContext.destination);
+        gainNode.gain.setValueAtTime(0, audioContext.currentTime);
+        gainNode.gain.linearRampToValueAtTime(0.5, audioContext.currentTime + 0.01);
+        oscillator.type = 'sine';
+        oscillator.frequency.setValueAtTime(success ? 880 : 440, audioContext.currentTime);
+        oscillator.start(audioContext.currentTime);
+        gainNode.gain.exponentialRampToValueAtTime(0.00001, audioContext.currentTime + 0.2);
+        oscillator.stop(audioContext.currentTime + 0.2);
+    }
+
+    function showScannerFeedback(success) {
+        const modalBody = document.querySelector('.scanner-feedback');
+        const feedbackClass = success ? 'scanner-success' : 'scanner-fail';
+        modalBody.classList.add(feedbackClass);
+        setTimeout(() => modalBody.classList.remove(feedbackClass), 400);
+    }
+    
+    function parseGS1Barcode(qrCode) {
+        const result = { gtin: null, expiry: null };
+        const gtinMatch = qrCode.match(/(?:01)(\d{14})/);
+        if (gtinMatch) { result.gtin = gtinMatch[1]; }
+        
+        const expiryMatch = qrCode.match(/(?:17)(\d{2})(\d{2})(\d{2})/);
+        if (expiryMatch) { result.expiry = `20${expiryMatch[1]}-${expiryMatch[2]}-${expiryMatch[3]}`; }
+
+        if (!result.gtin && qrCode.length > 0) { result.gtin = qrCode; }
+        return result;
+    }
+
+    function saveFormState() {
+        const form = document.getElementById('receive-form');
+        const formData = {
+            supplier: form.querySelector('#supplier').value,
+            is_temporary: form.querySelector('#is_temporary').value,
+            rows: []
+        };
+        
+        drugTableBody.querySelectorAll('tr').forEach(row => {
+            formData.rows.push({
+                qr_code: row.querySelector('.barcode-scanner-input').value,
+                drug_name: row.querySelector('.drug-name-input').value,
+                expiry_date: row.querySelector('.expiry-date-input').value,
+                quantity: row.querySelector('.quantity-input').value,
+            });
+        });
+        localStorage.setItem(FORM_STATE_KEY, JSON.stringify(formData));
+    }
+
+    function loadFormState() {
+        const savedState = localStorage.getItem(FORM_STATE_KEY);
+        if (!savedState) return;
+
+        const formData = JSON.parse(savedState);
+        document.getElementById('supplier').value = formData.supplier;
+        document.getElementById('is_temporary').value = formData.is_temporary;
+
+        if (formData.rows && formData.rows.length > 0) {
+            formData.rows.forEach(rowData => {
+                addRow(rowData);
+            });
+        }
+        localStorage.removeItem(FORM_STATE_KEY);
+    }
+
+    function addRow(initialData = {}) {
+        rowCounter++;
+        const newRow = drugTableBody.insertRow();
+        newRow.innerHTML = `
+            <td>${rowCounter}</td>
+            <td>
+                <div class="input-group">
+                    <input type="text" name="rows[${rowCounter}][qr_code]" class="form-control barcode-scanner-input" placeholder="اسکن یا ورود بارکد..." value="${initialData.qr_code || ''}">
+                    <button class="btn btn-outline-secondary scan-barcode-btn" type="button" data-bs-toggle="modal" data-bs-target="#scannerModal">
+                        <i class="fas fa-qrcode"></i>
+                    </button>
+                </div>
+            </td>
+            <td>
+                <input type="text" name="rows[${rowCounter}][drug_name]" class="form-control drug-name-input" value="${initialData.drug_name || ''}" readonly>
+                <a href="#" class="btn btn-sm btn-outline-success mt-1 add-new-drug-btn" style="display: none;">
+                    <i class="fas fa-plus"></i> تعریف داروی جدید
+                </a>
+            </td>
+            <td><input type="date" name="rows[${rowCounter}][expiry_date]" class="form-control expiry-date-input" value="${initialData.expiry_date || ''}" readonly></td>
+            <td><input type="number" name="rows[${rowCounter}][quantity]" class="form-control quantity-input" min="1" required value="${initialData.quantity || ''}"></td>
+            <td class="status-cell"><span class="badge bg-secondary">آماده</span></td>
+        `;
+        
+        if (initialData.drug_name) {
+            const statusCell = newRow.querySelector('.status-cell .badge');
+            statusCell.textContent = 'شناسایی شد';
+            statusCell.className = 'badge bg-success';
+        }
+    }
+    
+    function handleBarcode(fullQrCode, row) {
+        if (!fullQrCode) {
+            playBeep(false);
+            showScannerFeedback(false);
+            return;
+        }
+        
+        const parsedData = parseGS1Barcode(fullQrCode);
+        const barcodeToSearch = parsedData.gtin;
+
+        const barcodeInput = row.querySelector('.barcode-scanner-input');
+        const drugNameInput = row.querySelector('.drug-name-input');
+        const expiryInput = row.querySelector('.expiry-date-input');
+        const statusCell = row.querySelector('.status-cell .badge');
+        const addNewDrugBtn = row.querySelector('.add-new-drug-btn');
+        
+        barcodeInput.value = barcodeToSearch || fullQrCode;
+        addNewDrugBtn.style.display = 'none';
+
+        if (!barcodeToSearch) {
+            playBeep(false);
+            showScannerFeedback(false);
+            statusCell.textContent = 'نامعتبر';
+            statusCell.className = 'badge bg-warning';
+            drugNameInput.value = '';
+            expiryInput.value = '';
+            return;
+        }
+
+        fetch(`{% url 'drugs:find_drug_by_barcode_api' %}?barcode=${barcodeToSearch}`)
+            .then(response => response.json())
+            .then(data => {
+                if (data.status === 'found') {
+                    playBeep(true);
+                    showScannerFeedback(true);
+                    drugNameInput.value = data.drug_name;
+                    statusCell.textContent = 'شناسایی شد';
+                    statusCell.className = 'badge bg-success';
+                } else {
+                    playBeep(false);
+                    showScannerFeedback(false);
+                    drugNameInput.value = 'ناشناخته';
+                    statusCell.textContent = 'ناشناخته';
+                    statusCell.className = 'badge bg-danger';
+                    
+                    const createUrl = `{% url 'drugs:drug_create' %}?barcode=${barcodeToSearch}&next=${encodeURIComponent(window.location.pathname)}`;
+                    addNewDrugBtn.href = createUrl;
+                    addNewDrugBtn.style.display = 'block';
+                }
+            });
+
+        if (parsedData.expiry) {
+            expiryInput.value = parsedData.expiry;
+        } else {
+            expiryInput.value = '';
+        }
+    }
+
+    drugTableBody.addEventListener('change', function(e) {
+        if (e.target.classList.contains('barcode-scanner-input')) {
+            const row = e.target.closest('tr');
+            handleBarcode(e.target.value, row);
+        }
+    });
+    
+    drugTableBody.addEventListener('click', function(e) {
+        const scanBtn = e.target.closest('.scan-barcode-btn');
+        if (scanBtn) {
+            activeRowInput = scanBtn.closest('.input-group').querySelector('.barcode-scanner-input');
+        }
+        
+        const addDrugBtn = e.target.closest('.add-new-drug-btn');
+        if (addDrugBtn) {
+            saveFormState();
+        }
+    });
+
+    const modalElement = document.getElementById('scannerModal');
+    modalElement.addEventListener('shown.bs.modal', function() {
+        html5QrcodeScanner = new Html5Qrcode("qr-reader");
+        const onScanSuccess = (decodedText) => {
+            if (activeRowInput) {
+                const row = activeRowInput.closest('tr');
+                handleBarcode(decodedText, row);
+                scannerModal.hide();
+            }
+        };
+        html5QrcodeScanner.start({ facingMode: "environment" }, { fps: 10, qrbox: { width: 250, height: 250 } }, onScanSuccess)
+            .catch(err => alert("خطا در فعال‌سازی دوربین."));
+    });
+
+    modalElement.addEventListener('hide.bs.modal', function() {
+        if (html5QrcodeScanner && html5QrcodeScanner.getState() !== 0) {
+            html5QrcodeScanner.stop();
+        }
+    });
+
+    addRowBtn.addEventListener('click', () => addRow());
+    
+    if (localStorage.getItem(FORM_STATE_KEY)) {
+        loadFormState();
+    } else {
+        addRow();
+    }
+});
+</script>
+{% endblock %}

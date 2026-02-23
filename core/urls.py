@@ -29,7 +29,8 @@ urlpatterns = [
     path('companies/<int:pk>/', company_detail, name='company_detail'),
     path('companies/<int:pk>/edit/', company_update, name='company_update'),
     path('companies/<int:pk>/delete/', company_delete, name='company_delete'),
-
+    path('auth/passkey/register/start/', views.passkey_registration_start, name='passkey_reg_start'),
+    path('auth/passkey/register/complete/', views.passkey_registration_complete, name='passkey_reg_complete'),
     # Patient Management (اینها باقی میمونند و تحت namespace 'core' خواهند بود)
     path('patients/', patient_list, name='patient_list'),
     path('patients/add/', patient_create, name='patient_create'),
@@ -37,5 +38,10 @@ urlpatterns = [
     path('patients/<int:pk>/', patient_detail, name='patient_detail'),
     path('patients/<int:pk>/edit/', patient_update, name='patient_update'),
     path('patients/<int:pk>/delete/', patient_delete, name='patient_delete'),
-    
+    path('report/manage/', views.manage_daily_report, name='manage_daily_report'),
+    path('report/print/<int:report_id>/', views.print_daily_report, name='print_daily_report'),
+    path('report/list/', views.daily_report_list, name='daily_report_list'),
+    path('requirements/tracking/', views.requirement_tracking, name='requirement_tracking'), # پیگیری نیازها
+    path('requirements/all/', views.all_requirements_report, name='all_requirements_report'),
+    path('requirement/update/<int:req_id>/', views.update_requirement_status, name='update_requirement_status'),
 ]

@@ -2,7 +2,7 @@ from django.contrib import admin
 from django.urls import path, include
 from django.conf import settings
 from django.conf.urls.static import static
-
+from didrug import views as didrug_views
 # ایمپورت کردن ویوهای لاگین، لاگ اوت و داشبورد مستقیماً از core.views
 # فرض بر این است که CustomLoginView و CustomLogoutView و dashboard در core.views تعریف شده‌اند.
 from core.views import CustomLoginView, CustomLogoutView, dashboard, RegisterPatientAPIView, LoginPatientAPIView,PatientListAPIView, EmergencyAlertAPIView 
@@ -22,15 +22,15 @@ urlpatterns = [
     # URL های اپلیکیشن Visits
     # مطمئن شوید که visits/urls.py دارای app_name = 'visits' است.
     path('visits/', include('visits.urls')),
-
+    path('mfa/', include('mfa.urls')),
     # URL های اپلیکیشن Drugs
     # مطمئن شوید که drugs/urls.py دارای app_name = 'drugs' است.
     path('drugs/', include('drugs.urls')),
-
+    path('didrug/', include('didrug.urls')),
     # URL های اپلیکیشن Messages
     # مطمئن شوید که clinic_messages/urls.py دارای app_name = 'clinic_messages' است.
     path('messages/', include('clinic_messages.urls')),
-
+    path('aiapp/', include('aiapp.urls')),
     # URL های اپلیکیشن Patients
     # بر اساس خطای 404 قبلی، به نظر می رسد patients یک اپلیکیشن جداگانه است.
     # مطمئن شوید که patients/urls.py دارای app_name = 'patients' است.

@@ -1,0 +1,242 @@
+{% load static %}
+{% load jformat %}
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>گزارش روزانه بهداری - {{ j_date }}</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <style>
+        /* تنظیمات پایه برای حذف وابستگی به فایل‌های دیگر */
+        * { box-sizing: border-box; -webkit-print-color-adjust: exact; }
+        
+        body, html {
+            height: 100%;
+            margin: 0;
+            padding: 0;
+            background-color: #f0f0f0;
+            font-family: 'Tahoma', 'Arial', sans-serif;
+        }
+
+        /* ظرف اصلی گزارش - شبیه‌سازی A4 */
+        .report-wrapper {
+            width: 210mm;
+            min-height: 297mm;
+            margin: 20px auto;
+            background-color: white;
+            padding: 15mm;
+            display: flex;
+            flex-direction: column; /* چیدمان عمودی برای تقسیم فضا */
+            box-shadow: 0 0 10px rgba(0,0,0,0.2);
+        }
+
+        @media print {
+            body { background: none; }
+            .no-print { display: none !important; }
+            .report-wrapper {
+                margin: 0 !important;
+                box-shadow: none !important;
+                width: 100% !important;
+                height: 297mm !important; /* اجبار به پر کردن کل ارتفاع کاغذ */
+                padding: 10mm 15mm !important;
+            }
+        }
+
+        /* استایل دکمه‌های کنترلی */
+        .control-panel {
+            text-align: center;
+            padding: 15px;
+            background: #fff;
+            border-bottom: 2px solid #ddd;
+            position: sticky;
+            top: 0;
+            z-index: 1000;
+        }
+        .btn {
+            padding: 10px 20px;
+            font-size: 14px;
+            cursor: pointer;
+            border-radius: 5px;
+            border: none;
+            font-family: 'Tahoma';
+            text-decoration: none;
+            display: inline-flex;
+            align-items: center;
+            margin: 0 5px;
+        }
+        .btn-print { background-color: #007bff; color: white; }
+        .btn-back { background-color: #6c757d; color: white; }
+
+        /* استایل جداول */
+        .t-table { width: 100%; border-collapse: collapse; table-layout: fixed; margin-bottom: -1px; }
+        .t-table td { 
+            border: 1.5pt solid #000; 
+            padding: 6px; 
+            text-align: center; 
+            font-size: 11px; 
+        }
+
+        /* بخش‌های منعطف (Flex Grow) */
+        .content-section {
+            flex-grow: 1; /* این بخش تمام فضای خالی باقی‌مانده را پر می‌کند */
+            display: flex;
+            flex-direction: column;
+        }
+
+        .flex-row { display: flex; flex-grow: 1; }
+        .flex-box { 
+            flex: 1; 
+            border: 1.5pt solid #000; 
+            margin-top: -1.5pt; 
+            display: flex; 
+            flex-direction: column; 
+        }
+        .flex-box:not(:last-child) { border-left: none; }
+
+        .label-bg { 
+            background-color: #f2f2f2; 
+            border-bottom: 1.5pt solid #000; 
+            padding: 5px 10px; 
+            font-weight: bold; 
+            font-size: 11px; 
+            text-align: right;
+        }
+        .text-area { 
+            padding: 8px; 
+            font-size: 11px; 
+            text-align: justify; 
+            flex-grow: 1; /* کش آمدن متن برای پر کردن کادر */
+        }
+
+        /* بخش امضاها در انتهای برگه */
+        .signature-section {
+            margin-top: 10px;
+            height: 40mm; /* اختصاص حدود ۴ سانت برای امضا */
+            display: flex;
+            align-items: flex-end;
+        }
+        .sign-col { flex: 1; text-align: center; font-size: 11px; font-weight: bold; }
+    </style>
+</head>
+<body>
+
+    <div class="control-panel no-print">
+        <button onclick="window.print()" class="btn btn-print">
+            <i class="fas fa-print" style="margin-left: 8px;"></i> چاپ گزارش (A4)
+        </button>
+        <a href="{% url 'core:daily_report_list' %}" class="btn btn-back">
+            <i class="fas fa-arrow-right" style="margin-left: 8px;"></i> بازگشت
+        </a>
+    </div>
+
+    <div class="report-wrapper">
+        
+        <table class="t-table">
+            <tr>
+                <td style="width: 20%;"><img src="{% static 'images/logo_right.png' %}" style="max-height: 55px;"></td>
+                <td style="width: 60%;">
+                    <h3 style="margin: 0;">گزارش روزانه واحد بهداری (HSE)</h3>
+                    <div style="margin-top: 5px;">تاریخ: <strong>{{ j_date }}</strong> | شیفت: <strong>{{ report.shift_type }}</strong></div>
+                </td>
+                <td style="width: 20%;"><img src="{% static 'images/logo_left.png' %}" style="max-height: 55px;"></td>
+            </tr>
+        </table>
+
+        <table class="t-table">
+            <tr style="background-color: #f9f9f9; font-weight: bold;">
+                <td>پزشک: {{ report.doctor.get_full_name|default:"---" }}</td>
+                <td>پرستار: {{ report.nurse.get_full_name|default:"---" }}</td>
+                <td>راننده: {{ report.driver.get_full_name|default:"---" }}</td>
+                <td style="width: 15%;">ساعت: {{ report.created_at|jformat:"%H:i" }}</td>
+            </tr>
+        </table>
+
+        <div class="label-bg" style="border: 1.5pt solid #000; border-top: none; text-align: center;">خلاصه آمار مراجعین</div>
+        <table class="t-table">
+            <tr>
+                <td style="width: 12%;">کل: <strong>{{ stats.total }}</strong></td>
+                <td style="width: 12%;">اعزام: <strong style="color: red;">{{ stats.dispatched_count }}</strong></td>
+                <td style="text-align: right; vertical-align: top;">
+                    <strong>علل مراجعه:</strong> {% for r in stats.reasons %}{{ r }} | {% endfor %}
+                </td>
+                <td style="text-align: right; vertical-align: top;">
+                    <strong>نتایج:</strong> {% for r in stats.results %}{{ r }} | {% endfor %}
+                </td>
+            </tr>
+        </table>
+
+        <div class="content-section">
+            
+            <div class="flex-row">
+                <div class="flex-box">
+                    <div class="label-bg">شرح اقدامات و موارد اعزام:</div>
+                    <div class="text-area">{{ report.dispatched_action|linebreaksbr }}</div>
+                </div>
+                <div class="flex-box">
+                    <div class="label-bg">برنامه شیفت بعد:</div>
+                    <div class="text-area">{{ report.next_shift_plan|linebreaksbr }}</div>
+                </div>
+            </div>
+
+            <div class="flex-row">
+                <div class="flex-box">
+                    <div class="label-bg">وضعیت آمبولانس و تجهیزات:</div>
+                    <div class="text-area">
+                        <strong>آمبولانس:</strong> {{ report.ambulance_status }}<br>
+
+
+                        
+                        <strong>تجهیزات:</strong> {{ report.equipment_status }}
+                    </div>
+                </div>
+                <div class="flex-box">
+                    <div class="label-bg">معاینات شغلی و بازدیدها:</div>
+                    <div class="text-area">
+                        <strong>معاینات:</strong> {{ report.occupational_health }}<br>
+                        <strong>بازدیدها:</strong> {{ report.environmental_inspections }}
+                    </div>
+                </div>
+            </div>
+
+            <div class="flex-row">
+                <div class="flex-box">
+                    <div class="label-bg">هشدارها و توضیحات تکمیلی:</div>
+                    <div class="text-area">
+                        {% if report.health_alerts %}<strong>هشدار:</strong> {{ report.health_alerts }}<br>{% endif %}
+                        {{ report.general_notes|linebreaksbr }}
+                    </div>
+                </div>
+            </div>
+
+            <div class="flex-row">
+                <div class="flex-box">
+                    <div class="label-bg">نیازمندی‌های اعلام شده:</div>
+                    <div class="text-area">
+                        {% for req in report.requirements.all %}
+                            <span style="border: 1px solid #000; padding: 1px 4px; margin: 1px; display: inline-block;">{{ req.title }}</span>
+                        {% empty %} --- {% endfor %}
+                    </div>
+                </div>
+            </div>
+
+            <div class="flex-row" style="flex-grow: 0.5;">
+                <div class="flex-box">
+                    <div class="label-bg">نظریه و ملاحظات سرپرست ایمنی و HSE:</div>
+                    <div class="text-area">
+                       
+                    </div>
+                </div>
+            </div>
+
+        </div>
+
+        <div class="signature-section">
+            <div class="sign-col">امضای پرستار شیفت<br><br><span>{{ report.nurse.get_full_name }}</span></div>
+            <div class="sign-col">امضای پزشک شیفت<br><br><span>{{ report.doctor.get_full_name|default:"---" }}</span></div>
+            <div class="sign-col">سرپرست ایمنی و HSE<br><br><span>.......................</span></div>
+        </div>
+
+    </div>
+</body>
+</html>

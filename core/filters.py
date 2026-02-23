@@ -55,7 +55,7 @@ class DrugFilter(django_filters.FilterSet):
             'name': ['icontains'],
             'generic_name': ['icontains'],
             'drug_code': ['exact'],
-            'form': ['exact'],
+            #'form': ['exact'],
             # 'supplier': ['exact'], # اگر فیلد تامین‌کننده در مدل Drug دارید
         }
 

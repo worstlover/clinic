@@ -17,7 +17,7 @@ class PatientForm(forms.ModelForm):
         label="تاریخ تولد (شمسی)",
         widget=AdminJalaliDateWidget(),
         required=False,
-        help_text="مثال: ۱۳۷۰/۰۱/۱۵"
+        help_text="مثال: 01-02-1370"
     )
 
     last_periodic_examination_date = JalaliDateField(

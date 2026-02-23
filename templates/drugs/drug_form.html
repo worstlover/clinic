@@ -1,105 +1,324 @@
-{% extends 'base.html' %}
+{% extends main_base %}
 {% load static %}
 {% load crispy_forms_tags %}
 
 {% block title %}{{ page_title }}{% endblock %}
 
 {% block content %}
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+
 <div class="container mt-4">
-    <div class="d-flex justify-content-between align-items-center mb-4">
-        <h2>{{ page_title }}</h2>
+    <div class="d-flex justify-content-between align-items-center mb-3 border-bottom pb-2">
+        <h2 class="h4 text-primary"><i class="fas fa-capsules me-2"></i>{{ page_title }}</h2>
         {% if drug and drug.drug_code %}
-            <span class="badge badge-primary p-2">کد دارو: {{ drug.drug_code }}</span>
+            <span class="badge bg-secondary dir-ltr user-select-all">{{ drug.drug_code }}</span>
         {% endif %}
     </div>
 
-    {% if messages %}
-        <div class="messages mb-4">
-            {% for message in messages %}
-                <div class="alert alert-{{ message.tags }} alert-dismissible fade show" role="alert">
-                    {{ message }}
-                    <button type="button" class="close" data-dismiss="alert" aria-label="Close">
-                        <span aria-hidden="true">&times;</span>
-                    </button>
-                </div>
-            {% endfor %}
-        </div>
-    {% endif %}
+    <div id="alert-container"></div>
 
-    <div class="card shadow-sm">
+    <div class="card shadow border-0">
         <div class="card-body">
-            <form method="post">
+            
+            <div class="row g-3 mb-4 p-3 bg-light rounded align-items-end">
+                <div class="col-lg-5 col-md-12">
+                    <label class="form-label fw-bold text-muted small">اسکن سریع / بررسی بارکد (GTIN)</label>
+                    <div class="input-group">
+                        <input id="barcode_input" type="text" class="form-control text-center dir-ltr font-monospace" placeholder="Scan or type..." autocomplete="off">
+                        <button id="open-scanner-btn" type="button" class="btn btn-primary">
+                            <i class="fas fa-qrcode"></i>
+                        </button>
+                        <button id="check-barcode-btn" type="button" class="btn btn-outline-secondary">
+                            <i class="fas fa-search"></i>
+                        </button>
+                    </div>
+                </div>
+                <div class="col-lg-7 col-md-12">
+                    <label class="form-label fw-bold text-muted small">جستجو در داروهای سیستم</label>
+                    {{ form.search_drug }}
+                </div>
+            </div>
+
+            <form method="post" novalidate id="drug-main-form" enctype="multipart/form-data">
                 {% csrf_token %}
                 
-                <div class="row"> {# شروع یک ردیف Bootstrap #}
-                    {# فیلد نام دارو #}
-                    <div class="col-md-6"> {# فیلد اول در ستون اول #}
-                        <div class="mb-3">
-                            {{ form.name|as_crispy_field }}
-                        </div>
+                {% if form.non_field_errors %}
+                    <div class="alert alert-danger">
+                        {{ form.non_field_errors }}
                     </div>
-                    {# فیلد نام ژنریک #}
-                    <div class="col-md-6"> {# فیلد دوم در ستون دوم #}
-                        <div class="mb-3">
-                            {{ form.generic_name|as_crispy_field }}
-                        </div>
-                    </div>
-                </div> {# پایان ردیف اول #}
+                {% endif %}
 
-                <div class="row"> {# شروع ردیف دوم #}
-                    {# فیلد شکل دارو #}
-                    <div class="col-md-6">
-                        <div class="mb-3">
-                            {{ form.form|as_crispy_field }}
-                        </div>
-                    </div>
-                    {# فیلد حداقل موجودی هشدار #}
-                    <div class="col-md-6">
-                        <div class="mb-3">
-                            {{ form.min_stock_alert|as_crispy_field }}
-                        </div>
-                    </div>
-                </div> {# پایان ردیف دوم #}
+                <div class="row">
+                    <div class="col-md-6 mb-3">{{ form.name|as_crispy_field }}</div>
+                    <div class="col-md-6 mb-3">{{ form.generic_name|as_crispy_field }}</div>
+                </div>
 
-                <div class="row"> {# شروع ردیف سوم #}
-                    {# فیلد نقطه سفارش مجدد #}
-                    <div class="col-md-6">
-                        <div class="mb-3">
-                            {{ form.reorder_point|as_crispy_field }}
+                <div class="row">
+                    <div class="col-md-4 mb-3">{{ form.form|as_crispy_field }}</div>
+                    <div class="col-md-4 mb-3">{{ form.unit|as_crispy_field }}</div>
+                    <div class="col-md-4 mb-3">
+                         {% if not is_new_drug %}
+                            {{ form.drug_code|as_crispy_field }}
+                        {% else %}
+                             <label class="form-label">کد دارو</label>
+                             <input type="text" class="form-control bg-light" disabled value="تولید خودکار">
+                        {% endif %}
+                    </div>
+                </div>
+
+                <div class="row border-top pt-3 mt-2">
+                    <div class="col-md-3 mb-3">{{ form.min_stock_alert|as_crispy_field }}</div>
+                    <div class="col-md-3 mb-3">{{ form.reorder_point|as_crispy_field }}</div>
+                </div>
+
+                <div class="mb-4">{{ form.description|as_crispy_field }}</div>
+
+                <div class="card bg-light border-0 mb-4">
+                    <div class="card-body">
+                        <h6 class="text-secondary mb-3"><i class="fas fa-barcode me-1"></i> بارکدهای متصل (فقط GTIN)</h6>
+                        {{ formset.management_form }}
+                        
+                        <div id="barcode-list">
+                            {% for subform in formset %}
+                                <div class="input-group mb-2 barcode-row">
+                                    <span class="input-group-text bg-white text-muted"><i class="fas fa-barcode"></i></span>
+                                    {{ subform.gtin }} 
+                                    {{ subform.id }}
+                                    <div class="d-none">{{ subform.DELETE }}</div> 
+                                    <button type="button" class="btn btn-outline-danger remove-barcode" title="حذف">
+                                        <i class="fas fa-times"></i>
+                                    </button>
+                                    {% if subform.gtin.errors %}
+                                        <div class="invalid-feedback d-block ps-2">
+                                            {{ subform.gtin.errors.0 }}
+                                        </div>
+                                    {% endif %}
+                                </div>
+                            {% endfor %}
+                        </div>
+
+                        <button type="button" class="btn btn-sm btn-outline-primary mt-2" id="add-barcode-manual">
+                            <i class="fas fa-plus"></i> افزودن بارکد جدید
+                        </button>
+                        
+                        <div id="barcode-template" class="d-none">
+                            <div class="input-group mb-2 barcode-row">
+                                <span class="input-group-text bg-white text-muted"><i class="fas fa-barcode"></i></span>
+                                <input type="text" name="{{ formset.prefix }}-__prefix__-gtin" class="form-control font-monospace dir-ltr gtin-input">
+                                <input type="hidden" name="{{ formset.prefix }}-__prefix__-id">
+                                <input type="hidden" name="{{ formset.prefix }}-__prefix__-DELETE">
+                                <button type="button" class="btn btn-outline-danger remove-barcode">
+                                    <i class="fas fa-times"></i>
+                                </button>
+                            </div>
                         </div>
                     </div>
-                    {# فیلد توضیحات (این فیلد رو می‌تونید تک ستونه بذارید یا با col-md-6 و یک فیلد دیگه قرار بدید) #}
-                    <div class="col-md-6">
-                        <div class="mb-3">
-                            {{ form.description|as_crispy_field }}
-                        </div>
-                    </div>
-                </div> {# پایان ردیف سوم #}
+                </div>
 
-                {# اگر فیلد is_active رو هم در فرم دارید (که در مدل شما هست اما در فرم نیست)، می‌تونید اضافه کنید: #}
-                {# <div class="row"> #}
-                {#     <div class="col-md-12"> #}
-                {#         <div class="mb-3 form-check"> #}
-                {#             {{ form.is_active|as_crispy_field }} #}
-                {#         </div> #}
-                {#     </div> #}
-                {# </div> #}
-
-                <div class="mt-4 d-flex justify-content-between">
-                    <button type="submit" class="btn btn-success">
-                        <i class="fas fa-save"></i> ذخیره
+                <div class="d-flex justify-content-end gap-2 mt-4 pt-3 border-top">
+                    <a href="{% url 'drugs:drug_list' %}" class="btn btn-light border">انصراف</a>
+                    <button type="submit" class="btn btn-success px-4 fw-bold shadow-sm">
+                        <i class="fas fa-save me-1"></i> ذخیره تغییرات
                     </button>
-                    
-                    <a href="{% url 'drugs:purchase_invoice_create' %}" class="btn btn-info">
-                        <i class="fas fa-arrow-left"></i> بازگشت به فاکتور خرید
-                    </a>
-
-                    <a href="{% url 'drugs:drug_list' %}" class="btn btn-secondary">
-                        <i class="fas fa-arrow-left"></i> بازگشت به لیست داروها
-                    </a>
                 </div>
             </form>
         </div>
     </div>
 </div>
+
+<div class="modal fade" id="scannerModal" tabindex="-1" aria-hidden="true" data-bs-backdrop="static">
+    <div class="modal-dialog modal-fullscreen-sm-down modal-dialog-centered">
+        <div class="modal-content bg-black">
+            <div class="modal-header border-0 py-2 position-absolute w-100" style="z-index: 1001; background: rgba(0,0,0,0.5);">
+                <select id="camera-selection" class="form-select form-select-sm bg-dark text-white border-secondary w-75"></select>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body p-0 overflow-hidden position-relative" style="min-height: 450px;">
+                <div id="qr-reader"></div>
+                <div class="focus-overlay">
+                    <div class="focus-box"></div>
+                </div>
+                <button id="btn-focus-trigger" class="btn-focus-lock">
+                    <i class="fas fa-expand-alt"></i> قفل شفافیت
+                </button>
+                <div id="scanner-loading" class="position-absolute top-50 start-50 translate-middle text-center text-white">
+                    <div class="spinner-border text-primary" role="status"></div>
+                </div>
+                <div id="scanner-error" class="d-none position-absolute top-50 start-50 translate-middle text-center text-danger bg-white p-3 rounded w-75">
+                    <span id="error-msg"></span>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<audio id="beep-sound" src="{% static 'sounds/beep.mp3' %}" preload="auto"></audio>
+
+<style>
+    /* استایل‌های اختصاصی اسکنر */
+    #qr-reader { width: 100% !important; background: #000; }
+    #qr-reader video { object-fit: cover !important; width: 100% !important; height: 100% !important; min-height: 450px; }
+    .focus-overlay { position: absolute; inset: 0; pointer-events: none; display: flex; align-items: center; justify-content: center; z-index: 10; }
+    .focus-box { width: 260px; height: 180px; border: 2px solid rgba(255,255,255,0.2); border-radius: 20px; box-shadow: 0 0 0 4000px rgba(0,0,0,0.5); position: relative; }
+    .focus-box::after { content: ''; position: absolute; inset: -5px; border: 4px solid #0d6efd; border-radius: 25px; clip-path: polygon(0 0, 20% 0, 20% 100%, 0 100%, 0 0, 100% 0, 100% 20%, 0 20%, 0 0, 100% 0, 100% 100%, 80% 100%, 80% 0, 100% 0, 100% 100%, 0 100%, 0 80%, 100% 80%, 100% 100%); }
+    .btn-focus-lock { position: absolute; bottom: 30px; left: 50%; transform: translateX(-50%); z-index: 1002; background: rgba(13, 110, 253, 0.9); color: white; border: none; padding: 12px 25px; border-radius: 50px; font-weight: bold; backdrop-filter: blur(5px); }
+    @media (max-width: 576px) { .modal-fullscreen-sm-down { margin: 0; max-width: 100%; } .modal-fullscreen-sm-down .modal-content { height: 100vh; border-radius: 0; } }
+    .barcode-row .form-control { border-radius: 0; }
+    .barcode-row .input-group-text { border-radius: 0 0.375rem 0.375rem 0; }
+    .barcode-row .remove-barcode { border-radius: 0.375rem 0 0 0.375rem; }
+</style>
+{% endblock %}
+
+{% block scripts %}
+{{ block.super }}
+<link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet" />
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/select2-bootstrap-5-theme@1.3.0/dist/select2-bootstrap-5-theme.min.css" />
+<script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
+<script src="{% static 'js/html5-qrcode.min.js' %}"></script>
+
+<script>
+document.addEventListener("DOMContentLoaded", function() {
+    
+    // --- 1. Select2 (حفظ شد) ---
+    $('#id_search_drug').select2({
+        theme: 'bootstrap-5',
+        placeholder: 'جستجو نام دارو...',
+        allowClear: true,
+        width: '100%',
+        dir: "rtl"
+    });
+
+    // --- 2. Scanner Logic (بازنویسی شده برای فوکوس و انتخاب دوربین) ---
+    let html5QrCode = null;
+    const scannerModalEl = document.getElementById('scannerModal');
+    const scannerModal = new bootstrap.Modal(scannerModalEl);
+    const barcodeInput = document.getElementById('barcode_input');
+    const cameraSelect = document.getElementById('camera-selection');
+
+    document.getElementById('open-scanner-btn').addEventListener('click', () => scannerModal.show());
+
+    scannerModalEl.addEventListener('shown.bs.modal', async () => {
+        try {
+            const devices = await Html5Qrcode.getCameras();
+            cameraSelect.innerHTML = '';
+            devices.forEach((d, i) => {
+                const opt = document.createElement('option');
+                opt.value = d.id;
+                opt.text = (d.label.toLowerCase().includes('back') ? "📷 پشت: " : "🤳 سلفی: ") + (d.label || `Camera ${i}`);
+                cameraSelect.appendChild(opt);
+            });
+            const lastId = devices[devices.length - 1].id;
+            cameraSelect.value = lastId;
+            initScanner(lastId);
+        } catch (e) { console.error(e); }
+    });
+
+    async function initScanner(id) {
+        if (html5QrCode) await html5QrCode.stop().catch(() => {});
+        html5QrCode = new Html5Qrcode("qr-reader");
+        
+        try {
+            await html5QrCode.start(id, {
+                fps: 25,
+                qrbox: { width: 250, height: 200 },
+                videoConstraints: { deviceId: { exact: id }, width: { ideal: 1920 }, height: { ideal: 1080 } }
+            }, onScanSuccess);
+            document.getElementById('scanner-loading').style.display = 'none';
+        } catch (err) {
+            await html5QrCode.start(id, { fps: 20, qrbox: 250 }, onScanSuccess);
+            document.getElementById('scanner-loading').style.display = 'none';
+        }
+    }
+
+    cameraSelect.onchange = () => initScanner(cameraSelect.value);
+
+    document.getElementById('btn-focus-trigger').addEventListener('click', async function() {
+        const video = document.querySelector('#qr-reader video');
+        if (video && video.srcObject) {
+            const track = video.srcObject.getVideoTracks()[0];
+            const caps = track.getCapabilities ? track.getCapabilities() : {};
+            if (caps.focusMode?.includes('continuous')) {
+                await track.applyConstraints({ advanced: [{ focusMode: "continuous" }, { zoom: 1.3 }] });
+                this.innerHTML = "✨ شفاف شد";
+                setTimeout(() => this.innerHTML = '<i class="fas fa-expand-alt"></i> قفل شفافیت', 2000);
+            }
+        }
+    });
+
+    scannerModalEl.addEventListener('hidden.bs.modal', () => {
+        if (html5QrCode) html5QrCode.stop().catch(() => {});
+    });
+
+    function onScanSuccess(decodedText) {
+        const beep = document.getElementById("beep-sound");
+        if(beep) beep.play().catch(() => {});
+        scannerModal.hide();
+        handleBarcode(decodedText);
+    }
+
+    // --- 3. Logic: GTIN Extraction (حفظ شد) ---
+    function extractGTIN(rawCode) {
+        let cleanCode = rawCode.replace(/[^0-9]/g, '');
+        if (cleanCode.length === 13 || cleanCode.length === 14) return cleanCode;
+        if (cleanCode.startsWith('01') && cleanCode.length > 15) return cleanCode.substring(2, 16);
+        if (cleanCode.length > 14) return cleanCode.substring(0, 14);
+        return cleanCode;
+    }
+
+    function handleBarcode(code) {
+        if (!code) return;
+        const gtin = extractGTIN(code.trim());
+        barcodeInput.value = gtin;
+        
+        fetch(`{% url 'drugs:find_drug_by_barcode_api' %}?barcode=${encodeURIComponent(gtin)}`)
+            .then(r => r.json())
+            .then(data => {
+                if (data.status === 'found') {
+                    if(confirm(`این بارکد قبلاً برای "${data.drug_name}" ثبت شده. ویرایش آن دارو؟`)) {
+                        window.location.href = "{% url 'drugs:drug_update' pk=0 %}".replace('0', data.drug_id);
+                    }
+                } else { addBarcodeToForm(gtin); }
+            })
+            .catch(() => addBarcodeToForm(gtin));
+    }
+
+    // --- 4. Formset Management (حفظ شد) ---
+    const totalFormsInput = document.getElementById('id_{{ formset.prefix }}-TOTAL_FORMS');
+    const barcodeList = document.getElementById('barcode-list');
+
+    function addBarcodeToForm(code) {
+        const exists = Array.from(document.querySelectorAll('.gtin-input'))
+                            .some(input => input.value === code && input.offsetParent !== null);
+        if (exists && code !== '') { alert('این بارکد در لیست پایین وجود دارد.'); return; }
+
+        const currentFormCount = parseInt(totalFormsInput.value);
+        const template = document.getElementById('barcode-template').innerHTML;
+        const newRowHtml = template.replace(/__prefix__/g, currentFormCount);
+        
+        const tempDiv = document.createElement('div');
+        tempDiv.innerHTML = newRowHtml;
+        const newRow = tempDiv.firstElementChild;
+        if(code) newRow.querySelector('.gtin-input').value = code;
+        
+        barcodeList.appendChild(newRow);
+        totalFormsInput.value = currentFormCount + 1;
+        initializeRow(newRow);
+    }
+
+    function initializeRow(row) {
+        row.querySelector('.remove-barcode').addEventListener('click', function() {
+            const deleteInput = row.querySelector('input[name$="-DELETE"]');
+            if (deleteInput) {
+                deleteInput.checked = true;
+                row.classList.add('d-none');
+            } else { row.remove(); }
+        });
+    }
+
+    document.querySelectorAll('#barcode-list .barcode-row').forEach(initializeRow);
+    document.getElementById('add-barcode-manual').addEventListener('click', () => addBarcodeToForm(''));
+    document.getElementById('check-barcode-btn').addEventListener('click', () => handleBarcode(barcodeInput.value));
+});
+</script>
 {% endblock %}

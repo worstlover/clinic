@@ -1,0 +1,70 @@
+{% load static %}
+
+<div id="accordionSidebar">
+    <button id="closeSidebar" title="بستن منو"><i class="fas fa-times"></i></button>
+    
+    <div class="sidebar-heading p-3 border-bottom text-white opacity-75">
+        سیستم مدیریت کلینیک
+    </div>
+    
+    <ul class="navbar-nav sidebar sidebar-dark accordion" id="accordionSidebarMenu">
+        {% if request.user.is_authenticated %}
+        
+        <li class="nav-item">
+            <a href="{% url 'dashboard' %}" class="list-group-item nav-link">
+                <i class="fas fa-fw fa-tachometer-alt"></i> <span>داشبورد</span>
+            </a>
+        </li>
+
+        <li class="nav-item">
+            <a class="list-group-item collapsed nav-link" href="#collapseMessages" data-bs-toggle="collapse">
+                <i class="fas fa-fw fa-envelope"></i> <span>پیام‌ها</span>
+            </a>
+            <div id="collapseMessages" class="collapse" data-bs-parent="#accordionSidebarMenu">
+                <div class="py-2 collapse-inner">
+                    <a class="collapse-item" href="{% url 'clinic_messages:message_inbox' %}">صندوق ورودی</a>
+                    <a class="collapse-item" href="{% url 'clinic_messages:message_sent' %}">پیام‌های ارسالی</a>
+                </div>
+            </div>
+        </li>
+
+        {% if request.user.is_superuser or is_management %}
+        <li class="nav-item">
+            <a class="list-group-item collapsed nav-link" href="#collapseAdmin" data-bs-toggle="collapse">
+                <i class="fas fa-fw fa-user-shield"></i> <span>مدیریت</span>
+            </a>
+            <div id="collapseAdmin" class="collapse" data-bs-parent="#accordionSidebarMenu">
+                <div class="py-2 collapse-inner">
+                    <a class="collapse-item" href="{% url 'core:daily_report_list' %}">گزارش شیفت‌ها</a>
+                    <a class="collapse-item" href="{% url 'core:all_requirements_report' %}">گزارش نیازمندی‌ها</a>
+                </div>
+            </div>
+        </li>
+        {% endif %}
+
+        {% if request.user.is_superuser or is_management or is_accountant %}
+        <li class="nav-item">
+            <a class="list-group-item collapsed nav-link" href="#collapseDrugs" data-bs-toggle="collapse">
+                <i class="fas fa-fw fa-pills"></i> <span>داروخانه</span>
+            </a>
+            <div id="collapseDrugs" class="collapse" data-bs-parent="#accordionSidebarMenu">
+                <div class="py-2 collapse-inner">
+                    <a class="collapse-item" href="{% url 'drugs:drug_list' %}">لیست داروها</a>
+                    <a class="collapse-item" href="{% url 'drugs:drug_create' %}">ثبت داروی جدید</a>
+                </div>
+            </div>
+        </li>
+        {% endif %}
+
+        <li class="nav-item">
+            <a class="list-group-item text-danger nav-link" href="#" data-bs-toggle="modal" data-bs-target="#logoutModal">
+                <i class="fas fa-fw fa-sign-out-alt"></i> <span>خروج</span>
+            </a>
+        </li>
+        {% endif %}
+    </ul>
+    
+    <button id="pwa-install-btn" class="btn btn-warning m-3 d-lg-none">
+        <i class="fas fa-download ms-2"></i> نصب اپلیکیشن
+    </button>
+</div>

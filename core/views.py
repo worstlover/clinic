@@ -1,12 +1,14 @@
 # D:\final\core\views.py
+from django.http import JsonResponse
+from django.views.decorators.http import require_POST
 from django.shortcuts import render, redirect
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.contrib.auth import update_session_auth_hash
-
+from .models import DailyReport
 from .forms import UserUpdateForm, ProfileUpdateForm, UserPasswordChangeForm
 from .models import Profile
-
+import pytz
 from django.db import models
 from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib.auth.decorators import login_required, permission_required
@@ -40,9 +42,61 @@ from django.contrib.auth import login as auth_login
 from drugs.models import Drug
 from django.contrib.messages.views import SuccessMessageMixin
 from core.filters import PatientFilter
+from django.db.models import Count, Q
+from django.utils import timezone
+from datetime import timedelta
+from visits.models import Visit
+from drugs.models import  DrugBatch
+from django.contrib.auth import get_user_model
+User = get_user_model()
+from django.shortcuts import render, redirect, get_object_or_404
+from django.contrib.auth.decorators import login_required
+from django.contrib.auth.models import User
+from django.utils import timezone
+from .models import DailyReport, Requirement ,RequirementView
+import jdatetime
+from django.template.loader import render_to_string
+from django.db.models.functions import Coalesce
+from django.http import JsonResponse
+from fido2.server import Fido2Server
+from fido2.webauthn import PublicKeyCredentialRpEntity
+import json
+import base64
+import os
+from django.http import JsonResponse
+from django.contrib.auth.decorators import login_required
+from django.views.decorators.csrf import csrf_exempt
+@login_required
+def passkey_registration_start(request):
+    # تولید چالش و شناسه به فرمت استاندارد
+    challenge = base64.urlsafe_b64encode(os.urandom(32)).decode('utf-8').replace('=', '')
+    user_id = base64.urlsafe_b64encode(str(request.user.id).encode()).decode('utf-8').replace('=', '')
+    
+    return JsonResponse({
+        'challenge': challenge,
+        'user': {
+            'id': user_id,
+            'name': request.user.username,
+            'displayName': request.user.get_full_name() or request.user.username,
+        }
+    })
 
-
-# --- ویوهای موجود شما (بدون تغییر) ---
+@csrf_exempt
+@login_required
+def passkey_registration_complete(request):
+    return JsonResponse({'status': 'ok'})
+def biometric_challenge(request):
+    """ایجاد چالش برای ارسال به مرورگر"""
+    registration_data, state = server.register_begin(
+        user={
+            'id': str(request.user.id).encode(),
+            'name': request.user.username,
+            'displayName': request.user.get_full_name(),
+        },
+        credentials=[] # کلیدهای قبلی کاربر از دیتابیس بارگذاری شود
+    )
+    request.session['webauthn_state'] = state
+    return JsonResponse(dict(registration_data))
 class CustomLoginView(SuccessMessageMixin, LoginView):
     template_name = 'core/login.html'
     authentication_form = AuthenticationForm
@@ -82,49 +136,153 @@ class CustomLogoutView(LogoutView):
         messages.info(request, "با موفقیت خارج شدید!")
         return super().dispatch(request, *args, **kwargs)
 
-@login_required
-# Consider adjusting permissions if 'core.view_dashboard' is too broad or too specific
-# to the roles being checked in the template.
-def dashboard(request):
-    page_title = "داشبورد"
-    welcome_message = "به پنل مدیریت درمانگاه خوش آمدید."
 
-    # Check user group membership in the view
-    is_medical_staff = request.user.groups.filter(
-        name__in=['Doctor', 'Supervisor', 'Nurse']
-    ).exists()
+
+@login_required
+def dashboard(request):
+    shift_mode = request.GET.get('shift_mode', '12')
+    
+    # --- اصلاح اساسی برای حل مشکل اختلاف ساعت ---
+    now_utc = timezone.now()
+    now = timezone.localtime(now_utc) 
+    
+    today_7am = now.replace(hour=7, minute=0, second=0, microsecond=0)
+    
+    if shift_mode == '24':
+        if now.hour >= 7:
+            shift_start = today_7am
+            shift_end = shift_start + timedelta(days=1)
+        else:
+            shift_start = today_7am - timedelta(days=1)
+            shift_end = today_7am
+        page_title = "داشبورد (شیفت ۲۴ ساعته)"
+        current_shift_label = "۲۴ ساعته"
+    else:
+        if 7 <= now.hour < 19:
+            shift_start = today_7am
+            shift_end = now.replace(hour=19, minute=0, second=0, microsecond=0)
+            page_title = "داشبورد (شیفت صبح)"
+            current_shift_label = "شیفت صبح (۷ تا ۱۹)"
+        else:
+            if now.hour >= 19:
+                shift_start = now.replace(hour=19, minute=0, second=0, microsecond=0)
+                shift_end = shift_start + timedelta(days=1)
+            else:
+                shift_start = (now - timedelta(days=1)).replace(hour=19, minute=0, second=0, microsecond=0)
+                shift_end = today_7am
+            page_title = "داشبورد (شیفت شب)"
+            current_shift_label = "شیفت شب (۱۹ تا ۷)"
+
+    welcome_message = f"خوش آمدید، {request.user.get_full_name() or request.user.username}"
+    
+    j_now = jdatetime.datetime.now()
+    j_first_day = jdatetime.datetime(j_now.year, j_now.month, 1)
+    g_first_day = j_first_day.togregorian()
+    current_month_name = j_now.strftime('%B')
+
+    shift_visits_query = Visit.objects.filter(visit_date__range=[shift_start, shift_end])\
+                                      .select_related('patient', 'assigned_to')\
+                                      .order_by('-visit_date')
+
+    reasons_shift = Visit.objects.filter(visit_date__range=[shift_start, shift_end])\
+        .values('reason_for_visit__name')\
+        .annotate(count=Count('id')).order_by('-count')
+
+    reasons_month = Visit.objects.filter(visit_date__gte=g_first_day)\
+        .values('reason_for_visit__name')\
+        .annotate(count=Count('id')).order_by('-count')
+
+    results_shift = Visit.objects.filter(visit_date__range=[shift_start, shift_end])\
+        .values('treatment_result__name')\
+        .annotate(count=Count('id')).order_by('-count')
+
+    results_month = Visit.objects.filter(visit_date__gte=g_first_day)\
+        .values('treatment_result__name')\
+        .annotate(count=Count('id')).order_by('-count')
+
+    total_month_visits = Visit.objects.filter(visit_date__gte=g_first_day).count()
+    
+    user_stats = User.objects.annotate(
+        visit_count=Count('visits_as_doctor', filter=Q(visits_as_doctor__visit_date__gte=g_first_day))
+    ).filter(visit_count__gt=0).order_by('-visit_count')
+
+    for u in user_stats:
+        if total_month_visits > 0:
+            u.share_percent = round((u.visit_count / total_month_visits) * 100, 1)
+        else:
+            u.share_percent = 0
+
+    expiring_drugs = DrugBatch.objects.filter(
+        expiry_date__range=[now.date(), now.date() + timedelta(days=60)],
+        quantity__gt=0
+    ).order_by('expiry_date')
+
+    # --- بخش اضافه شده برای هشدار موجودی کم ---
+    low_stock_drugs = Drug.objects.annotate(
+        total_qty=Coalesce(Sum('batches__quantity'), 0)
+    ).filter(
+        total_qty__lte=F('min_stock_alert')
+    ).order_by('total_qty')
+
+    user_groups = request.user.groups.values_list('name', flat=True)
+    is_medical_staff = any(role in user_groups for role in ['Doctor', 'Supervisor', 'Nurse'])
 
     context = {
         'page_title': page_title,
         'welcome_message': welcome_message,
-        'is_medical_staff': is_medical_staff, # Pass this new variable to the template
+        'current_month_name': current_month_name,
+        'shift_mode': shift_mode,
+        'shift_start': shift_start,
+        'shift_end': shift_end,
+        'current_shift_label': current_shift_label,
+        'total_visits_shift': shift_visits_query.count(),
+        'shift_visits': shift_visits_query,
+        'reasons_shift': reasons_shift,
+        'reasons_month': reasons_month,
+        'results_shift': results_shift,
+        'results_month': results_month,
+        'user_stats': user_stats,
+        'total_month_visits': total_month_visits,
+        'expiring_drugs': expiring_drugs,
+        'low_stock_drugs': low_stock_drugs,
+        'is_medical_staff': is_medical_staff,
+        'is_doctor': 'Doctor' in user_groups,
+        'is_nurse': 'Nurse' in user_groups,
+        'is_supervisor': 'Supervisor' in user_groups,
     }
     return render(request, 'core/dashboard.html', context)
-
-@login_required(login_url='login')
-@permission_required('core.view_patient', raise_exception=True)
 def patient_list(request):
-    """
-    نمایش لیست بیماران با قابلیت جستجو، فیلتر پیشرفته و صفحه‌بندی.
-    """
-    base_queryset = Patient.objects.select_related('company', 'registered_by').all().order_by('-pk')
+    base_queryset = Patient.objects.select_related('company').all().order_by('-pk')
+    
+    # گرفتن مقدار جستجو از لیست (حتی اگر چند تا q ارسال شده باشد، اولین مقدار غیرخالی را می‌گیرد)
+    queries = request.GET.getlist('q')
+    query = next((item for item in queries if item), '').strip()
+    
+    # فیلتر کردن کوئری‌ست اصلی
+    base_queryset = base_queryset.filter(
+        Q(first_name__icontains=query) | 
+        Q(last_name__icontains=query) | 
+        Q(national_code__icontains=query) |
+        Q(phone_number__icontains=query) |  # اضافه شد
+        Q(personnel_number__icontains=query) # اضافه شد
+    ).distinct()
+
     patient_filter = PatientFilter(request.GET, queryset=base_queryset)
-    advanced_filters_applied = any(
-        value for key, value in request.GET.items() if key not in ['q', 'page'] and value
-    )
     paginator = Paginator(patient_filter.qs, 15)
-    page_number = request.GET.get('page')
-    page_obj = paginator.get_page(page_number)
+    page_obj = paginator.get_page(request.GET.get('page'))
 
     context = {
         'page_title': 'لیست بیماران',
-        'patients': page_obj,
         'page_obj': page_obj,
         'filter': patient_filter,
-        'search_query': request.GET.get('q', ''),
-        'advanced_filters_applied': advanced_filters_applied,
-        'is_paginated': page_obj.has_other_pages(),
+        'search_query': query,
     }
+
+    # تشخیص درخواست AJAX برای آپدیت بخشی از صفحه
+    if request.headers.get('x-requested-with') == 'XMLHttpRequest':
+        html = render_to_string('core/patient_list_partial.html', context, request=request)
+        return JsonResponse({'html': html})
+
     return render(request, 'core/patient_list.html', context)
     
 @login_required
@@ -577,6 +735,7 @@ def process_personnel_import(request):
 
 @login_required
 def user_profile(request):
+
     # چک کنید که آیا مدل پروفایل برای کاربر وجود دارد یا نه
     try:
         profile = request.user.profile
@@ -625,3 +784,218 @@ def user_profile(request):
         'page_title': 'پروفایل کاربری'
     }
     return render(request, 'core/profile.html', context)
+
+
+
+
+def get_exact_shift_times(raw_date, shift_value):
+    tehran_tz = pytz.timezone('Asia/Tehran')
+    
+    # تنظیم زمان به وقت تهران
+    if timezone.is_naive(raw_date):
+        now_dt = timezone.make_aware(raw_date, tehran_tz)
+    else:
+        now_dt = raw_date.astimezone(tehran_tz)
+
+    # اگر قبل از ۷:۱۰ صبح است، متعلق به شیفت روز قبل است
+    if now_dt.hour < 7 or (now_dt.hour == 7 and now_dt.minute < 10):
+        operational_date = now_dt - datetime.timedelta(days=1)
+    else:
+        operational_date = now_dt
+
+    # نقطه شروع مبنا: ۷:۱۰ صبح روز عملیاتی
+    start_7_10_am = operational_date.replace(hour=7, minute=10, second=0, microsecond=0)
+
+    # --- شروع منطق تفکیک شیفت‌ها ---
+    
+    # ۱. شیفت ۱۲ ساعته صبح (۷:۱۰ تا ۱۹:۱۰)
+    if 'صبح' in shift_value or shift_value == '12_morning':
+        start = start_7_10_am
+        end = start_7_10_am.replace(hour=19, minute=10, second=0)
+        label = "۱۲ ساعته صبح"
+
+    # ۲. شیفت ۱۲ ساعته شب (۱۹:۱۰ تا ۷:۱۰ فردا)
+    elif 'شب' in shift_value or shift_value == '12_night':
+        start = start_7_10_am.replace(hour=19, minute=10, second=0)
+        end = start + datetime.timedelta(hours=12)
+        label = "۱۲ ساعته شب"
+
+    # ۳. شیفت ۲۴ ساعته (۷:۱۰ امروز تا ۷:۱۰ فردا)
+    else:
+        start = start_7_10_am
+        end = start + datetime.timedelta(hours=24)
+        label = "۲۴ ساعته"
+    
+    return start, end, label
+@login_required
+def manage_daily_report(request):
+    if request.method == "POST":
+        shift_val = request.POST.get('shift_selection')
+        now = timezone.now()
+        start, end, label = get_exact_shift_times(now, shift_val)
+
+        report = DailyReport.objects.create(
+            doctor_id=request.POST.get('doctor'),
+            nurse=request.user,
+            driver_id=request.POST.get('driver'),
+            shift_type=label, # ذخیره لیبل فارسی (صبح/شب)
+            # سایر فیلدها...
+            dispatched_action=request.POST.get('dispatched_action', ''),
+            next_shift_plan=request.POST.get('next_shift_plan', ''),
+            ambulance_status=request.POST.get('ambulance_status', ''),
+            equipment_status=request.POST.get('equipment_status', ''),
+        )
+        
+        # مدیریت نیازمندی‌ها
+        new_reqs = request.POST.getlist('new_requirements[]')
+        for text in new_reqs:
+            if text.strip():
+                nr = Requirement.objects.create(title=text.strip(), creator=request.user)
+                report.requirements.add(nr)
+        
+        return redirect('core:print_daily_report', report_id=report.id)
+
+    # بخش GET
+    context = {
+        'doctors': User.objects.filter(groups__name='doctor'),
+        'drivers': User.objects.filter(groups__name__in=['Nurse', 'driver']),
+        'j_date': jdatetime.datetime.now().strftime('%Y/%m/%d'),
+    }
+    return render(request, 'core/daily_report_form.html', context)
+
+@login_required
+def print_daily_report(request, report_id):
+    report = get_object_or_404(DailyReport, id=report_id)
+    
+    # محاسبه زمان شیفت (با همان منطق 7:10 که خواستی)
+    # اگر فیلد created_at خالی بود از date استفاده کن
+    report_time = report.created_at or timezone.now()
+    start, end, label = get_exact_shift_times(report_time, report.shift_type)
+
+    visits = Visit.objects.filter(visit_date__range=[start, end])
+
+    stats = {
+        'total': visits.count(),
+        'dispatched_count': visits.filter(treatment_result__name__icontains='اعزام').count(),
+        'reasons': [f"{i['reason_for_visit__name']}: {i['count']} مورد" for i in visits.values('reason_for_visit__name').annotate(count=Count('id')).order_by('-count')[:6] if i['reason_for_visit__name']],
+        'results': [f"{i['treatment_result__name']}: {i['count']} مورد" for i in visits.values('treatment_result__name').annotate(count=Count('id')).order_by('-count')[:7] if i['treatment_result__name']],
+    }
+
+    # تبدیل تاریخ به شمسی برای هدر
+    j_date_display = jdatetime.date.fromgregorian(date=start.date()).strftime("%Y/%m/%d")
+
+    context = {
+        'report': report, # با فرستادن خودِ report، تمام فیلدهای مدل در HTML قابل دسترسی هستند
+        'stats': stats,
+        'j_date': j_date_display,
+    }
+    return render(request, 'core/daily_report_print.html', context)
+
+   
+@login_required
+def daily_report_list(request):
+    # دریافت همه گزارش‌ها به ترتیب جدیدترین
+    reports_list = DailyReport.objects.all().order_by('-id')
+    
+    # فیلتر جستجو (اختیاری)
+    search_query = request.GET.get('search')
+    if search_query:
+        reports_list = reports_list.filter(
+            Q(doctor__last_name__icontains=search_query) | 
+            Q(nurse__last_name__icontains=search_query)
+        )
+
+    context = {
+        'reports': reports_list,
+    }
+    return render(request, 'core/daily_report_list.html', context)
+
+@login_required
+def requirement_tracking(request):
+    report_id = request.GET.get('report_id')
+    
+    if report_id:
+        report = get_object_or_404(DailyReport, id=report_id)
+        requirements = report.requirements.all().order_by('-id')
+        # تبدیل تاریخ به شمسی برای عنوان صفحه
+        j_date = jdatetime.date.fromgregorian(date=report.created_at.date()).strftime('%Y/%m/%d')
+        title_prefix = f"نیازمندی‌های گزارش مورخ {j_date}"
+    else:
+        requirements = Requirement.objects.all().order_by('-id')
+        title_prefix = "لیست کل نیازمندی‌های ثبت شده"
+
+    # --- منطق جدید: ثبت بازدید مدیران ---
+    if request.user.is_superuser or request.user.is_staff:
+        for req in requirements:
+            # اگر مدیر خودش سازنده نباشد، بازدیدش ثبت شود
+            if req.creator != request.user:
+                # ثبت در جدول واسط (اگر قبلاً ثبت نشده باشد)
+                RequirementView.objects.get_or_create(
+                    requirement=req, 
+                    admin=request.user
+                )
+                # آپدیت وضعیت به مشاهده شده (اگر هنوز در حالت ایجاد شده باشد)
+                if req.status == 'created':
+                    req.status = 'viewed'
+                    req.save()
+
+    return render(request, 'core/requirement_tracking.html', {
+        'requirements': requirements,
+        'title_prefix': title_prefix
+    })
+
+def mark_as_viewed_logic(current_user, requirements):
+    """ثبت بازدید مدیران - اصلاح شده برای رفع AttributeError"""
+    if current_user.is_superuser or current_user.is_staff:
+        for req in requirements:
+            # بررسی اینکه سازنده خودِ مدیر نباشد
+            if req.creator != current_user:
+                # ثبت بازدید در مدل واسط (get_or_create خودش چک می‌کند که تکراری نباشد)
+                RequirementView.objects.get_or_create(
+                    requirement=req, 
+                    admin=current_user
+                )
+                # اگر وضعیت 'ایجاد شده' بود، به 'مشاهده شده' تغییر کند
+                if req.status == 'created':
+                    req.status = 'viewed'
+                    req.save()
+
+@login_required
+@login_required
+def all_requirements_report(request):
+    """لیست جامع تمام نیازمندی‌ها"""
+    # دریافت نیازمندی‌ها
+    requirements = Requirement.objects.all().order_by('-created_at')
+    
+    # فیلترها
+    status_filter = request.GET.get('status')
+    if status_filter:
+        requirements = requirements.filter(status=status_filter)
+        
+    creator_filter = request.GET.get('creator')
+    if creator_filter:
+        requirements = requirements.filter(creator__last_name__icontains=creator_filter)
+
+    # --- اجرای منطق مشاهده مدیران ---
+    # پاس دادن مستقیم request.user
+    mark_as_viewed_logic(request.user, requirements)
+
+    return render(request, 'core/all_requirements_list.html', {
+        'requirements': requirements
+    })
+
+@login_required
+@require_POST
+def update_requirement_status(request, req_id):
+    """بروزرسانی وضعیت و یادداشت توسط مدیر"""
+    req = get_object_or_404(Requirement, id=req_id)
+    req.status = request.POST.get('status')
+    req.admin_note = request.POST.get('admin_note')
+    
+    if req.status == 'resolved':
+        req.is_archived = True
+        
+    req.save()
+    return JsonResponse({'status': 'success'})
+
+

@@ -34,3 +34,18 @@ def user_groups_processor(request):
         context['is_management'] = any([context['is_doctor'], context['is_supervisor']])
         
     return context
+
+# core/context_processors.py
+
+def theme_picker(request):
+    user_agent = request.META.get('HTTP_USER_AGENT', '').lower()
+    
+    # لیست دستگاه‌های موبایل
+    is_mobile = any(device in user_agent for device in ['iphone', 'android', 'mobile', 'webos'])
+    
+    # تعیین نام فایل (مطمئن شو این فایل‌ها در پوشه templates هستند)
+    template_name = 'base_mobile.html' if is_mobile else 'base.html'
+    
+    return {
+        'main_base': template_name
+    }

@@ -1,43 +1,159 @@
-{% extends "base.html" %}
+{% extends main_base %}
 {% load crispy_forms_tags %}
 {% load static %}
 
 {% block content %}
-<div class="row">
-    <div class="col-lg-6">
-        <div class="card shadow mb-4">
-            <div class="card-header py-3">
-                <h6 class="m-0 font-weight-bold text-primary">ویرایش اطلاعات پروفایل</h6>
-            </div>
-            <div class="card-body">
-                <form method="post" enctype="multipart/form-data">
-                    {% csrf_token %}
-                    <div class="text-center mb-4">
-                        <img src="{{ request.user.profile.image.url }}" class="rounded-circle" style="width: 150px; height: 150px; object-fit: cover;">
-                    </div>
-                    {{ user_form|crispy }}
-                    {{ profile_form|crispy }}
-                    <hr>
-                    <button type="submit" name="update_user" class="btn btn-success">ثبت تغییرات</button>
-                </form>
+<div class="container-fluid">
+    <div class="row">
+        <div class="col-lg-6">
+            <div class="card shadow mb-4">
+                <div class="card-header py-3">
+                    <h6 class="m-0 font-weight-bold text-primary">ویرایش اطلاعات پروفایل</h6>
+                </div>
+                <div class="card-body text-right">
+                    <form method="post" enctype="multipart/form-data">
+                        {% csrf_token %}
+                        <div class="text-center mb-4">
+                            {% if request.user.profile.image %}
+                                <img src="{{ request.user.profile.image.url }}" class="rounded-circle shadow" style="width: 150px; height: 150px; object-fit: cover; border: 3px solid #4e73df;">
+                            {% else %}
+                                <i class="fas fa-user-circle fa-7x text-gray-300"></i>
+                            {% endif %}
+                        </div>
+                        {{ user_form|crispy }}
+                        {{ profile_form|crispy }}
+                        <hr>
+                        <button type="submit" name="update_user" class="btn btn-success btn-block">
+                            <i class="fas fa-save"></i> ثبت تغییرات
+                        </button>
+                    </form>
+                </div>
             </div>
         </div>
-    </div>
 
-    <div class="col-lg-6">
-        <div class="card shadow mb-4">
-            <div class="card-header py-3">
-                <h6 class="m-0 font-weight-bold text-warning">تغییر رمز عبور</h6>
+        <div class="col-lg-6">
+            <div class="card shadow mb-4">
+                <div class="card-header py-3">
+                    <h6 class="m-0 font-weight-bold text-warning">تغییر رمز عبور</h6>
+                </div>
+                <div class="card-body text-right">
+                    <form method="post">
+                        {% csrf_token %}
+                        <input type="text" name="username" value="{{ request.user.username }}" style="display:none;" autocomplete="username">
+                        {{ password_form|crispy }}
+                        <hr>
+                        <button type="submit" name="change_password" class="btn btn-warning btn-block">تغییر رمز</button>
+                    </form>
+                </div>
             </div>
-            <div class="card-body">
-                <form method="post">
-                    {% csrf_token %}
-                    {{ password_form|crispy }}
-                    <hr>
-                    <button type="submit" name="change_password" class="btn btn-warning">تغییر رمز</button>
-                </form>
+
+            <div class="card shadow mb-4 border-left-info" style="border-left: 0.25rem solid #36b9cc !important;">
+                <div class="card-header py-3 d-flex flex-row align-items-center justify-content-between">
+                    <h6 class="m-0 font-weight-bold text-info">امنیت بیومتریک (Passkey)</h6>
+                    <i class="fas fa-fingerprint text-info fa-lg"></i>
+                </div>
+                <div class="card-body text-center">
+                    <p class="small text-muted mb-4">
+                        لطفاً در مرورگر از آدرس <b>https://localhost:8000</b> استفاده کنید (نه 127.0.0.1).
+                    </p>
+                    <button id="btn-biometric" type="button" class="btn btn-info btn-icon-split shadow-sm">
+                        <span class="icon text-white-50"><i class="fas fa-id-card"></i></span>
+                        <span class="text">ثبت اثر انگشت</span>
+                    </button>
+                    <div id="bio-status" class="mt-3 small font-weight-bold"></div>
+                </div>
             </div>
         </div>
     </div>
 </div>
+
+<script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+<script>
+    function base64ToBuffer(base64) {
+        let binary = window.atob(base64.replace(/-/g, '+').replace(/_/g, '/'));
+        let buffer = new Uint8Array(binary.length);
+        for (let i = 0; i < binary.length; i++) { buffer[i] = binary.charCodeAt(i); }
+        return buffer.buffer;
+    }
+
+    document.getElementById('btn-biometric').addEventListener('click', async () => {
+        const status = document.getElementById('bio-status');
+        
+        if (!window.PublicKeyCredential) {
+            Swal.fire('خطا', 'مرورگر شما پشتیبانی نمی‌کند.', 'error');
+            return;
+        }
+
+        try {
+            status.innerHTML = "<span class='text-primary'>در حال ارتباط...</span>";
+            
+            const response = await fetch('/core/auth/passkey/register/start/');
+            if (!response.ok) throw new Error("خطا در ارتباط با سرور");
+            const options = await response.json();
+
+            // --- اصلاح حیاتی برای رفع خطای Invalid Domain ---
+            // تعریف RP بدون ID. مرورگر خودش آدرس جاری را پر می‌کند.
+            let rpSettings = { name: "Clinic System" };
+            
+            // فقط اگر روی دامنه واقعی (مثل .com) بودیم ID را ست می‌کنیم
+            // روی localhost و 127.0.0.1 نباید ID ست شود
+            if (window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1') {
+                rpSettings.id = window.location.hostname;
+            }
+            // ------------------------------------------------
+
+            const publicKeyCredentialCreationOptions = {
+                challenge: base64ToBuffer(options.challenge),
+                rp: rpSettings, // استفاده از تنظیمات اصلاح شده
+                user: {
+                    id: base64ToBuffer(options.user.id),
+                    name: options.user.name,
+                    displayName: options.user.displayName,
+                },
+                pubKeyCredParams: [
+                    { alg: -7, type: "public-key" },
+                    { alg: -257, type: "public-key" }
+                ],
+                authenticatorSelection: {
+                    authenticatorAttachment: "platform",
+                    userVerification: "preferred", // سخت‌گیری کمتر
+                    requireResidentKey: false
+                },
+                timeout: 60000,
+                attestation: "none"
+            };
+
+            const credential = await navigator.credentials.create({
+                publicKey: publicKeyCredentialCreationOptions
+            });
+
+            if (credential) {
+                status.innerHTML = "<span class='text-success'>تایید شد! در حال ذخیره...</span>";
+                
+                const completeRes = await fetch('/core/auth/passkey/register/complete/', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'X-CSRFToken': '{{ csrf_token }}' },
+                    body: JSON.stringify({ id: credential.id })
+                });
+
+                if (completeRes.ok) {
+                    Swal.fire('تبریک!', 'اثر انگشت ثبت شد.', 'success');
+                    status.innerHTML = "<span class='text-success'>✅ فعال شد</span>";
+                }
+            }
+
+        } catch (err) {
+            console.error(err);
+            status.innerHTML = "";
+            let msg = "عملیات ناموفق بود.";
+            if (err.name === 'SecurityError') msg = "هنوز خطای دامنه دارید! لطفا از آدرس https://localhost:8000 وارد شوید.";
+            Swal.fire('خطا', msg, 'error');
+        }
+    });
+</script>
+
+<style>
+    .form-group { text-align: right; }
+    .btn-block { width: 100%; margin-top: 10px; }
+</style>
 {% endblock %}

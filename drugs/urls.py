@@ -1,25 +1,29 @@
 from django.urls import path
 from . import views
 
-from .views import DrugSearchAPIView, DrugSelect2View, UserSelect2View
+from .views import DrugSearchAPIView, DrugSelect2View, UserSelect2View, DrugAutocompleteAPIView
 app_name = 'drugs' # این فضای نام 'drugs:' را که در redirect ها و reverse_lazy ها استفاده کردید، تعریف می کند.
 
 urlpatterns = [
     # Drug Management URLs
     path('drugs/', views.drug_list, name='drug_list'),
-    path('drugs/create/', views.drug_create, name='drug_create'),
+    path('create/', views.drug_create_or_update, name='drug_create'),
     path('drugs/<int:pk>/', views.drug_detail, name='drug_detail'),
     path('drugs/<int:pk>/update/', views.drug_update, name='drug_update'),
     path('drugs/<int:pk>/delete/', views.drug_delete, name='drug_delete'),
-
+    path("drugs/add_drug_from_qr/", views.add_drug_from_qr, name="add_drug_from_qr"),
+    path('receive/', views.receive_drug_view, name='receive_drug'),
+    path('load-request/', views.load_drug_request, name='load_drug_request'),
+    path('api/find-by-barcode/', views.find_drug_by_barcode_api, name='find_drug_by_barcode_api'),
+    path('print-report/', views.drug_print_report, name='drug_print_report'),
     # Drug Batch Management URLs
     path('batches/', views.drug_batch_list, name='drug_batch_list'),
     path('batches/create/', views.drug_batch_create, name='drug_batch_create'),
     path('batches/<int:pk>/', views.drug_batch_detail, name='drug_batch_detail'),
     path('batches/<int:pk>/update/', views.drug_batch_update, name='drug_batch_update'),
     path('batches/<int:pk>/delete/', views.drug_batch_delete, name='drug_batch_delete'),
-
-      # Purchase Invoice URLs
+   
+    # Purchase Invoice URLs
     path('purchase-invoices/', views.purchase_invoice_list, name='purchase_invoice_list'),
     path('purchase-invoices/<int:pk>/print/', views.purchase_invoice_print_view, name='purchase_invoice_print'),
     path('purchase-invoices/create/', views.purchase_invoice_create, name='purchase_invoice_create'),
@@ -57,8 +61,10 @@ urlpatterns = [
 
     # API URLs
     path('api/drugs/search/', DrugSearchAPIView.as_view(), name='api_drug_search'),
-    
+    path('search-suppliers-ajax/', views.search_suppliers_ajax, name='search_suppliers_ajax'),
     path('select2/users/', UserSelect2View.as_view(), name='select2_users'),
+    path('api/autocomplete/', DrugAutocompleteAPIView.as_view(), name='autocomplete_drugs_api'),
+
     path('batches/upload/temporary/', views.upload_temporary_inventory, name='upload_temporary_inventory'),
     path('batches/delete/temporary/', views.delete_temporary_inventory, name='delete_temporary_inventory'),
 ]

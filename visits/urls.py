@@ -13,7 +13,7 @@ urlpatterns = [
     path('<int:pk>/update/', views.visit_update, name='visit_update'),
     path('<int:pk>/delete/', views.visit_delete, name='visit_delete'),
     path('create/<int:patient_id>/', views.visit_create, name='visit_create_for_patient'),
-
+    path('api/reason-search/', views.api_reason_search, name='api_reason_search'),
 
     # URLs برای اکشن‌های مربوط به ویزیت
     path('<int:pk>/refer/', views.refer_visit, name='refer_visit'),

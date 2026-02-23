@@ -2,23 +2,25 @@
 
 import django_filters
 from django import forms
-from django.db.models import Q
+from django.db.models import Q ,Sum
 from core.models import Patient, Company, GENDER_CHOICES, BLOOD_TYPE_CHOICES
 from visits.models import Visit, ReasonForVisit, TreatmentResult, VISIT_STATUS_CHOICES, INCIDENT_TYPE_CHOICES # INCIDENT_TYPE_CHOICES را ایمپورت کنید
 from drugs.models import Drug
 from drugs.models import Drug, Supplier, PurchaseInvoice, DrugRequest # 👈 اضافه کردن ایمپورت‌های جدید
 from datetime import date , time, timedelta #
-# ایمپورت‌های مورد نیاز برای تبدیل تاریخ شمسی
+
 from persiantools.jdatetime import JalaliDate
 from persiantools import digits
 
-
-# ایمپورت‌های Crispy Forms Layout
 from crispy_forms.helper import FormHelper
 from crispy_forms.layout import Layout, Submit, Row, Column, Field
+import django_filters
+from django import forms
+from drugs.models import Drug
+from crispy_forms.helper import FormHelper
+from crispy_forms.layout import Layout, Row, Column
 
 
-# !!! ویجت سفارشی برای دیت‌پیکر شمسی
 JALALI_DATE_PICKER_WIDGET = forms.TextInput(attrs={
     'class': 'form-control jalali-datepicker', # <--- کلاس مهم برای جاوا اسکریپت
     'placeholder': 'مثال: ۱۴۰۳/۰۴/۲۴',
@@ -31,7 +33,7 @@ TIME_PICKER_WIDGET = forms.TimeInput(attrs={
     'autocomplete': 'off'
 })
 
-# تعریف یک فیلتر تاریخ سفارشی با منطق تبدیل شمسی به میلادی
+
 class JalaliDateFilter(django_filters.DateFilter):
     field_class = forms.CharField
 
@@ -303,4 +305,40 @@ class DrugFilter(django_filters.FilterSet):
                 css_class='mb-3'
             )
             # دکمه submit توسط template رندر می‌شود و نیازی به تعریف در layout نیست
+        )
+
+TRANSACTION_TYPES = (
+    ('all', 'همه موارد'),
+    ('in', 'فقط ورودی (خرید)'),
+    ('out', 'فقط خروج (مصرف)'),
+)
+
+class DrugTransactionFilter(django_filters.FilterSet):
+    # این کلاس فقط برای تولید فرم در UI استفاده می‌شود
+    transaction_type = django_filters.ChoiceFilter(
+        choices=(('all', 'همه موارد'), ('in', 'ورود (+)'), ('out', 'خروج (-)')),
+        label="نوع تراکنش",
+        initial='all',
+        widget=forms.Select(attrs={'class': 'form-select'})
+    )
+
+    drug = django_filters.ModelMultipleChoiceFilter(
+        queryset=Drug.objects.all(),
+        label="انتخاب دارو(ها)",
+        widget=forms.SelectMultiple(attrs={'class': 'form-control select2-enable'})
+    )
+
+    class Meta:
+        model = Drug
+        fields = [] # فیلد دستی نباید اینجا باشد
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.form.helper = FormHelper()
+        self.form.helper.form_tag = False
+        self.form.helper.layout = Layout(
+            Row(
+                Column('drug', css_class='col-md-9'),
+                Column('transaction_type', css_class='col-md-3'),
+            )
         )

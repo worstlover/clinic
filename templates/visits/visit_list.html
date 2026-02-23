@@ -1,144 +1,217 @@
-{% extends 'base.html' %}
+{% extends main_base %}
+
 {% load static %}
 {% load jformat %}
 
 {% block title %}{{ page_title }}{% endblock %}
 
-{% block extra_head %}
-{% endblock %}
-
 {% block content %}
-    <div class="container-fluid">
-        <div class="d-flex justify-content-between align-items-center mb-4">
-            <h1 class="h3 mb-0 text-gray-800">{{ page_title }}</h1>
-            <a href="{% url 'visits:visit_create' %}" class="btn btn-primary btn-icon-split">
-                <span class="icon text-white-50"><i class="fas fa-plus"></i></span>
-                <span class="text">ثبت ویزیت جدید</span>
-            </a>
-        </div>
+<style>
+    /* استایل‌های اختصاصی برای نمایش کارتی در موبایل */
+    @media (max-width: 767.98px) {
+        .mobile-card-view thead { display: none; }
+        .mobile-card-view tr { 
+            display: block; 
+            background: #fff; 
+            border-radius: 15px; 
+            margin-bottom: 15px; 
+            padding: 15px; 
+            box-shadow: 0 4px 12px rgba(0,0,0,0.05);
+            border: 1px solid #eee !important;
+            position: relative;
+        }
+        .mobile-card-view td { 
+            display: flex; 
+            justify-content: space-between; 
+            align-items: center;
+            padding: 8px 0 !important;
+            border: none !important;
+            font-size: 0.9rem;
+        }
+        .mobile-card-view td::before { 
+            content: attr(data-label); 
+            font-weight: bold; 
+            color: #6c757d; 
+            font-size: 0.8rem;
+        }
+        .action-cell { 
+            border-top: 1px solid #f0f0f0 !important; 
+            margin-top: 10px; 
+            padding-top: 12px !important; 
+            justify-content: center !important;
+            gap: 20px;
+        }
+    }
+    
+    .search-wrapper {
+        background: #fff;
+        border-radius: 12px;
+        border: 1px solid #ddd;
+        padding: 4px 12px;
+        display: flex;
+        align-items: center;
+    }
+    .status-pill { font-size: 0.75rem; font-weight: 600; }
+    .text-truncate-custom { max-width: 150px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; display: inline-block; vertical-align: middle; }
+</style>
 
-        {% if messages %}
-            {% for message in messages %}
-                <div class="alert alert-{{ message.tags }} alert-dismissible fade show" role="alert">
-                    {{ message }}
-                    <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
-                </div>
-            {% endfor %}
-        {% endif %}
+{% if messages %}
+<div class="px-2 mb-3">
+    {% for message in messages %}
+    <div class="alert alert-{{ message.tags }} alert-dismissible fade show rounded-3" role="alert">
+        {{ message }}
+        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+    </div>
+    {% endfor %}
+</div>
+{% endif %}
 
-        <div class="card shadow mb-4">
-            <div class="card-header py-3 d-flex justify-content-between align-items-center">
-                <h6 class="m-0 font-weight-bold text-primary">لیست ویزیت‌ها</h6>
-                {# فیلترهای وضعیت به صورت دکمه‌های قابل مشاهده #}
-                <div class="btn-group" role="group" aria-label="Status filters">
-                    <a href="{% url 'visits:visit_list' %}?view=pending" class="btn btn-sm {% if view_filter == 'pending' %}btn-primary{% else %}btn-outline-primary{% endif %}">در حال بررسی من</a>
-                    <a href="{% url 'visits:visit_list' %}?view=referred_to_me" class="btn btn-sm {% if view_filter == 'referred_to_me' %}btn-info{% else %}btn-outline-info{% endif %}">ارجاع شده به من</a>
-                    <a href="{% url 'visits:visit_list' %}?view=completed" class="btn btn-sm {% if view_filter == 'completed' %}btn-success{% else %}btn-outline-success{% endif %}">تکمیل شده</a>
-                </div>
+<div class="container-fluid p-0">
+    <div class="d-flex justify-content-between align-items-center mb-3 px-2">
+        <h5 class="fw-bold m-0 text-dark">{{ page_title }}</h5>
+        <a href="{% url 'visits:visit_create' %}" class="btn btn-primary btn-sm rounded-pill px-3 shadow-sm">
+            <i class="fas fa-plus me-1"></i> ویزیت جدید
+        </a>
+    </div>
+
+    <div class="px-2 mb-3">
+        <form method="get">
+            <div class="search-wrapper shadow-sm">
+                <input type="text" name="q" class="form-control border-0 shadow-none" placeholder="جستجوی نام بیمار، کدملی یا پرسنلی..." value="{{ search_query|default:'' }}">
+                <input type="hidden" name="view" value="{{ view_filter }}">
+                <button class="btn text-primary p-0" type="submit">
+                    <i class="fas fa-search"></i>
+                </button>
             </div>
-            <div class="card-body">
-                <div class="table-responsive">
-                    <table class="table table-bordered" id="dataTable" width="100%" cellspacing="0">
-                        <thead>
-                            <tr>
-                                <th>#</th>
-                                <th>بیمار</th>
-                                <th>تاریخ ویزیت</th>
-                                <th> ثبت‌ کننده</th>
-                                <th>علت مراجعه</th>
-                                <th>نتیجه درمان</th>
-                                <th>تعداد دارو</th>
-                                <th>وضعیت</th>
-                                <th>مسئول فعلی</th>
-                                <th>عملیات</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {% for visit in page_obj %}
-                                <tr>
-                                    <td>{{ forloop.counter0|add:page_obj.start_index }}</td>
-                                    <td><a href="{% url 'core:patient_detail' visit.patient.pk %}">{{ visit.patient.full_name }}</a></td>
-                                    <td>{{ visit.visit_date|jformat:'%Y/%m/%d - %H:%M' }}</td>
-                                    <td>{{ visit.doctor.get_full_name|default:visit.doctor.username }}</td>
-                                    <td>{{ visit.reason_for_visit.name|default:'---' }}</td>
-                                    <td>{{ visit.treatment_result.name|default:'---' }}</td>
-                                    <td>{% if visit.items.count > 0 %}{{ visit.items.count }}{% else %}۰{% endif %}</td>
-                                    <td>
-                                        {% if visit.status == 'completed' %}<span class="badge bg-success">تکمیل شده</span>
-                                        {% elif visit.status == 'referred' %}<span class="badge bg-info">ارجاع شده</span>
-                                        {% else %}<span class="badge bg-warning text-dark">در حال بررسی</span>{% endif %}
-                                    </td>
-                                    <td>{{ visit.assigned_to.get_full_name|default:'---' }}</td>
-                                    <td>
-                                        <a href="{% url 'visits:visit_detail' visit.pk %}" class="btn btn-sm btn-outline-info" title="جزئیات"><i class="fas fa-eye"></i></a>
-                                        
-                                        {% if visit.status != 'completed' %}
-                                            {% if visit.assigned_to == user or user.is_superuser %}
-                                                <a href="{% url 'visits:visit_update' visit.pk %}" class="btn btn-sm btn-outline-warning" title="ویرایش"><i class="fas fa-edit"></i></a>
-                                                <button type="button" class="btn btn-sm btn-outline-danger" data-bs-toggle="modal" data-bs-target="#deleteModal{{ visit.pk }}" title="حذف"><i class="fas fa-trash"></i></button>
-                                            {% endif %}
-                                        {% endif %}
-                                    </td>
-                                </tr>
-                                <div class="modal fade" id="deleteModal{{ visit.pk }}" tabindex="-1" aria-hidden="true">
-                                    <div class="modal-dialog">
-                                        <div class="modal-content">
-                                            <div class="modal-header">
-                                                <h5 class="modal-title">تایید حذف</h5>
-                                                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-                                            </div>
-                                            <div class="modal-body">
-                                                آیا از حذف ویزیت بیمار <strong>{{ visit.patient.full_name }}</strong> اطمینان دارید؟
-                                            </div>
-                                            <div class="modal-footer">
-                                                <form action="{% url 'visits:visit_delete' visit.pk %}" method="post">
-                                                    {% csrf_token %}
-                                                    <button type="submit" class="btn btn-danger">بله، حذف کن</button>
-                                                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">انصراف</button>
-                                                </form>
-                                            </div>
-                                        </div>
-                                    </div>
-                                </div>
-                            {% empty %}
-                                <tr>
-                                    <td colspan="10" class="text-center">هیچ ویزیتی با این مشخصات یافت نشد.</td>
-                                </tr>
-                            {% endfor %}
-                        </tbody>
-                    </table>
-                </div>
+        </form>
+    </div>
 
-                {# Pagination #}
-                <nav aria-label="Page navigation example">
-                    <ul class="pagination justify-content-center">
-                        {% if page_obj.has_previous %}
-                            <li class="page-item"><a class="page-link" href="?page={{ page_obj.previous_page_number }}&q={{ search_query|urlencode }}&view={{ view_filter }}">&laquo; قبلی</a></li>
-                        {% endif %}
-
-                        {% for num in page_obj.paginator.page_range %}
-                            {% if page_obj.number == num %}
-                                <li class="page-item active"><a class="page-link" href="#">{{ num }}</a></li>
-                            {% elif num > page_obj.number|add:'-3' and num < page_obj.number|add:'3' %}
-                                <li class="page-item"><a class="page-link" href="?page={{ num }}&q={{ search_query|urlencode }}&view={{ view_filter }}">{{ num }}</a></li>
-                            {% endif %}
-                        {% endfor %}
-
-                        {% if page_obj.has_next %}
-                            <li class="page-item"><a class="page-link" href="?page={{ page_obj.next_page_number }}&q={{ search_query|urlencode }}&view={{ view_filter }}">بعدی &raquo;</a></li>
-                        {% endif %}
-                    </ul>
-                </nav>
-            </div>
+    <div class="px-2 mb-3">
+        <div class="d-flex gap-2 overflow-auto pb-2" style="white-space: nowrap; -webkit-overflow-scrolling: touch;">
+            <a href="{% url 'visits:visit_list' %}?view=pending&q={{ search_query|default:'' }}" class="btn btn-sm rounded-pill {% if view_filter == 'pending' %}btn-primary shadow-sm{% else %}btn-light border{% endif %}">در حال بررسی</a>
+            <a href="{% url 'visits:visit_list' %}?view=referred_to_me&q={{ search_query|default:'' }}" class="btn btn-sm rounded-pill {% if view_filter == 'referred_to_me' %}btn-info text-white shadow-sm{% else %}btn-light border{% endif %}">ارجاع به من</a>
+            <a href="{% url 'visits:visit_list' %}?view=completed&q={{ search_query|default:'' }}" class="btn btn-sm rounded-pill {% if view_filter == 'completed' %}btn-success shadow-sm{% else %}btn-light border{% endif %}">تکمیل شده</a>
         </div>
     </div>
-{% endblock %}
 
-{% block extra_js %}
-    <script>
-        // اسکریپت‌های احتمالی برای Datatables یا سایر JS
-        // $(document).ready(function() {
-        //     $('#dataTable').DataTable();
-        // });
-    </script>
+    <div class="px-2">
+        <div class="table-responsive border-0">
+            <table class="table mobile-card-view align-middle">
+                <thead class="bg-light">
+                    <tr>
+                        <th>بیمار</th>
+                        <th>علت مراجعه</th> <th>تاریخ</th>
+                        <th>مسئول فعلی</th>
+                        <th>وضعیت</th>
+                        <th>عملیات</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for visit in page_obj %}
+                        <tr>
+                            <td data-label="بیمار">
+                                <a href="{% url 'core:patient_detail' visit.patient.pk %}" class="fw-bold text-decoration-none text-primary">
+                                    {{ visit.patient.full_name }}
+                                </a>
+                            </td>
+                            
+                            <td data-label="علت">
+                                <span class="small text-muted text-truncate-custom" title="{{ visit.reason_for_visit }}">
+                                    {{ visit.reason_for_visit|default:"---" }}
+                                </span>
+                            </td>
+
+                            <td data-label="زمان ثبت">
+                                <span class="text-muted small">{{ visit.visit_date|jformat:'%Y/%m/%d - %H:%M' }}</span>
+                            </td>
+
+                            <td data-label="مسئول فعلی">
+                                <span class="small text-primary fw-bold">
+                                    {% if visit.assigned_to %}
+                                        {{ visit.assigned_to.get_full_name|default:visit.assigned_to.username }}
+                                    {% else %}
+                                        <span class="text-muted fw-normal">---</span>
+                                    {% endif %}
+                                </span>
+                            </td>
+
+                            <td data-label="وضعیت">
+                                {% if visit.status == 'completed' %}
+                                    <span class="badge bg-success-subtle text-success border border-success-subtle rounded-pill px-3 status-pill">تکمیل شده</span>
+                                {% elif visit.status == 'referred' %}
+                                    <span class="badge bg-info-subtle text-info border border-info-subtle rounded-pill px-3 status-pill">ارجاع شده</span>
+                                {% else %}
+                                    <span class="badge bg-warning-subtle text-warning border border-warning-subtle rounded-pill px-3 status-pill">در حال بررسی</span>
+                                {% endif %}
+                            </td>
+
+                            <td class="action-cell">
+                                <a href="{% url 'visits:visit_detail' visit.pk %}" class="btn btn-sm btn-light rounded-circle text-info shadow-sm" title="مشاهده">
+                                    <i class="fas fa-eye"></i>
+                                </a>
+                                {% if visit.status != 'completed' %}
+                                    {% if visit.assigned_to == user or user.is_superuser %}
+                                        <a href="{% url 'visits:visit_update' visit.pk %}" class="btn btn-sm btn-light rounded-circle text-warning shadow-sm mx-1" title="ویرایش">
+                                            <i class="fas fa-edit"></i>
+                                        </a>
+                                        <button type="button" class="btn btn-sm btn-light rounded-circle text-danger shadow-sm" data-bs-toggle="modal" data-bs-target="#deleteModal{{ visit.pk }}" title="حذف">
+                                            <i class="fas fa-trash"></i>
+                                        </button>
+                                    {% endif %}
+                                {% endif %}
+                            </td>
+                        </tr>
+
+                        <div class="modal fade" id="deleteModal{{ visit.pk }}" tabindex="-1" aria-hidden="true">
+                            <div class="modal-dialog modal-dialog-centered modal-sm">
+                                <div class="modal-content border-0 shadow" style="border-radius: 20px;">
+                                    <div class="modal-body text-center p-4">
+                                        <i class="fas fa-exclamation-circle text-danger fa-3x mb-3"></i>
+                                        <p class="mb-4">آیا از حذف ویزیت <strong>{{ visit.patient.full_name }}</strong> اطمینان دارید؟</p>
+                                        <form action="{% url 'visits:visit_delete' visit.pk %}" method="post" class="d-flex gap-2">
+                                            {% csrf_token %}
+                                            <button type="submit" class="btn btn-danger w-100 rounded-pill">بله، حذف</button>
+                                            <button type="button" class="btn btn-light w-100 rounded-pill" data-bs-dismiss="modal">لغو</button>
+                                        </form>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    {% empty %}
+                        <tr>
+                            <td colspan="6" class="text-center py-5">
+                                <div class="text-muted">
+                                    <i class="fas fa-search-minus fa-3x mb-3 opacity-25"></i>
+                                    <p>هیچ ویزیتی یافت نشد.</p>
+                                </div>
+                            </td>
+                        </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    {% if page_obj.has_other_pages %}
+    <nav class="mt-4 mb-5">
+        <ul class="pagination pagination-sm justify-content-center">
+            {% if page_obj.has_previous %}
+                <li class="page-item">
+                    <a class="page-link border-0 shadow-sm mx-1 rounded-circle" href="?page={{ page_obj.previous_page_number }}&q={{ search_query|default:'' }}&view={{ view_filter }}">
+                        <i class="fas fa-chevron-right"></i>
+                    </a>
+                </li>
+            {% endif %}
+            <li class="page-item active"><span class="page-link border-0 shadow-sm mx-1 rounded-pill px-3">{{ page_obj.number }}</span></li>
+            {% if page_obj.has_next %}
+                <li class="page-item">
+                    <a class="page-link border-0 shadow-sm mx-1 rounded-circle" href="?page={{ page_obj.next_page_number }}&q={{ search_query|default:'' }}&view={{ view_filter }}">
+                        <i class="fas fa-chevron-left"></i>
+                    </a>
+                </li>
+            {% endif %}
+        </ul>
+    </nav>
+    {% endif %}
+</div>
 {% endblock %}

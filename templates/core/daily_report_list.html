@@ -1,0 +1,137 @@
+{% extends main_base %}
+
+{% load static %}
+{% load jformat %}
+
+{% block content %}
+<style>
+    /* استایل اختصاصی برای تبدیل جدول به کارت در موبایل */
+    @media (max-width: 768px) {
+        .responsive-table thead { display: none; } /* مخفی کردن سرتیتر جدول */
+        .responsive-table border-0 { border: none !important; }
+        .responsive-table tr { 
+            display: block; 
+            background: #fff; 
+            border-radius: 15px; 
+            margin-bottom: 15px; 
+            padding: 15px; 
+            box-shadow: 0 4px 12px rgba(0,0,0,0.05);
+            border: 1px solid #eee !important;
+        }
+        .responsive-table td { 
+            display: flex; 
+            justify-content: space-between; 
+            align-items: center; 
+            border: none !important; 
+            padding: 8px 0 !important;
+            text-align: left;
+        }
+        .responsive-table td::before { 
+            content: attr(data-label); 
+            font-weight: bold; 
+            color: #666; 
+            font-size: 0.85rem;
+            margin-left: 10px;
+        }
+        .mobile-actions { justify-content: center; width: 100%; margin-top: 10px; border-top: 1px solid #f0f0f0 !important; padding-top: 15px !important; }
+    }
+    
+    .badge-shift { font-size: 0.75rem; padding: 6px 12px; }
+    .report-card-title { font-size: 1.1rem; color: #0d6efd; }
+</style>
+
+<div class="container-fluid">
+    <div class="d-flex justify-content-between align-items-center mb-3">
+        <h5 class="fw-bold m-0"><i class="fas fa-file-alt me-2 text-primary"></i> گزارش‌های روزانه</h5>
+        <a href="{% url 'core:manage_daily_report' %}" class="btn btn-sm btn-success rounded-pill shadow-sm">
+            <i class="fas fa-plus"></i> ثبت جدید
+        </a>
+    </div>
+
+    <div class="card border-0 shadow-sm mb-3" style="border-radius: 12px;">
+        <div class="card-body p-2">
+            <form method="get" class="d-flex gap-2">
+                <input type="text" name="search" class="form-control form-control-sm border-0 bg-light" placeholder="جستجوی نام پزشک یا پرستار..." value="{{ request.GET.search }}">
+                <button type="submit" class="btn btn-primary btn-sm px-3 rounded-3">
+                    <i class="fas fa-search"></i>
+                </button>
+            </form>
+        </div>
+    </div>
+
+    <div class="table-responsive border-0">
+        <table class="table responsive-table align-middle">
+            <thead class="bg-light text-muted">
+                <tr>
+                    <th>تاریخ ثبت</th>
+                    <th>شیفت</th>
+                    <th>کادر درمان</th>
+                    <th class="text-center">وضعیت</th>
+                    <th class="text-center">عملیات</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for report in reports %}
+                <tr>
+                    <td data-label="تاریخ ثبت">
+                        <div class="fw-bold">{{ report.created_at|jformat:"%Y/%m/%d" }}</div>
+                        <div class="small text-muted">ساعت {{ report.created_at|jformat:"%H:i" }}</div>
+                    </td>
+                    <td data-label="نوع شیفت">
+                        <span class="badge badge-shift {% if 'صبح' in report.shift_type %}bg-info text-dark{% elif 'شب' in report.shift_type %}bg-dark text-white{% else %}bg-primary{% endif %} rounded-pill">
+                            {{ report.shift_type }}
+                        </span>
+                    </td>
+                    <td data-label="کادر درمان">
+                        <div class="small"><i class="fas fa-user-md text-primary"></i> {{ report.doctor.get_full_name|default:"---" }}</div>
+                        <div class="small"><i class="fas fa-user-nurse text-success"></i> {{ report.nurse.get_full_name|default:"---" }}</div>
+                    </td>
+                    <td data-label="درخواست‌ها" class="text-center">
+                        {% if report.requirements.exists %}
+                            <a href="{% url 'core:requirement_tracking' %}?report_id={{ report.id }}" class="text-decoration-none">
+                                <span class="badge bg-warning text-dark rounded-pill">{{ report.requirements.count }} مورد</span>
+                                <div class="mt-1" style="font-size: 0.7rem;">
+                                    {% with first_req=report.requirements.first %}
+                                        {% if first_req.status != 'created' %}
+                                            <span class="text-success"><i class="fas fa-check-double"></i> مشاهده شد</span>
+                                        {% else %}
+                                            <span class="text-muted">در انتظار</span>
+                                        {% endif %}
+                                    {% endwith %}
+                                </div>
+                            </a>
+                        {% else %}
+                            <span class="text-muted small">بدون درخواست</span>
+                        {% endif %}
+                    </td>
+                    <td class="mobile-actions">
+                        <div class="d-flex gap-2 justify-content-center">
+                            <a href="{% url 'core:print_daily_report' report.id %}" class="btn btn-outline-primary btn-sm rounded-pill px-3">
+                                <i class="fas fa-print"></i> چاپ
+                            </a>
+                            <a href="{% url 'core:requirement_tracking' %}?report_id={{ report.id }}" class="btn btn-outline-warning btn-sm rounded-pill px-3 text-dark">
+                                <i class="fas fa-search"></i> پیگیری
+                            </a>
+                        </div>
+                    </td>
+                </tr>
+                {% empty %}
+                <tr>
+                    <td colspan="5" class="text-center py-5">
+                        <div class="text-muted">
+                            <i class="fas fa-folder-open fa-3x mb-3 opacity-25"></i>
+                            <p>هیچ گزارشی یافت نشد.</p>
+                        </div>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+
+    <div class="alert alert-info border-0 shadow-sm mt-3" style="border-radius: 12px; font-size: 0.8rem;">
+        <i class="fas fa-lightbulb text-warning me-1"></i>
+        عبارت <span class="text-success fw-bold">"مشاهده شد"</span> یعنی مدیریت بهداری از درخواست‌ها مطلع شده است.
+    </div>
+</div>
+{% endblock %}
